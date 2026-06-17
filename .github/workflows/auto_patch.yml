@@ -1,0 +1,58 @@
+name: 🚀 自動同步並注入外掛
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 每天凌晨 12:00 自動執行
+  workflow_dispatch: # 允許妳隨時手動按按鈕更新
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 複製妳自己的專案（包含 klh 檔案）
+      - name: Checkout my repo
+        uses: actions/checkout@v4
+
+      # 2. 抓取原作者最新的程式碼，塞到臨時資料夾
+      - name: Fetch upstream repository
+        run: |
+          git clone --depth=1 https://github.com/shines871/idle-lineage-class.git upstream
+          # 把原作者的所有檔案複製到根目錄（但不覆蓋妳的 klh 檔案和 .github）
+          rsync -av --exclude='.git' --exclude='.github' upstream/ .
+          rm -rf upstream
+
+      # 3. 用 Python 自動在 index.html 的 </body> 前面插入妳的外掛代碼
+      - name: Inject custom scripts into index.html
+        run: |
+          python3 -c "
+          with open('index.html', 'r', encoding='utf-8') as f:
+              content = f.read()
+
+          inject_code = '''
+          <script src=\"https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=20260615b\"></script>
+          <script src=\"https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=20260616d\"></script>
+          <script src=\"https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=20260614f\"></script>
+          <script src=\"https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=20260616f\"></script>
+          <script src=\"https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=20260615b\"></script>
+          <script src=\"klh_jsonblob.js?v=20260616_2\"></script>
+          <script src=\"klh_GM.js?v=20260616\"></script>
+          <script src=\"klh_GM2.js?v=20260616\"></script>
+          '''
+
+          if 'klh_jsonblob.js' not in content:
+              content = content.replace('</body>', inject_code + '\n</body>')
+              with open('index.html', 'w', encoding='utf-8') as f:
+                  f.write(content)
+              print('Successfully injected!')
+          else:
+              print('Already injected, skipping.')
+          "
+
+      # 4. 把組裝好、改好的成果推回妳的 GitHub 儲存庫
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff-index --quiet HEAD || git commit -m "🤖 自動同步原作者更新並注入外掛"
+          git push origin main
