@@ -241,9 +241,19 @@
 
     // 7. 覆寫 Krista 兌換系統
     window.kristaExchange = function (kind) {
-        let GOLD = 10000;
-        if ((player.gold || 0) < GOLD) {
-            logSys(`<span class="text-red-400">金幣不足（需 ${GOLD.toLocaleString()}）。</span>`);
+        let cost = 10000;
+        let count = 20;
+
+        if (kind === 'god_bless_1') {
+            cost = 10000;
+            count = 1;
+        } else if (kind === 'god_bless_20') {
+            cost = 200000;
+            count = 20;
+        }
+
+        if ((player.gold || 0) < cost) {
+            logSys(`<span class="text-red-400">金幣不足（需 ${cost.toLocaleString()}）。</span>`);
             return;
         }
 
@@ -252,18 +262,20 @@
             arm: { out: 'new_item_bless_arm', outNm: '賦予盔甲祝福卷軸', type: '張' },
             acc: { out: 'new_item_bless_acc', outNm: '賦予飾品祝福卷軸', type: '張' },
             uncurse: { out: 'new_item_uncurse', outNm: '解除詛咒的卷軸', type: '張' },
-            god_bless: { out: 'potion_god_bless', outNm: '神之祝福藥水', type: '瓶' }
+            god_bless_1: { out: 'potion_god_bless', outNm: '神之祝福藥水', type: '瓶' },
+            god_bless_20: { out: 'potion_god_bless', outNm: '神之祝福藥水', type: '瓶' }
         }[kind];
 
         if (!cfg) return;
 
-        player.gold -= GOLD;
-        gainItem(cfg.out, 20, true, true);
+        player.gold -= cost;
+        gainItem(cfg.out, count, true, true);
         renderTabs();
         updateUI();
         saveGame();
 
-        logSys(`花費 ${GOLD.toLocaleString()} 金幣，換得 20 ${cfg.type} <span class="text-purple-300 font-bold">${cfg.outNm}</span>。`);
+        let colorClass = cfg.out === 'potion_god_bless' ? 'text-yellow-300' : 'text-purple-300';
+        logSys(`花費 ${cost.toLocaleString()} 金幣，換得 ${count} ${cfg.type} <span class="${colorClass} font-bold">${cfg.outNm}</span>。`);
 
         let _e = document.getElementById('interaction-content');
         if (_e) renderKristaExchange(_e);
@@ -284,7 +296,14 @@
             ${row('arm', '賦予盔甲祝福卷軸', '張')}
             ${row('acc', '賦予飾品祝福卷軸', '張')}
             ${row('uncurse', '解除詛咒的卷軸', '張')}
-            ${row('god_bless', '神之祝福藥水', '瓶')}
+            <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
+                <div class="text-sm text-slate-200 leading-relaxed">10,000 金幣 → 1 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
+                <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_1')">兌換</button>
+            </div>
+            <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
+                <div class="text-sm text-slate-200 leading-relaxed">200,000 金幣 → 20 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
+                <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_20')">兌換</button>
+            </div>
         </div>`;
     };
 
@@ -587,7 +606,15 @@
         hdr.className = 'sticky top-0 z-10 mb-1 bg-slate-900 pb-1 flex gap-1';
 
         if (!st.active) {
-            hdr.innerHTML = `<button onclick="toggleQuickSell('${type}')" class="w-full btn border-amber-700 bg-amber-900/70 hover:bg-amber-800 py-1.5 text-sm font-bold text-amber-200 rounded shadow">💰 批量賣出</button>`;
+            hdr.className = 'sticky top-0 z-10 mb-1 bg-slate-900 pb-1 flex flex-col gap-1';
+            hdr.innerHTML = `
+                <button onclick="toggleQuickSell('${type}')" class="w-full btn border-amber-700 bg-amber-900/70 hover:bg-amber-800 py-1.5 text-sm font-bold text-amber-200 rounded shadow">💰 批量賣出</button>
+                <div class="flex gap-1 w-full">
+                    <input type="text" id="fuzzy-sell-input-${type}" placeholder="模糊搜尋 (如: 匕首)..." class="flex-1 bg-slate-950 border border-slate-700 text-white rounded text-xs px-2 py-1" onkeydown="if(event.key==='Enter') runFuzzySearch('${type}')">
+                    <button onclick="runFuzzySearch('${type}')" class="btn border-sky-700 bg-sky-900/70 hover:bg-sky-800 py-1 px-3 text-xs font-bold text-sky-200 rounded shadow shrink-0">🔍 搜尋</button>
+                    <button onclick="runFuzzySell('${type}')" class="btn border-red-700 bg-red-900/70 hover:bg-red-800 py-1 px-3 text-xs font-bold text-red-200 rounded shadow shrink-0">💥 一鍵賣出</button>
+                </div>
+            `;
             return hdr;
         }
 
@@ -706,6 +733,119 @@
             renderSkillSelects();
         }
         updateUI(); // 🏅 同步更新主畫面金幣與負重顯示
+        renderTabs(true);
+        saveGame();
+    };
+
+    // 模糊搜尋與勾選 (排除鎖定物品)
+    window.runFuzzySearch = function (type) {
+        let inputEl = document.getElementById(`fuzzy-sell-input-${type}`);
+        if (!inputEl) return;
+        let query = inputEl.value.trim().toLowerCase();
+        if (!query) {
+            logSys(`<span class="text-red-400 font-bold">請輸入搜尋關鍵字。</span>`);
+            return;
+        }
+
+        let eligible = _qsEligibleItems(type);
+        let matches = eligible.filter(i => {
+            if (i.lock) return false; // 鎖定物品不搜尋不勾選
+            let fullName = getItemFullName(i).toLowerCase();
+            let d = DB.items[i.id];
+            let baseName = d ? d.n.toLowerCase() : '';
+            return fullName.includes(query) || baseName.includes(query);
+        });
+
+        if (matches.length === 0) {
+            logSys(`<span class="text-amber-400 font-bold">找不到符合「${query}」的未鎖定物品。</span>`);
+            return;
+        }
+
+        // 啟動批量賣出模式
+        let st = window.quickSell[type];
+        st.active = true;
+        st.sel = {};
+
+        // 互斥：關閉該分頁的快速強化模式
+        if (typeof quickEnh !== 'undefined' && quickEnh[type]) {
+            quickEnh[type].active = false;
+            quickEnh[type].sel = {};
+        }
+
+        // 自動勾選所有匹配的未鎖定物品
+        matches.forEach(i => {
+            if (!i.lock) st.sel[i.uid] = true;
+        });
+
+        logSys(`<span class="text-green-400 font-bold">已進入批量模式，並自動勾選符合「${query}」的 ${matches.length} 件未鎖定物品。</span>`);
+        renderTabs(true);
+    };
+
+    // 模糊搜尋一鍵賣出 (排除鎖定物品)
+    window.runFuzzySell = function (type) {
+        let inputEl = document.getElementById(`fuzzy-sell-input-${type}`);
+        if (!inputEl) return;
+        let query = inputEl.value.trim().toLowerCase();
+        if (!query) {
+            logSys(`<span class="text-red-400 font-bold">請輸入搜尋關鍵字。</span>`);
+            return;
+        }
+
+        let eligible = _qsEligibleItems(type);
+        let matches = eligible.filter(i => {
+            if (i.lock) return false; // 鎖定物品不賣
+            let fullName = getItemFullName(i).toLowerCase();
+            let d = DB.items[i.id];
+            let baseName = d ? d.n.toLowerCase() : '';
+            return fullName.includes(query) || baseName.includes(query);
+        });
+
+        if (matches.length === 0) {
+            logSys(`<span class="text-amber-400 font-bold">找不到符合「${query}」的未鎖定物品。</span>`);
+            return;
+        }
+
+        let totalGold = 0;
+        let sellUids = new Set();
+        let details = [];
+        let anyGrant = false;
+
+        matches.forEach(entry => {
+            if (entry.lock) return; // 雙重防護
+            sellUids.add(entry.uid);
+            let d = DB.items[entry.id];
+            if (d && d.grantSkills) {
+                anyGrant = true;
+            }
+            let price = getSellPrice(entry);
+            let cnt = entry.cnt || 1;
+            let gold = price * cnt;
+            totalGold += gold;
+            details.push(`${getItemFullName(entry)} x${cnt} (${gold.toLocaleString()}金幣)`);
+        });
+
+        if (!confirm(`確定要一鍵賣出所有包含「${query}」的 ${matches.length} 件未鎖定物品嗎？\n將會獲得 ${totalGold.toLocaleString()} 金幣。\n(鎖定裝備已被安全排除，不會售出)`)) {
+            return;
+        }
+
+        // 扣除並售出
+        player.inv = player.inv.filter(i => !sellUids.has(i.uid));
+        player.gold = (player.gold || 0) + totalGold;
+
+        logSys(`<span class="text-yellow-400 font-bold">模糊一鍵賣出完成！</span>獲得 <span class="text-yellow-400 font-bold">${totalGold.toLocaleString()} 金幣</span>。`);
+        if (details.length <= 5) {
+            details.forEach(d => logSys(`  - 賣出 ${d}`));
+        } else {
+            logSys(`  - 共賣出 ${details.length} 種物品。`);
+        }
+
+        inputEl.value = ''; // 售出後清除輸入框
+
+        calcStats();
+        if (anyGrant && typeof renderSkillSelects === 'function') {
+            renderSkillSelects();
+        }
+        updateUI();
         renderTabs(true);
         saveGame();
     };

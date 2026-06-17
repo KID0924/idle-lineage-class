@@ -84,15 +84,21 @@
             cells += `<div class="bg-slate-900 border-2 border-purple-700 rounded-lg aspect-square overflow-hidden"><div class="gacha10-icon w-full h-full flex items-center justify-center text-xl" data-idx="${k}">❓</div></div>`;
         }
 
+        let cells100 = '';
+        for (let k = 0; k < 100; k++) {
+            cells100 += `<div class="bg-slate-900 border border-purple-700 rounded aspect-square overflow-hidden"><div class="gacha100-icon w-full h-full flex items-center justify-center text-[10px]" data-idx="${k}">❓</div></div>`;
+        }
+
         let html = `
         <div class="flex flex-col items-center justify-start h-full p-4 w-full">
             <h3 class="text-3xl font-bold text-purple-400 mb-1 drop-shadow-md">潘朵拉的妹妹</h3>
-            <p class="text-slate-300 text-xs mb-1 text-center">金幣抽獎：單抽 <span class="text-yellow-400 font-bold">3,000</span> 金幣 / 十連抽 <span class="text-yellow-400 font-bold">30,000</span> 金幣</p>
+            <p class="text-slate-300 text-xs mb-1 text-center">金幣抽獎：單抽 <span class="text-yellow-400 font-bold">3,000</span> 金幣 / 十連抽 <span class="text-yellow-400 font-bold">30,000</span> 金幣 / 百連抽 <span class="text-yellow-400 font-bold">300,000</span> 金幣</p>
             <p class="text-slate-400 text-xs mb-3 text-center">抽中的武器 / 防具 / 飾品各有 1% 機率帶有 屬性 / 遠古 / 祝福 詞綴！</p>
 
             <div class="flex gap-2 mb-4">
                 <button id="gacha-tab-single" class="btn py-1.5 px-4 text-sm rounded-full ${mode==='single'?'bg-purple-700 border-purple-500':'bg-slate-700 border-slate-600'}" onclick="setGachaMode('single')">單抽</button>
                 <button id="gacha-tab-ten" class="btn py-1.5 px-4 text-sm rounded-full ${mode==='ten'?'bg-purple-700 border-purple-500':'bg-slate-700 border-slate-600'}" onclick="setGachaMode('ten')">10 連抽</button>
+                <button id="gacha-tab-hundred" class="btn py-1.5 px-4 text-sm rounded-full ${mode==='hundred'?'bg-purple-700 border-purple-500':'bg-slate-700 border-slate-600'}" onclick="setGachaMode('hundred')">100 連抽</button>
             </div>
 
             <div id="gacha-single" class="${mode==='single'?'':'hidden'} flex flex-col items-center w-full">
@@ -113,6 +119,14 @@
                 <div id="gacha10-results" class="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-3 text-sm"></div>
             </div>
 
+            <div id="gacha-hundred" class="${mode==='hundred'?'':'hidden'} flex flex-col items-center w-full">
+                <div class="grid grid-cols-10 gap-0.5 w-full max-w-sm mb-3">${cells100}</div>
+                <button id="btn-gacha100" class="btn bg-purple-700 hover:bg-purple-600 border-purple-500 py-3 px-8 text-lg font-bold rounded-full shadow-[0_0_15px_rgba(126,34,206,0.5)] transition-all transform hover:scale-105" onclick="doSisterGacha100()">
+                    🎰 100 連抽（300,000 金幣）
+                </button>
+                <div id="gacha100-results" class="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-3 text-sm max-h-24 overflow-y-auto"></div>
+            </div>
+
             <p id="gacha-msg" class="text-yellow-300 mt-3 font-bold text-base min-h-8 text-center"></p>
         </div>
         `;
@@ -120,20 +134,24 @@
         div.innerHTML = html;
     };
 
-    // 4. 切換單抽 / 10連抽
+    // 4. 切換單抽 / 10連抽 / 100連抽
     window.setGachaMode = function (m) {
         if (gachaRolling) return;
         window._gachaMode = m;
         const sEl = document.getElementById('gacha-single');
         const tEl = document.getElementById('gacha-ten');
+        const hEl = document.getElementById('gacha-hundred');
         const bS = document.getElementById('gacha-tab-single');
         const bT = document.getElementById('gacha-tab-ten');
+        const bH = document.getElementById('gacha-tab-hundred');
         const msg = document.getElementById('gacha-msg');
         
         if (sEl) sEl.classList.toggle('hidden', m !== 'single');
         if (tEl) tEl.classList.toggle('hidden', m !== 'ten');
+        if (hEl) hEl.classList.toggle('hidden', m !== 'hundred');
         if (bS) bS.className = `btn py-1.5 px-4 text-sm rounded-full ${m==='single'?'bg-purple-700 border-purple-500':'bg-slate-700 border-slate-600'}`;
         if (bT) bT.className = `btn py-1.5 px-4 text-sm rounded-full ${m==='ten'?'bg-purple-700 border-purple-500':'bg-slate-700 border-slate-600'}`;
+        if (bH) bH.className = `btn py-1.5 px-4 text-sm rounded-full ${m==='hundred'?'bg-purple-700 border-purple-500':'bg-slate-700 border-slate-600'}`;
         if (msg) msg.innerHTML = '';
     };
 
@@ -234,7 +252,8 @@
                     flash.style.opacity = '0';
                     setTimeout(() => flash.remove(), 1000);
 
-                    logSys(`【系統廣播】一道金光劃破天際！玩家在抽獎中幸運抽中了傳說級的 <span class="${colorClass} font-bold">${fullName}</span>！`);
+                    let brightJackpotName = `<span class="text-yellow-300 font-extrabold animate-pulse" style="color: #fffbeb; text-shadow: 0 0 8px #facc15, 0 0 15px #eab308, 0 0 30px #ca8a04; font-size: 1.15em; display: inline-block;">${fullName}</span>`;
+                    logSys(`【系統廣播】一道金光劃破天際！玩家在抽獎中幸運抽中了傳說級的 ${brightJackpotName}！`);
                 } else {
                     displayIcon.innerHTML = `<img src="${finalImg}" onerror="this.src='https://placehold.co/100x100/1e293b/ffffff?text=?';" class="w-28 h-28 object-contain ${glowClass} drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">`;
                     if (gachaMsg) {
@@ -331,7 +350,8 @@
                             cell.classList.remove('border-purple-700');
                             cell.classList.add('border-yellow-400', 'animate-pulse');
                         }
-                        jackpotNames.push(getItemFullName(gi));
+                        let brightJackpotName = `<span class="text-yellow-300 font-extrabold animate-pulse" style="color: #fffbeb; text-shadow: 0 0 8px #facc15, 0 0 15px #eab308, 0 0 30px #ca8a04; font-size: 1.15em; display: inline-block;">${getItemFullName(gi)}</span>`;
+                        jackpotNames.push(brightJackpotName);
                     }
                 });
 
@@ -339,9 +359,11 @@
                     resultsEl.innerHTML = results.map(gi => `<span class="${getItemColor(gi)}">${getItemFullName(gi)}</span>`).join('、');
                 }
 
+                let itemsList = results.map(gi => `<span class="${getItemColor(gi)} font-bold">${getItemFullName(gi)}</span>`).join('、');
+
                 if (jackpotNames.length > 0) {
                     if (gachaMsg) {
-                        gachaMsg.innerHTML = `🌟 <span class="text-yellow-300 font-extrabold text-xl drop-shadow-[0_0_10px_rgba(253,224,71,0.8)]">傳說降臨！</span> 本次 10 連抽出 ${jackpotNames.length} 件傳說！`;
+                        gachaMsg.innerHTML = `🌟 <span class="text-yellow-300 font-extrabold text-xl drop-shadow-[0_0_10px_rgba(253,224,71,0.8)]">傳說降臨！</span> 本次 10 連抽出 ${jackpotNames.length} 件傳說！<br><div class="text-sm font-normal mt-2 leading-relaxed">獲得物品：<br>${itemsList}</div>`;
                     }
                     
                     let flash = document.createElement('div');
@@ -351,11 +373,144 @@
                     flash.style.opacity = '0';
                     setTimeout(() => flash.remove(), 1000);
                     
-                    jackpotNames.forEach(nm => logSys(`【系統廣播】一道金光劃破天際！玩家在十連抽中幸運抽中了傳說級的 <span class="text-yellow-300 font-bold">${nm}</span>！`));
+                    jackpotNames.forEach(nm => logSys(`【系統廣播】一道金光劃破天際！玩家在十連抽中幸運抽中了傳說級的 ${nm}！`));
                 } else {
-                    if (gachaMsg) gachaMsg.innerHTML = `恭喜完成 10 連抽，獲得 10 件物品！`;
+                    if (gachaMsg) {
+                        gachaMsg.innerHTML = `恭喜完成 10 連抽，獲得 10 件物品！<br><div class="text-sm font-normal mt-2 leading-relaxed">獲得物品：<br>${itemsList}</div>`;
+                    }
                 }
-                logSys(`在潘朵拉的妹妹處花費 ${cost.toLocaleString()} 金幣進行 10 連抽，獲得 10 件物品。`);
+                logSys(`在潘朵拉的妹妹處花費 ${cost.toLocaleString()} 金幣進行 10 連抽，獲得：${results.map(gi => `<span class="${getItemColor(gi)} font-bold">${getItemFullName(gi)}</span>`).join('、')}。`);
+
+                gachaRolling = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.classList.add('hover:scale-105');
+                }
+            }
+        }, 80);
+    };
+
+    // 6.5 執行百連抽邏輯
+    window.doSisterGacha100 = function () {
+        if (gachaRolling) return;
+        
+        let cost = 300000;
+        if (player.gold < cost) {
+            const msg = document.getElementById('gacha-msg');
+            if (msg) msg.innerHTML = `<span class="text-red-400">金幣不足！(需 ${cost} 金幣)</span>`;
+            return;
+        }
+        player.gold -= cost;
+
+        updateUI();
+
+        let results = [];
+        for (let k = 0; k < 100; k++) {
+            let fid = getWeightedGachaResult();
+            let gi = gainItem(fid, 1, true, false, true); 
+            if (!gi) gi = { id: fid, en: 0, bless: false, anc: false, attr: false, cnt: 1 };
+            results.push(gi);
+        }
+        saveGame();
+
+        gachaRolling = true;
+        let btn = document.getElementById('btn-gacha100');
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.remove('hover:scale-105');
+        }
+        
+        const gachaMsg = document.getElementById('gacha-msg');
+        if (gachaMsg) gachaMsg.innerHTML = '<span class="text-slate-300">命運的齒輪開始轉動...</span>';
+        
+        const resultsEl = document.getElementById('gacha100-results');
+        if (resultsEl) resultsEl.innerHTML = '';
+
+        let iconEls = Array.from(document.querySelectorAll('.gacha100-icon'));
+        iconEls.forEach(el => {
+            let cell = el.parentElement;
+            if (cell) {
+                cell.classList.remove('border-yellow-400', 'animate-pulse');
+                cell.classList.add('border-purple-700');
+            }
+        });
+
+        let itemIds = Object.keys(DB.items);
+        let rollCount = 0;
+        let rollInterval = setInterval(() => {
+            if (!iconEls.length || !iconEls[0].isConnected) {   
+                clearInterval(rollInterval);
+                gachaRolling = false;
+                return;
+            }
+            
+            iconEls.forEach(el => {
+                let rid = itemIds[Math.floor(Math.random() * itemIds.length)];
+                let img = getIconUrl(DB.items[rid]);
+                el.innerHTML = `<img src="${img}" onerror="this.src='https://placehold.co/100x100/1e293b/ffffff?text=?';" class="w-full h-full object-contain opacity-60">`;
+            });
+            rollCount++;
+
+            if (rollCount > 15) {
+                clearInterval(rollInterval);
+
+                let jackpotNames = [];
+                results.forEach((gi, k) => {
+                    let d = DB.items[gi.id];
+                    let img = getIconUrl(d);
+                    let glow = getGlowClass(null, d);
+                    let el = iconEls[k];
+                    if (!el) return;
+                    el.innerHTML = `<img src="${img}" onerror="this.src='https://placehold.co/100x100/1e293b/ffffff?text=?';" class="w-full h-full object-contain ${glow}">`;
+                    
+                    if (d && d.gachaWeight === 1) {   
+                        let cell = el.parentElement;
+                        if (cell) {
+                            cell.classList.remove('border-purple-700');
+                            cell.classList.add('border-yellow-400', 'animate-pulse');
+                        }
+                        let brightJackpotName = `<span class="text-yellow-300 font-extrabold animate-pulse" style="color: #fffbeb; text-shadow: 0 0 8px #facc15, 0 0 15px #eab308, 0 0 30px #ca8a04; font-size: 1.15em; display: inline-block;">${getItemFullName(gi)}</span>`;
+                        jackpotNames.push(brightJackpotName);
+                    }
+                });
+
+                if (resultsEl) {
+                    resultsEl.innerHTML = results.map(gi => `<span class="${getItemColor(gi)}">${getItemFullName(gi)}</span>`).join('、');
+                }
+
+                // Summarize findings for clean display in gachaMsg
+                let itemSummary = {};
+                results.forEach(gi => {
+                    let name = getItemFullName(gi);
+                    let color = getItemColor(gi);
+                    let key = `${color}||${name}`;
+                    itemSummary[key] = (itemSummary[key] || 0) + 1;
+                });
+                
+                let summaryList = Object.keys(itemSummary).map(k => {
+                    let [color, name] = k.split('||');
+                    return `<span class="${color} font-bold">${name}</span> x${itemSummary[k]}`;
+                }).join('、');
+
+                if (jackpotNames.length > 0) {
+                    if (gachaMsg) {
+                        gachaMsg.innerHTML = `🌟 <span class="text-yellow-300 font-extrabold text-xl drop-shadow-[0_0_10px_rgba(253,224,71,0.8)]">傳說降臨！</span> 本次 100 連抽出 ${jackpotNames.length} 件傳說！<br><div class="text-sm font-normal mt-2 leading-relaxed">獲得物品：<br>${summaryList}</div>`;
+                    }
+                    
+                    let flash = document.createElement('div');
+                    flash.className = 'fixed inset-0 bg-white z-50 pointer-events-none transition-opacity duration-1000 ease-out';
+                    document.body.appendChild(flash);
+                    void flash.offsetWidth;
+                    flash.style.opacity = '0';
+                    setTimeout(() => flash.remove(), 1000);
+                    
+                    jackpotNames.forEach(nm => logSys(`【系統廣播】一道金光劃破天際！玩家在百連抽中幸運抽中了傳說級的 ${nm}！`));
+                } else {
+                    if (gachaMsg) {
+                        gachaMsg.innerHTML = `恭喜完成 100 連抽，獲得 100 件物品！<br><div class="text-sm font-normal mt-2 leading-relaxed">獲得物品：<br>${summaryList}</div>`;
+                    }
+                }
+                logSys(`在潘朵拉的妹妹處花費 ${cost.toLocaleString()} 金幣進行 100 連抽，獲得：${summaryList}。`);
 
                 gachaRolling = false;
                 if (btn) {
@@ -384,7 +539,7 @@
                                 n: "潘朵拉的妹妹",
                                 title: "白商",
                                 type: "shop",
-                                d: "提供金幣隨機抽獎，3000金幣單抽，30000金幣十連抽。"
+                                d: "提供金幣隨機抽獎，3000金幣單抽，30000金幣十連抽，300000金幣百連抽。"
                             });
                         }
                     }
