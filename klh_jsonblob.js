@@ -2,7 +2,7 @@
  * klh_jsonblob.js — 雲端存檔與難度自訂功能
  *
  * 設計原則: 完全不改原作者程式碼，只從外面「包住」全域函式 (monkey-patch)。
- * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本： 
+ * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
  * * <script src="klh_jsonblob.js?v=20260616"></script>
  * ========================================================================== */
 
@@ -1264,36 +1264,39 @@
         }
     ]);
 
-    // 創角階段上限 capN = 40 (原來是 20)
+    // 創角階段上限為原本+20 (防止作者日後變動，動態改寫為原本上限+20)
     patchGlobalFunctionMultiple('adjStat', [
         {
-            find: `let capN = 20;`,
-            replace: `let capN = 40;`
+            find: /let capN = (\d+);/,
+            replace: 'let capN = parseInt($1) + 20;'
         }
     ]);
 
-    // 遊戲內配點上限調至 100 (原為 60)
+    // 遊戲內配點上限為原本+40 (動態改寫為原本上限+40)
     patchGlobalFunctionMultiple('adjBonusStat', [
         {
-            find: `let capN = 60;`,
-            replace: `let capN = 100;`
+            find: /let capN = (\d+);/,
+            replace: 'let capN = parseInt($1) + 40;'
         }
     ]);
 
-    // 萬能藥單項屬性上限調至 100 (原為 60)
+    // 萬能藥單項屬性上限為原本+40 (動態改寫為原本上限+40)
     patchGlobalFunctionMultiple('useItem', [
         {
-            find: `let st = d.pstat, cap = 60;`,
-            replace: `let st = d.pstat, cap = 100;`
+            find: /let st = d\.pstat,\s*cap = (\d+);/,
+            replace: 'let st = d.pstat, cap = parseInt($1) + 40;'
         }
     ]);
 
-    // 動態修改萬能藥說明文字中的上限描述為 100
+    // 動態修改萬能藥說明文字中的上限描述為原本上限+40
     if (typeof DB !== 'undefined' && DB.items) {
         for (let itemId in DB.items) {
             let item = DB.items[itemId];
             if (item && item.eff === 'panacea' && item.d) {
-                item.d = item.d.replace('上限60', '上限100').replace('上限 60', '上限 100');
+                item.d = item.d.replace(/上限\s*(\d+)/g, (match, p1) => {
+                    const originalVal = parseInt(p1, 10);
+                    return `上限${originalVal + 40}`;
+                });
             }
         }
     }
