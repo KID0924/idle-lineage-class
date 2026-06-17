@@ -1,91 +1,55 @@
-name: 🚀 自動同步並注入外掛
-
-# 設定觸發條件
-on:
-  schedule:
-    - cron: '0 * * * *' # 每小時的第 0 分鐘自動執行一次（排程監控）
-  workflow_dispatch:    # 允許妳在 GitHub 網頁上隨時手動點擊「Run workflow」按鈕更新
-
-# 強制開啟 GitHub 機器人的檔案寫入權限，防止推回倉庫時報錯（Exit code 128）
-permissions:
-  contents: write
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest # 使用 GitHub 提供的最新版 Linux 虛擬伺服器跑自動化
-    steps:
-      
-      # 1. 複製妳自己的專案（把妳基地裡的 klh_*.js 檔案先拿出來準備）
-      - name: 📥 複製我的基地儲存庫
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true # 保持驗證憑證，等一下才有權限推回檔案
-
-      # 2. 抓取遊戲原作者最新的程式碼，放到臨時資料夾組裝
-      - name: 🌐 抓取原作者最新遊戲檔案
+# 3. 執行 Python 腳本，精準注入動態版號與刷新快取
+      - name: 💉 注入動態版號外掛與刷新快取
         run: |
-          # 複製原作者的專案，--depth=1 代表只抓最新一筆歷史，速度最快
-          git clone --depth=1 https://github.com/shines871/idle-lineage-class.git upstream
-          # 使用 rsync 把原作者的所有遊戲檔案複製到根目錄（但排除妳的 .git 和 .github 自動化資料夾，不覆蓋妳的 klh 檔案）
-          rsync -av --exclude='.git' --exclude='.github' upstream/ .
-          # 刪除臨時資料夾，保持環境乾淨
-          rm -rf upstream
-
-      # 3. 執行 Python 腳本，精準在 index.html 底部注入妳的外掛代碼與中文註解
-      - name: 💉 注入外掛腳本與中文註解
-        run: |
-          # 建立一個臨時的 python 檔案，把妳的外掛代碼（含註解）完美寫入
           cat << 'EOF' > inject.py
+          import re, time
+
+          # 🌟 神級黑科技：抓取機器人當下的時間，產生絕對不重複的版號 (例如 202606171706)
+          dynamic_v = time.strftime("%Y%m%d%H%M")
+
+          # 【任務 A：注入外掛並打上全新版號】
           with open('index.html', 'r', encoding='utf-8') as f:
               content = f.read()
 
-          # 這是妳要塞入的完整外掛代碼與對應的中文註解說明
-          inject_code = '''
-          <!-- 離線掛機外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-          <script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=20260615b"></script>
-          <!-- 手機版介面外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-          <script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=20260616d"></script>
-          <!-- 怪物/掉落查詢外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-          <script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=20260614f"></script>
-          <!-- 小百科外掛(專精/武器特性/職業魔法;可獨立維護,原作者更新後重新加回此行即可) -->
-          <script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=20260616f"></script>
-          <!-- 通用修正外掛(補原作者坑,桌機/手機通用;可獨立維護,原作者更新後重新加回此行即可) -->
-          <script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=20260615b"></script>
-          <!-- Json雲端模組 -->
-          <script src="klh_jsonblob.js?v=20260616_2"></script>
-          <!-- GM/抽獎模組 -->
-          <script src="klh_GM.js?v=20260616"></script>
-          <!-- GM2/自定義藥水與兌換模組 -->
-          <script src="klh_GM2.js?v=20260616"></script>
+          # 注意這裡用 Python 的 f-string，把 {dynamic_v} 動態塞進網址裡
+          inject_code = f'''
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v={dynamic_v}"></script>
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v={dynamic_v}"></script>
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v={dynamic_v}"></script>
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v={dynamic_v}"></script>
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v={dynamic_v}"></script>
+          <script src="klh_jsonblob.js?v={dynamic_v}"></script>
+          <script src="klh_GM.js?v={dynamic_v}"></script>
+          <script src="klh_GM2.js?v={dynamic_v}"></script>
           '''
 
-          # 防呆機制：如果 index.html 裡面還沒有外掛（通常是剛抓下來的乾淨原版），才進行取代
           if 'klh_jsonblob.js' not in content:
               content = content.replace('</body>', inject_code + '\n</body>')
               with open('index.html', 'w', encoding='utf-8') as f:
                   f.write(content)
-              print('成功注入外掛與註解！')
+              print(f'✅ 成功注入外掛！所有腳本已掛上最新版號 v={dynamic_v}')
           else:
-              print('偵測到外掛已存在，跳過注入步驟。')
+              print('⚠️ 偵測到外掛已存在，跳過 html 注入步驟。')
+
+          # 【任務 B：強制刷新 Service Worker (sw.js) 讓新地圖/新圖檔生效】
+          try:
+              with open('sw.js', 'r', encoding='utf-8') as f:
+                  sw_content = f.read()
+              
+              # 用正則表達式，把原作者寫死的 CACHE_NAME 無情換成我們的新時間版號
+              sw_content = re.sub(
+                  r"(const|let|var)\s+CACHE_NAME\s*=\s*['\"].*?['\"]", 
+                  f"\\1 CACHE_NAME = 'v{dynamic_v}'", 
+                  sw_content
+              )
+              
+              with open('sw.js', 'w', encoding='utf-8') as f:
+                  f.write(sw_content)
+              print(f'✅ 成功攔截 sw.js！背景圖與素材快取已強制作廢，新版號為 v{dynamic_v}')
+          except FileNotFoundError:
+              print('找不到 sw.js，跳過快取刷新。')
+
           EOF
           
-          # 執行剛剛建好的 Python 檔案
           python3 inject.py
-          # 執行完就把它刪掉，不留痕跡
           rm inject.py
-
-      # 4. 把組裝完成、熱騰騰的程式碼（含網頁註解）推回妳的 GitHub 基地
-      - name: 📤 存檔並推回我的 GitHub 倉庫
-        run: |
-          # 設定機器人的虛擬身份
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # 把當下資料夾所有的變動（原作者更新的檔案 + 修改後的 index.html）通通存起來
-          git add .
-          
-          # 檢查有沒有檔案變動，有變動才建立存檔紀錄（Commit），沒變動就直接跳過不動作
-          git diff-index --quiet HEAD || git commit -m "🤖 自動同步原作者更新並注入外掛"
-          
-          # 安全推回當前的主分支（main/master 通用），GitHub 收到變動後，妳的 GitHub Pages 就會自動同步更新網站！
-          git push origin HEAD
