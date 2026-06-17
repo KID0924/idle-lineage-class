@@ -1301,7 +1301,7 @@
     // ==========================================
     // 6. 6大屬性 70 至 120 級距查表與上限擴充
     // ==========================================
-    
+
     // 力量 (STR) 查表擴充 70-120
     window.getStrMeleeDmg = function (str) {
         return lookupStep(str, [
@@ -1537,6 +1537,84 @@
     function startup() {
         if (started) return;
         started = true;
+
+        // 增添感謝文字與更新說明按鈕
+        const headerDiv = document.querySelector('#creation-screen > div.text-center') || document.querySelector('#creation-screen > div:first-child');
+        if (headerDiv) {
+            // 建立按鈕
+            const btn = document.createElement('button');
+            btn.id = 'thanks-btn';
+            btn.className = 'w-full text-center py-2.5 px-4 bg-slate-800/30 hover:bg-slate-800/60 border border-slate-700/85 hover:border-yellow-500/50 text-slate-300 rounded-xl transition-all duration-300 flex flex-col items-center justify-center gap-1 mt-2 focus:outline-none cursor-pointer';
+            btn.innerHTML = `
+                <div class="text-sm font-semibold text-slate-300">感謝原作者(秋玥)的分享，創造出色的放置天堂</div>
+                <div class="text-sm font-semibold text-slate-300">感謝作者(Chaos)的改良，提供了滑順的使用體驗</div>
+                <span class="text-xs text-yellow-500 font-bold mt-1 flex items-center gap-1">
+                    🛠️ 與原版差異更新說明 (點擊<span id="thanks-btn-state">展開</span>) <span id="thanks-arrow" style="display:inline-block; transition: transform 0.2s;">▼</span>
+                </span>
+            `;
+
+            // 建立說明面板
+            const panel = document.createElement('div');
+            panel.id = 'thanks-panel';
+            panel.className = 'hidden w-full max-w-2xl mx-auto bg-slate-950/80 border border-slate-800 rounded-xl p-4 mt-3 text-left overflow-y-auto max-h-[260px] transition-all duration-300 shadow-inner';
+            panel.innerHTML = `
+                <div class="text-yellow-400 font-bold text-base border-b border-slate-800 pb-2 mb-3 flex items-center gap-1.5">
+                    🛠️ 與原版差異更新說明
+                </div>
+                <div class="flex flex-col gap-3.5 text-sm text-slate-300 leading-relaxed">
+                    <div>
+                        <span class="font-bold text-amber-300">1. 全新雲端存檔功能</span>
+                        <p class="pl-4 text-slate-400">支援公用金鑰（所有人皆可改寫）與 Jsonblob 個人私鑰。</p>
+                        <p class="pl-4 text-rose-400 font-semibold mt-0.5">⚠️ 注意事項：私鑰需註冊免費會員，若連續 3 天未登入將會刪除帳號；未註冊者不論是否登入，滿 1 天即會自動刪除帳號。</p>
+                    </div>
+                    <div>
+                        <span class="font-bold text-amber-300">2. 難易度自由切換</span>
+                        <p class="pl-4 text-slate-400">新增遊戲難易度隨時、隨意切換功能，關卡挑戰更彈性。</p>
+                    </div>
+                    <div>
+                        <span class="font-bold text-amber-300">3. 初始福利大放送</span>
+                        <p class="pl-4 text-slate-400">初始能力直接翻倍（2倍），可分配點數更暴增至 3 倍！</p>
+                    </div>
+                    <div>
+                        <span class="font-bold text-amber-300">4. 全新抽獎系統</span>
+                        <p class="pl-4 text-slate-400">實裝「潘朵拉的妹妹」專屬轉蛋/抽獎系統，測試歐氣的時刻到了。</p>
+                    </div>
+                    <div>
+                        <span class="font-bold text-amber-300">5. 新增強力藥水道具</span>
+                        <p class="pl-4 text-slate-400">戰力補給再升級！新增：濃縮白水、超級濃縮白水、掉寶藥水、神之祝福藥水。</p>
+                    </div>
+                    <div>
+                        <span class="font-bold text-amber-300">6. 「時光使者」轉生系統</span>
+                        <p class="pl-4 text-slate-400">角色達 75 等以上即可解鎖轉生功能，突破極限、重獲新生。</p>
+                    </div>
+                    <div>
+                        <span class="font-bold text-amber-300">7. 交易便利性優化</span>
+                        <p class="pl-4 text-slate-400">新增批量賣出與模糊搜尋賣出功能，清理背包不再點到手軟。</p>
+                    </div>
+                </div>
+            `;
+
+            // 註冊點擊事件
+            btn.onclick = function (e) {
+                e.preventDefault();
+                const isHidden = panel.classList.contains('hidden');
+                const stateText = document.getElementById('thanks-btn-state');
+                const arrow = document.getElementById('thanks-arrow');
+
+                if (isHidden) {
+                    panel.classList.remove('hidden');
+                    if (stateText) stateText.textContent = '收合';
+                    if (arrow) arrow.style.transform = 'rotate(180deg)';
+                } else {
+                    panel.classList.add('hidden');
+                    if (stateText) stateText.textContent = '展開';
+                    if (arrow) arrow.style.transform = 'rotate(0deg)';
+                }
+            };
+
+            headerDiv.appendChild(btn);
+            headerDiv.appendChild(panel);
+        }
 
         initCloudSaveUI();
         // registerRebirthNPC(); // Moved to klh_GM2.js
