@@ -1,3 +1,36 @@
+name: 🚀 自動同步並注入外掛
+
+# 設定觸發條件
+on:
+  schedule:
+    - cron: '0 * * * *' # 每小時的第 0 分鐘自動執行一次（排程監控）
+  workflow_dispatch:    # 允許妳在 GitHub 網頁上隨時手動點擊「Run workflow」按鈕更新
+
+# 強制開啟 GitHub 機器人的檔案寫入權限，防止推回倉庫時報錯（Exit code 128）
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest # 使用 GitHub 提供的最新版 Linux 虛擬伺服器跑自動化
+    steps:
+      
+      # 1. 複製妳自己的專案（把妳基地裡的 klh_*.js 檔案先拿出來準備）
+      - name: 📥 複製我的基地儲存庫
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true # 保持驗證憑證，等一下才有權限推回檔案
+
+      # 2. 抓取遊戲原作者最新的程式碼，放到臨時資料夾組裝
+      - name: 🌐 抓取原作者最新遊戲檔案
+        run: |
+          # 複製原作者的專案，--depth=1 代表只抓最新一筆歷史，速度最快
+          git clone --depth=1 https://github.com/shines871/idle-lineage-class.git upstream
+          # 使用 rsync 把原作者的所有遊戲檔案複製到根目錄（但排除妳的 .git 和 .github 自動化資料夾，不覆蓋妳的 klh 檔案）
+          rsync -av --exclude='.git' --exclude='.github' upstream/ .
+          # 刪除臨時資料夾，保持環境乾淨
+          rm -rf upstream
+
 # 3. 執行 Python 腳本，精準注入動態版號與刷新快取
       - name: 💉 注入動態版號外掛與刷新快取
         run: |
@@ -53,3 +86,19 @@
           
           python3 inject.py
           rm inject.py
+
+      # 4. 把組裝完成、熱騰騰的程式碼（含網頁註解）推回妳的 GitHub 基地
+      - name: 📤 存檔並推回我的 GitHub 倉庫
+        run: |
+          # 設定機器人的虛擬身份
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 把當下資料夾所有的變動（原作者更新的檔案 + 修改後的 index.html）通通存起來
+          git add .
+          
+          # 檢查有沒有檔案變動，有變動才建立存檔紀錄（Commit），沒變動就直接跳過不動作
+          git diff-index --quiet HEAD || git commit -m "🤖 自動同步原作者更新並注入外掛"
+          
+          # 安全推回當前的主分支（main/master 通用），GitHub 收到變動後，妳的 GitHub Pages 就會自動同步更新網站！
+          git push origin HEAD
