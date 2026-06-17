@@ -5,23 +5,28 @@ on:
     - cron: '0 0 * * *' # 每天凌晨 12:00 自動執行
   workflow_dispatch: # 允許妳隨時手動按按鈕更新
 
+# 🔥 直接在劇本裡強制開啟寫入權限，防呆專用！
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1. 複製妳自己的專案（包含 klh 檔案）
+      # 1. 複製妳自己的專案
       - name: Checkout my repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
-      # 2. 抓取原作者最新的程式碼，塞到臨時資料夾
+      # 2. 抓取原作者最新的程式碼
       - name: Fetch upstream repository
         run: |
           git clone --depth=1 https://github.com/shines871/idle-lineage-class.git upstream
-          # 把原作者的所有檔案複製到根目錄（但不覆蓋妳的 klh 檔案和 .github）
           rsync -av --exclude='.git' --exclude='.github' upstream/ .
           rm -rf upstream
 
-      # 3. 用 Python 自動在 index.html 的 </body> 前面插入妳的外掛代碼
+      # 3. 自動注入外掛代碼
       - name: Inject custom scripts into index.html
         run: |
           python3 -c "
@@ -48,11 +53,11 @@ jobs:
               print('Already injected, skipping.')
           "
 
-      # 4. 把組裝好、改好的成果推回妳的 GitHub 儲存庫
+      # 4. 把成果推回妳的 GitHub 儲存庫
       - name: Commit and Push changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           git diff-index --quiet HEAD || git commit -m "🤖 自動同步原作者更新並注入外掛"
-          git push origin main
+          git push origin HEAD # ✨ 改用 HEAD，不管妳的分支叫什麼都絕對安全
