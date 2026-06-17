@@ -522,17 +522,35 @@
         container.className = 'w-80 flex flex-col gap-3 mt-6 p-4 rounded-xl border border-slate-700 bg-slate-900/40 text-center';
         container.innerHTML = `
             <div class="text-sm font-bold text-yellow-500">雲端存檔同步 (JSONBlob)</div>
-            <input id="jsonblob-input" type="text" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-1.5 text-xs text-center focus:outline-none focus:border-yellow-500">
+            <input id="jsonblob-input" type="text" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
             <div class="w-full">
-                <button onclick="handleCloudSaveReadClick()" class="btn w-full py-2 text-xs bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold">讀取雲端</button>
+                <button onclick="handleCloudSaveReadClick()" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold">讀取雲端</button>
             </div>
-            <div class="text-[10px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
-            <div class="flex flex-col gap-1.5 text-xs">
-                <button onclick="handleFastKeyClick(this)" class="btn py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 font-normal" data-key="019ebb1f-b31c-769f-8475-02be610a13b0">1. 阿波羅 (預設/太陽神)</button>
-                <button onclick="handleFastKeyClick(this)" class="btn py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-orange-300 font-normal" data-key="019ebb3a-0d11-7569-a341-463d28054478">2. 赫發斯特斯 (火神)</button>
-                <button onclick="handleFastKeyClick(this)" class="btn py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-green-300 font-normal" data-key="019ebb3a-58de-78fd-8139-eca46c089de3">3. 雅典那 (勝利女神)</button>
-                <button onclick="handleFastKeyClick(this)" class="btn py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 font-normal" data-key="019ebb3a-ad04-76f1-81df-d15d7b2d03d0">4. 海拉 (天后) 🔒固定</button>
-                <button onclick="handleFastKeyClick(this)" class="btn py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-cyan-300 font-normal" data-key="019ebb3a-e777-7ab7-b744-aaab13066231">5. 宙斯 (天神) 🔒固定</button>
+            <div class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
+            <div class="flex flex-col gap-1.5 text-sm">
+                <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-amber-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb1f-b31c-769f-8475-02be610a13b0">
+                    <span style="position: absolute; left: 16px;">1.</span>
+                    <span class="font-bold">太陽神阿波羅</span>
+                    <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(預設)</span>
+                </button>
+                <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-orange-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-0d11-7569-a341-463d28054478">
+                    <span style="position: absolute; left: 16px;">2.</span>
+                    <span class="font-bold">火神赫發斯特斯</span>
+                </button>
+                <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-green-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-58de-78fd-8139-eca46c089de3">
+                    <span style="position: absolute; left: 16px;">3.</span>
+                    <span class="font-bold">勝利女神雅典那</span>
+                </button>
+                <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-rose-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-ad04-76f1-81df-d15d7b2d03d0">
+                    <span style="position: absolute; left: 16px;">4.</span>
+                    <span class="font-bold">天后海拉</span>
+                    <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">🔒固定</span>
+                </button>
+                <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-cyan-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-e777-7ab7-b744-aaab13066231">
+                    <span style="position: absolute; left: 16px;">5.</span>
+                    <span class="font-bold">天神宙斯</span>
+                    <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">🔒固定</span>
+                </button>
             </div>
         `;
         mainMenu.appendChild(container);
