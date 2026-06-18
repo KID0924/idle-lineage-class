@@ -22,7 +22,8 @@
 
 (function () {
     const equipments = [];
-    window.gmShopCategory = 'all';
+    window.gmShopMainCategory = 'all';
+    window.gmShopSubCategory = 'all';
     window.gmShopSearchQuery = '';
 
     // 1. 注入樣式
@@ -164,7 +165,7 @@
                 border-radius: 12px !important;
                 padding: 10px 16px !important;
                 outline: none !important;
-                font-size: 14px !important;
+                font-size: 16px !important;
                 transition: all 0.2s ease !important;
             }
             .gm-shop-search-input:focus {
@@ -197,6 +198,7 @@
                 flex: 1 !important;
                 display: grid !important;
                 grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+                grid-auto-rows: min-content !important;
                 gap: 16px !important;
                 overflow-y: auto !important;
                 padding-right: 6px !important;
@@ -209,12 +211,10 @@
                 padding: 14px !important;
                 display: flex !important;
                 flex-direction: column !important;
-                justify-content: space-between !important;
-                height: 180px !important;
-                min-height: 180px !important;
+                justify-content: flex-start !important;
+                min-height: 170px !important;
                 transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
                 position: relative !important;
-                overflow: hidden !important;
                 box-sizing: border-box !important;
             }
             .gm-shop-card:hover {
@@ -265,13 +265,12 @@
                 color: #94a3b8 !important;
                 line-height: 1.4 !important;
                 margin-top: 8px !important;
-                height: 5.4em !important;
-                overflow-y: auto !important;
+                overflow: visible !important;
                 padding-right: 4px !important;
                 border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
                 padding-top: 6px !important;
-                flex-grow: 1 !important;
                 text-align: left !important;
+                height: auto !important;
             }
             .gm-shop-card-price {
                 font-size: 14px !important;
@@ -310,7 +309,7 @@
                 border-radius: 8px !important;
                 padding: 8px 12px !important;
                 outline: none !important;
-                font-size: 13px !important;
+                font-size: 16px !important;
                 width: 100% !important;
                 cursor: pointer !important;
             }
@@ -357,18 +356,44 @@
                 }
                 .gm-shop-sidebar {
                     width: 100% !important;
-                    height: 220px !important;
+                    height: 120px !important;
                     border-right: none !important;
                     border-bottom: 1px solid rgba(124, 58, 237, 0.2) !important;
-                    padding: 12px !important;
+                    padding: 6px !important;
                     display: grid !important;
-                    grid-template-columns: 1fr 1fr !important;
-                    gap: 8px !important;
+                    grid-template-columns: 1fr 1fr 1fr !important;
+                    gap: 6px 8px !important;
+                    overflow: hidden !important;
                 }
-                .gm-shop-sidebar > .mt-auto {
-                    grid-column: span 2 !important;
-                    margin-top: 4px !important;
-                    padding-top: 4px !important;
+                .gm-ctrl-divider, #gm-ctrl-assets {
+                    display: none !important;
+                }
+                #gm-ctrl-bless { order: 1 !important; }
+                #gm-ctrl-anc { order: 2 !important; }
+                #gm-ctrl-attr { order: 3 !important; }
+                #gm-ctrl-free { order: 4 !important; }
+                #gm-ctrl-enhance { order: 5 !important; }
+                #gm-ctrl-seteff { order: 6 !important; }
+
+                .gm-shop-sidebar .gm-shop-control-group {
+                    gap: 2px !important;
+                }
+                .gm-shop-sidebar .gm-shop-control-label {
+                    font-size: 11px !important;
+                    white-space: nowrap !important;
+                }
+                .gm-shop-sidebar .gm-shop-select {
+                    font-size: 16px !important;
+                    padding: 4px 6px !important;
+                }
+                .gm-shop-sidebar .gm-shop-checkbox-container {
+                    font-size: 11px !important;
+                    gap: 4px !important;
+                    margin-top: 2px !important;
+                }
+                .gm-shop-sidebar .gm-shop-checkbox {
+                    width: 14px !important;
+                    height: 14px !important;
                 }
                 .gm-shop-btn {
                     bottom: 15px !important;
@@ -435,12 +460,33 @@
         if (!container) return;
 
         let opts = getGMShopSelectedOptions();
-        let category = window.gmShopCategory || 'all';
+        let mainCat = window.gmShopMainCategory || 'all';
+        let subCat = window.gmShopSubCategory || 'all';
         let search = (window.gmShopSearchQuery || '').toLowerCase().trim();
 
         // 過濾裝備
         let filtered = equipments.filter(item => {
-            if (category !== 'all' && item.type !== category) return false;
+            // 1. 主分類過濾
+            if (mainCat !== 'all' && item.type !== mainCat) return false;
+            
+            // 2. 子部位/武器類型過濾
+            if (subCat !== 'all') {
+                if (mainCat === 'wpn') {
+                    let isBow = !!item.isBow;
+                    let isWand = (item.req === 'mage' || item.id.includes('wand') || (item.n && (item.n.includes('杖') || item.n.includes('鐮刀'))));
+                    let isTwoHand = (!!item.w2h && !isWand);
+                    let isOneHand = (!isBow && !isWand && !item.w2h);
+
+                    if (subCat === 'bow' && !isBow) return false;
+                    if (subCat === 'wand' && !isWand) return false;
+                    if (subCat === 'twohand' && !isTwoHand) return false;
+                    if (subCat === 'onehand' && !isOneHand) return false;
+                } else {
+                    if (item.slot !== subCat) return false;
+                }
+            }
+
+            // 3. 搜尋過濾
             if (search && !item.n.toLowerCase().includes(search)) return false;
             return true;
         });
@@ -657,17 +703,17 @@
                 <div class="gm-shop-body">
                     <!-- 側邊欄控制面版 -->
                     <div class="gm-shop-sidebar">
-                        <div class="gm-shop-control-group">
+                        <div class="gm-shop-control-group" id="gm-ctrl-free">
                             <span class="gm-shop-control-label">價格模式</span>
                             <label class="gm-shop-checkbox-container mt-1">
                                 <input type="checkbox" id="gm-free-checkbox" class="gm-shop-checkbox" checked onchange="onGMShopOptionChange()">
-                                <span class="font-bold text-yellow-400">GM 免費獲得 (0金幣)</span>
+                                <span class="font-bold text-yellow-400">免費獲得 (0金)</span>
                             </label>
                         </div>
                         
-                        <div class="border-t border-slate-800 my-1"></div>
+                        <div class="border-t border-slate-800 my-1 gm-ctrl-divider"></div>
                         
-                        <div class="gm-shop-control-group">
+                        <div class="gm-shop-control-group" id="gm-ctrl-enhance">
                             <span class="gm-shop-control-label">自訂強化等級</span>
                             <div class="flex gap-2">
                                 <select id="gm-enhance-select" class="gm-shop-select" onchange="onGMEnhanceSelectChange()">
@@ -678,7 +724,7 @@
                             </div>
                         </div>
                         
-                        <div class="gm-shop-control-group">
+                        <div class="gm-shop-control-group" id="gm-ctrl-bless">
                             <span class="gm-shop-control-label">祝福狀態</span>
                             <select id="gm-bless-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
                                 <option value="none">無屬性</option>
@@ -688,7 +734,7 @@
                             </select>
                         </div>
                         
-                        <div class="gm-shop-control-group">
+                        <div class="gm-shop-control-group" id="gm-ctrl-anc">
                             <span class="gm-shop-control-label">遠古詞綴</span>
                             <select id="gm-anc-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
                                 <option value="none">無</option>
@@ -700,7 +746,7 @@
                             </select>
                         </div>
                         
-                        <div class="gm-shop-control-group">
+                        <div class="gm-shop-control-group" id="gm-ctrl-attr">
                             <span class="gm-shop-control-label">屬性詞綴</span>
                             <select id="gm-attr-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
                                 <option value="none">無</option>
@@ -728,7 +774,7 @@
                             </select>
                         </div>
                         
-                        <div class="gm-shop-control-group">
+                        <div class="gm-shop-control-group" id="gm-ctrl-seteff">
                             <span class="gm-shop-control-label">席琳套裝效果</span>
                             <select id="gm-seteff-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
                                 ${seteffOptions}
@@ -736,7 +782,7 @@
                         </div>
                         
                         <!-- 玩家資產與負重 -->
-                        <div class="border-t border-slate-800 pt-4 flex flex-col gap-2 mt-auto">
+                        <div class="border-t border-slate-800 pt-4 flex flex-col gap-2 mt-auto" id="gm-ctrl-assets">
                             <div class="flex justify-between text-sm">
                                 <span class="text-slate-400">當前金幣</span>
                                 <span class="text-yellow-400 font-bold" id="gm-shop-player-gold">0</span>
@@ -750,14 +796,21 @@
                     
                     <!-- 裝備展示面板 -->
                     <div class="gm-shop-content">
-                        <div class="gm-shop-filter-bar">
-                            <input type="text" id="gm-shop-search" placeholder="🔍 搜尋裝備名稱..." class="gm-shop-search-input" oninput="onGMShopSearchInput(this.value)">
-                            <div class="gm-shop-tabs">
-                                <button class="gm-shop-tab-btn active" data-cat="all" onclick="setGMShopCategory('all')">全部</button>
-                                <button class="gm-shop-tab-btn" data-cat="wpn" onclick="setGMShopCategory('wpn')">武器</button>
-                                <button class="gm-shop-tab-btn" data-cat="arm" onclick="setGMShopCategory('arm')">防具</button>
-                                <button class="gm-shop-tab-btn" data-cat="acc" onclick="setGMShopCategory('acc')">飾品</button>
-                            </div>
+                        <div class="gm-shop-filter-bar" style="gap: 8px !important; margin-bottom: 12px !important;">
+                            <input type="text" id="gm-shop-search" placeholder="🔍 搜尋裝備名稱..." class="gm-shop-search-input" style="height: 38px !important; padding: 8px 12px !important;" oninput="onGMShopSearchInput(this.value)">
+                            
+                            <!-- 主分類選擇 -->
+                            <select id="gm-main-cat-select" class="gm-shop-select" style="width: 80px !important; flex-shrink: 0 !important; padding: 6px 8px !important; height: 38px !important; line-height: 1.2 !important;" onchange="setGMShopMainCategory(this.value)">
+                                <option value="all">全部</option>
+                                <option value="wpn">武器</option>
+                                <option value="arm">防具</option>
+                                <option value="acc">飾品</option>
+                            </select>
+                            
+                            <!-- 子分類選擇 (預設隱藏) -->
+                            <select id="gm-sub-cat-select" class="gm-shop-select" style="width: 105px !important; flex-shrink: 0 !important; padding: 6px 8px !important; height: 38px !important; line-height: 1.2 !important; display: none;" onchange="setGMShopSubCategory(this.value)">
+                                <option value="all">全部部位</option>
+                            </select>
                         </div>
                         
                         <!-- 裝備網格 -->
@@ -837,18 +890,60 @@
         renderGMShopGrid();
     };
 
-    window.setGMShopCategory = function (cat) {
-        window.gmShopCategory = cat;
+    window.setGMShopMainCategory = function (cat) {
+        window.gmShopMainCategory = cat;
+        window.gmShopSubCategory = 'all';
 
-        let btns = document.querySelectorAll('.gm-shop-tab-btn');
-        btns.forEach(btn => {
-            if (btn.getAttribute('data-cat') === cat) {
-                btn.classList.add('active');
+        // 同步主分類下拉選單
+        let mainSel = document.getElementById('gm-main-cat-select');
+        if (mainSel) mainSel.value = cat;
+
+        // 動態處理子分類下拉選單
+        let subSel = document.getElementById('gm-sub-cat-select');
+        if (subSel) {
+            if (cat === 'wpn') {
+                subSel.style.display = 'block';
+                subSel.innerHTML = `
+                    <option value="all">全部武器</option>
+                    <option value="onehand">單手近戰</option>
+                    <option value="twohand">雙手近戰</option>
+                    <option value="bow">弓弩</option>
+                    <option value="wand">魔杖/法杖</option>
+                `;
+            } else if (cat === 'arm') {
+                subSel.style.display = 'block';
+                subSel.innerHTML = `
+                    <option value="all">全部部位</option>
+                    <option value="helm">頭盔</option>
+                    <option value="tshirt">T恤</option>
+                    <option value="armor">盔甲</option>
+                    <option value="shield">盾牌</option>
+                    <option value="gloves">手套</option>
+                    <option value="boots">靴子</option>
+                    <option value="cloak">斗篷</option>
+                `;
+            } else if (cat === 'acc') {
+                subSel.style.display = 'block';
+                subSel.innerHTML = `
+                    <option value="all">全部部位</option>
+                    <option value="amulet">項鍊</option>
+                    <option value="ring">戒指</option>
+                    <option value="belt">腰帶</option>
+                `;
             } else {
-                btn.classList.remove('active');
+                subSel.style.display = 'none';
+                subSel.innerHTML = `<option value="all">全部部位</option>`;
             }
-        });
+            subSel.value = 'all';
+        }
 
+        renderGMShopGrid();
+    };
+
+    window.setGMShopSubCategory = function (subCat) {
+        window.gmShopSubCategory = subCat;
+        let subSel = document.getElementById('gm-sub-cat-select');
+        if (subSel) subSel.value = subCat;
         renderGMShopGrid();
     };
 
