@@ -1000,9 +1000,9 @@
                 }
 
                 if (typeof uploadToCloud === 'function') {
-                    uploadToCloud();
+                    uploadToCloud(false, true);
                 } else if (typeof window.uploadToCloud === 'function') {
-                    window.uploadToCloud();
+                    window.uploadToCloud(false, true);
                 }
 
                 if (typeof openSlotSelect === 'function') {
