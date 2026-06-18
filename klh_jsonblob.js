@@ -592,6 +592,19 @@
             try {
                 let d = JSON.parse(s);
                 d.difficulty = window.gameDifficulty;
+                
+                // 注入自定義設定，以防被原版 saveGame() 覆寫擦除
+                if (d.p) {
+                    if (!d.p.config) d.p.config = {};
+                    let chkDroprate = document.getElementById('set-droprate');
+                    let chkAutoBuyDroprate = document.getElementById('set-auto-buy-droprate');
+                    let chkGodBless = document.getElementById('set-god-bless');
+
+                    d.p.config.setDroprate = chkDroprate ? chkDroprate.checked : false;
+                    d.p.config.setAutoBuyDroprate = chkAutoBuyDroprate ? chkAutoBuyDroprate.checked : false;
+                    d.p.config.setGodBless = chkGodBless ? chkGodBless.checked : false;
+                }
+                
                 localStorage.setItem('lineage_idle_save_' + currentSlot, JSON.stringify(d));
             } catch (e) { }
         }

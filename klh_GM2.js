@@ -21,6 +21,13 @@
                 50% { filter: drop-shadow(0 0 12px rgba(217, 119, 6, 1)) drop-shadow(0 0 24px rgba(217, 119, 6, 0.8)); }
             }
             .earth5-glow { animation: earth5Glow 2s infinite ease-in-out !important; }
+
+            /* 防止 iOS 瀏覽器在聚焦輸入框時自動縮放 */
+            @media (max-width: 768px) {
+                input[id^="fuzzy-sell-input-"] {
+                    font-size: 16px !important;
+                }
+            }
         `;
         let style = document.createElement('style');
         style.textContent = css;
@@ -153,6 +160,20 @@
                 </div>
             `;
             blueRow.insertAdjacentHTML('afterend', html);
+
+            // 當核取方塊狀態改變時，立即同步到 player.config 中，確保隨時都是最新狀態
+            const syncConfig = () => {
+                if (typeof player !== 'undefined' && player) {
+                    if (!player.config) player.config = {};
+                    player.config.setDroprate = document.getElementById('set-droprate')?.checked || false;
+                    player.config.setAutoBuyDroprate = document.getElementById('set-auto-buy-droprate')?.checked || false;
+                    player.config.setGodBless = document.getElementById('set-god-bless')?.checked || false;
+                }
+            };
+
+            document.getElementById('set-droprate')?.addEventListener('change', syncConfig);
+            document.getElementById('set-auto-buy-droprate')?.addEventListener('change', syncConfig);
+            document.getElementById('set-god-bless')?.addEventListener('change', syncConfig);
         }
     }
 
@@ -500,7 +521,6 @@
     if (typeof window.saveGame === 'function') {
         const originalSaveGame = window.saveGame;
         window.saveGame = function () {
-            originalSaveGame();
             if (typeof player !== 'undefined' && player && player.config) {
                 let chkDroprate = document.getElementById('set-droprate');
                 let chkAutoBuyDroprate = document.getElementById('set-auto-buy-droprate');
@@ -510,6 +530,7 @@
                 player.config.setAutoBuyDroprate = chkAutoBuyDroprate ? chkAutoBuyDroprate.checked : false;
                 player.config.setGodBless = chkGodBless ? chkGodBless.checked : false;
             }
+            return originalSaveGame();
         };
     }
 
@@ -525,7 +546,8 @@
     // 11. 恢復與載入自定義設定的輔助函式
     function restoreCustomSettings() {
         initAutoBuffCheckboxes();
-        if (typeof player !== 'undefined' && player && player.config) {
+        if (typeof player !== 'undefined' && player) {
+            if (!player.config) player.config = {};
             let c = player.config;
             let chkDroprate = document.getElementById('set-droprate');
             let chkAutoBuyDroprate = document.getElementById('set-auto-buy-droprate');
