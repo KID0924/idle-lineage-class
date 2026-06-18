@@ -447,7 +447,7 @@
     };
 
     // 異步上傳至雲端
-    window.uploadToCloud = async function (isManual = false) {
+    window.uploadToCloud = async function (isManual = false, forceFullOverwrite = false, skipMergeSlot = null) {
         if (!window.isValidUuid(window.activeKey)) {
             if (isManual) window.showToast('雲端金鑰格式無效，無法執行寫入！', 'error');
             return;
@@ -464,8 +464,8 @@
         // 取得目前正在遊玩的存檔位 (1~4)
         const activeSlot = (typeof currentSlot !== 'undefined') ? parseInt(currentSlot, 10) : null;
 
-        // 如果當前有加載角色，先取得雲端存檔，把其他存檔位的雲端資料合併進來，避免覆蓋別人的存檔
-        if (activeSlot >= 1 && activeSlot <= 4) {
+        // 如果不是強制全覆寫，且當前有加載角色，先取得雲端存檔，把其他存檔位的雲端資料合併進來，避免覆蓋別人的存檔
+        if (!forceFullOverwrite && activeSlot >= 1 && activeSlot <= 4) {
             if (isManual) {
                 window.showLoadingOverlay('正在讀取並合併雲端存檔...');
             }
@@ -474,8 +474,12 @@
                 if (res.status === 200) {
                     const cloudData = await res.json();
                     if (cloudData && typeof cloudData === 'object') {
+                        // 確定要跳過合併的槽位 (若 skipMergeSlot 被指定)
+                        const skipSlot = (skipMergeSlot !== null) ? parseInt(skipMergeSlot, 10) : null;
+
                         for (let n = 1; n <= 4; n++) {
-                            if (n !== activeSlot) {
+                            // 如果是目前正在玩的槽位，或者是被指定跳過合併 (即要刪除/覆寫) 的槽位，則不上傳雲端舊值 (維持 payload 本地值)
+                            if (n !== activeSlot && n !== skipSlot) {
                                 const cloudSlotVal = cloudData['save_' + n] || cloudData['lineage_idle_save_' + n];
                                 if (cloudSlotVal !== undefined && cloudSlotVal !== null) {
                                     payload['save_' + n] = (typeof cloudSlotVal === 'object') ? JSON.stringify(cloudSlotVal) : cloudSlotVal;
@@ -1174,7 +1178,7 @@
         window.checkAndPrepopulateSlots();
         const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
         if (storageMode === 'cloud') {
-            window.uploadToCloud();
+            window.uploadToCloud(false, true);
         }
 
         if (typeof window.openSlotSelect === 'function') {
@@ -1265,7 +1269,7 @@
 
         const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
         if (storageMode === 'cloud') {
-            window.uploadToCloud();
+            window.uploadToCloud(false, false, n);
         }
         window.openSlotSelect(window._slotMode || 'load');
         window.showToast(`已成功刪除存檔 ${n}！`, 'success');
