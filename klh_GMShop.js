@@ -243,6 +243,9 @@
             .gm-shop-card-details {
                 flex: 1 !important;
                 min-width: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important;
             }
             .gm-shop-card-name {
                 font-size: 15px !important;
@@ -251,32 +254,24 @@
                 overflow: hidden !important;
                 text-overflow: ellipsis !important;
             }
-            .gm-shop-card-type {
-                font-size: 11px !important;
-                color: #64748b !important;
-                margin-top: 2px !important;
+            .gm-shop-card-meta-action {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                margin-top: 6px !important;
             }
             .gm-shop-card-desc {
                 font-size: 11px !important;
                 color: #94a3b8 !important;
                 line-height: 1.4 !important;
                 margin-top: 8px !important;
-                height: 3.6em !important;
+                height: 5.4em !important;
                 overflow-y: auto !important;
                 padding-right: 4px !important;
                 border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
                 padding-top: 6px !important;
                 flex-grow: 1 !important;
                 text-align: left !important;
-            }
-            .gm-shop-card-action {
-                display: flex !important;
-                justify-content: space-between !important;
-                align-items: center !important;
-                margin-top: 8px !important;
-                border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
-                padding-top: 8px !important;
-                flex-shrink: 0 !important;
             }
             .gm-shop-card-price {
                 font-size: 14px !important;
@@ -490,14 +485,13 @@
                         </div>
                         <div class="gm-shop-card-details">
                             <div class="gm-shop-card-name">${fullName}</div>
-                            <div class="gm-shop-card-type">${(d.type === 'wpn' ? '武器' : (d.type === 'arm' ? '防具' : '飾品'))}</div>
+                            <div class="gm-shop-card-meta-action">
+                                <div class="gm-shop-card-price">${displayPrice}</div>
+                                <button class="gm-shop-buy-btn" onclick="buyGMShopItem('${eq.id}')">🛒 購買</button>
+                            </div>
                         </div>
                     </div>
                     <div class="gm-shop-card-desc">${descHtml}</div>
-                    <div class="gm-shop-card-action">
-                        <div class="gm-shop-card-price">${displayPrice}</div>
-                        <button class="gm-shop-buy-btn" onclick="buyGMShopItem('${eq.id}')">🛒 購買</button>
-                    </div>
                 </div>
             `;
         });
@@ -867,6 +861,12 @@
         } else {
             btn.style.setProperty('display', 'none', 'important');
         }
+
+        // 額外支援：若載入了 GM 商店，移除 jsonblob 底部 Hella 與 Zeus 按鈕的 "🔒固定" 標籤
+        let hTag = document.getElementById('lock-hella-tag');
+        let zTag = document.getElementById('lock-zeus-tag');
+        if (hTag) hTag.innerText = '';
+        if (zTag) zTag.innerText = '';
     }
 
     // 7. 初始化外掛
