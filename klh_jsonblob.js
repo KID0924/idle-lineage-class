@@ -30,6 +30,35 @@
 
 (function () {
     // ==========================================
+    // localStorage 模式隔離代理
+    // ==========================================
+    const originalGetItem = localStorage.getItem;
+    const originalSetItem = localStorage.setItem;
+    const originalRemoveItem = localStorage.removeItem;
+
+    function getRedirectedKey(key) {
+        const mode = originalGetItem.call(localStorage, 'klh_storage_mode') || 'local';
+        if (mode === 'cloud') {
+            if (key.startsWith('lineage_idle_save_') || key === 'lineage_idle_warehouse') {
+                return key.replace('lineage_idle_save_', 'klh_cloud_save_').replace('lineage_idle_warehouse', 'klh_cloud_warehouse');
+            }
+        }
+        return key;
+    }
+
+    localStorage.getItem = function (key) {
+        return originalGetItem.call(localStorage, getRedirectedKey(key));
+    };
+
+    localStorage.setItem = function (key, value) {
+        return originalSetItem.call(localStorage, getRedirectedKey(key), value);
+    };
+
+    localStorage.removeItem = function (key) {
+        return originalRemoveItem.call(localStorage, getRedirectedKey(key));
+    };
+
+    // ==========================================
     // 0. 全域常數與設定
     // ==========================================
     window.DEFAULT_CLOUD_URL = "https://api.jsonblob.com/api/jsonBlob";
@@ -78,6 +107,16 @@
         return `${window.DEFAULT_CLOUD_URL}/${key}`;
     }
 
+    window.isValidUuid = function (key) {
+        key = (key || "").trim();
+        if (!key) return false;
+        if (key.startsWith("http://") || key.startsWith("https://")) {
+            return true;
+        }
+        const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+        return uuidRegex.test(key);
+    };
+
     window.DIFFICULTY_SETTINGS = {
         hell: { name: "地獄", mobPower: 3.0, dropRate: 3.0, goldRate: 3.0, potionRate: 0.8, noSunDelay: 1, sunDelay: 1 },
         nightmare: { name: "惡夢", mobPower: 1.5, dropRate: 1.5, goldRate: 1.5, potionRate: 0.9, noSunDelay: 10, sunDelay: 3 },
@@ -92,6 +131,9 @@
     ];
 
     function checkIsPrivileged() {
+        if (typeof window.openGMShop === 'function') {
+            return false; // 開啟 GM 商店功能時，解除特權金鑰固定限制
+        }
         const normalized = (window.activeKey || "").trim().toLowerCase();
         return PRIVILEGED_KEYS.some(k => k.toLowerCase() === normalized);
     }
@@ -245,6 +287,21 @@
             text-shadow: 0 2px 4px rgba(0,0,0,0.6);
             letter-spacing: 1px;
         }
+        
+        /* 美化創角面板的滾動條 */
+        #creation-screen::-webkit-scrollbar {
+            width: 6px;
+        }
+        #creation-screen::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #creation-screen::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.35);
+            border-radius: 999px;
+        }
+        #creation-screen::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.55);
+        }
     `;
     document.head.appendChild(styleEl);
 
@@ -391,6 +448,10 @@
 
     // 異步上傳至雲端
     window.uploadToCloud = async function (isManual = false) {
+        if (!window.isValidUuid(window.activeKey)) {
+            if (isManual) window.showToast('雲端金鑰格式無效，無法執行寫入！', 'error');
+            return;
+        }
         const targetUrl = getCleanCloudUrl(window.activeKey);
         const payload = {
             save_1: localStorage.getItem('lineage_idle_save_1'),
@@ -399,6 +460,46 @@
             save_4: localStorage.getItem('lineage_idle_save_4'),
             warehouse: localStorage.getItem('lineage_idle_warehouse')
         };
+
+        // 取得目前正在遊玩的存檔位 (1~4)
+        const activeSlot = (typeof currentSlot !== 'undefined') ? parseInt(currentSlot, 10) : null;
+
+        // 如果當前有加載角色，先取得雲端存檔，把其他存檔位的雲端資料合併進來，避免覆蓋別人的存檔
+        if (activeSlot >= 1 && activeSlot <= 4) {
+            if (isManual) {
+                window.showLoadingOverlay('正在讀取並合併雲端存檔...');
+            }
+            try {
+                const res = await fetchWithProxy(targetUrl);
+                if (res.status === 200) {
+                    const cloudData = await res.json();
+                    if (cloudData && typeof cloudData === 'object') {
+                        for (let n = 1; n <= 4; n++) {
+                            if (n !== activeSlot) {
+                                const cloudSlotVal = cloudData['save_' + n] || cloudData['lineage_idle_save_' + n];
+                                if (cloudSlotVal !== undefined && cloudSlotVal !== null) {
+                                    payload['save_' + n] = (typeof cloudSlotVal === 'object') ? JSON.stringify(cloudSlotVal) : cloudSlotVal;
+                                } else {
+                                    payload['save_' + n] = null; // 🚀 雲端已清空/無存檔，則上傳時也維持清空，防止舊存檔復活
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    throw new Error('HTTP ' + res.status);
+                }
+            } catch (e) {
+                console.error("[JSONBlob] 讀取並合併雲端存檔失敗，為避免覆蓋他人進度，本次同步已取消:", e);
+                if (isManual) {
+                    window.showToast('雲端存檔同步失敗：無法取得雲端最新狀態，已取消本次同步以保護其他存檔位！', 'error');
+                }
+                return; // 🚀 直接中斷，不執行下方的 PUT 覆蓋上傳，以確保其他存檔位安全
+            } finally {
+                if (isManual) {
+                    window.hideLoadingOverlay();
+                }
+            }
+        }
 
         if (isManual) {
             window.showLoadingOverlay('正在上傳雲端存檔中...');
@@ -435,6 +536,10 @@
     // 異步自雲端讀取並同步本機
     // 異步自雲端讀取並同步本機
     window.syncFromCloud = async function (isManual) {
+        if (!window.isValidUuid(window.activeKey)) {
+            window.showToast('雲端金鑰格式無效，無法執行讀取！', 'error');
+            return;
+        }
         const targetUrl = getCleanCloudUrl(window.activeKey);
 
         // 顯示讀取與防呆進度條遮罩 (僅在手動操作時顯示，避免網頁載入時阻擋使用者)
@@ -445,6 +550,13 @@
         try {
             const res = await fetchWithProxy(targetUrl);
             if (res.status === 200) {
+                // 💥 關鍵安全防線：如果在下載期間，玩家已經切換回本地模式，則直接放棄寫入，防止覆蓋本地存檔！
+                const currentMode = originalGetItem.call(localStorage, 'klh_storage_mode') || 'local';
+                if (currentMode !== 'cloud') {
+                    console.warn("[JSONBlob] 下載完成，但偵測到玩家已切回本地模式，已自動取消寫入以保護本地存檔。");
+                    return;
+                }
+
                 const payload = await res.json();
                 if (payload) {
                     ['1', '2', '3', '4'].forEach(n => {
@@ -480,8 +592,7 @@
                     }
                 }
             } else if (res.status === 404) {
-                if (isManual) window.showToast('此金鑰在雲端無存檔，已自動以本機資料初始化雲端。', 'info');
-                await window.uploadToCloud(isManual);
+                window.showToast('雲端無存檔或金鑰已失效！如果是全新金鑰，請點選「手動寫入雲端」進行初始化。', 'error');
             } else {
                 if (isManual) window.showToast('讀取雲端存檔失敗，狀態碼：' + res.status, 'error');
             }
@@ -509,7 +620,13 @@
         const inputEl = document.getElementById('jsonblob-input');
         if (inputEl) {
             let key = inputEl.value.trim();
+            if (!window.isValidUuid(key)) {
+                window.showToast('金鑰格式錯誤！必須為 36 碼 UUID 格式 (例如: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)', 'error');
+                return;
+            }
             window.saveJsonBlobConfig(key);
+            localStorage.setItem('klh_storage_mode', 'cloud'); // 🚀 切換至雲端模式
+            window.updateStorageModeUI();
             await window.syncFromCloud(true);
         }
     };
@@ -518,13 +635,21 @@
         const inputEl = document.getElementById('jsonblob-input');
         if (inputEl) {
             let key = inputEl.value.trim();
+            if (!window.isValidUuid(key)) {
+                window.showToast('金鑰格式錯誤！必須為 36 碼 UUID 格式 (例如: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)', 'error');
+                return;
+            }
             window.saveJsonBlobConfig(key);
+            localStorage.setItem('klh_storage_mode', 'cloud'); // 🚀 切換至雲端模式
+            window.updateStorageModeUI();
             await window.uploadToCloud(true);
         }
     };
 
     window.handleCloudResetClick = async function () {
         window.clearJsonBlobConfig();
+        localStorage.setItem('klh_storage_mode', 'cloud'); // 🚀 切換至雲端模式
+        window.updateStorageModeUI();
         await window.syncFromCloud(true);
     };
 
@@ -533,7 +658,89 @@
     window.handleFastKeyClick = async function (btn) {
         const key = btn.getAttribute('data-key');
         window.saveJsonBlobConfig(key);
+        localStorage.setItem('klh_storage_mode', 'cloud'); // 🚀 切換至雲端模式
+        window.updateStorageModeUI();
         await window.syncFromCloud(true);
+    };
+
+    // 儲存模式 UI 控制與切換
+    window.updateStorageModeUI = function () {
+        const mode = localStorage.getItem('klh_storage_mode') || 'local';
+        const modeTextEl = document.getElementById('current-storage-mode-text');
+        const settingsSection = document.getElementById('cloud-settings-section');
+
+        const btnLocal = document.getElementById('btn-switch-local');
+        const btnCloud = document.getElementById('btn-switch-cloud');
+
+        if (modeTextEl) {
+            if (mode === 'cloud') {
+                let keyName = "自訂金鑰";
+                const normalized = (window.activeKey || "").trim().toLowerCase();
+                const keys = {
+                    "019ebb1f-b31c-769f-8475-02be610a13b0": "太陽神阿波羅",
+                    "019ebb3a-0d11-7569-a341-463d28054478": "火神赫發斯特斯",
+                    "019ebb3a-58de-78fd-8139-eca46c089de3": "勝利女神雅典那",
+                    "019ebb3a-ad04-76f1-81df-d15d7b2d03d0": "天后海拉",
+                    "019ebb3a-e777-7ab7-b744-aaab13066231": "天神宙斯"
+                };
+                if (keys[normalized]) {
+                    keyName = keys[normalized];
+                }
+                modeTextEl.innerHTML = `<span class="text-indigo-400 font-bold">雲端同步 (${keyName})</span>`;
+                if (settingsSection) settingsSection.style.display = 'flex';
+                if (btnLocal) {
+                    btnLocal.className = 'btn flex-1 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-white font-bold';
+                }
+                if (btnCloud) {
+                    btnCloud.className = 'btn flex-1 py-2 text-xs bg-indigo-700 hover:bg-indigo-600 text-white font-bold border-indigo-500';
+                }
+            } else {
+                modeTextEl.innerHTML = `<span class="text-green-400 font-bold">本地模式</span>`;
+                if (settingsSection) settingsSection.style.display = 'none';
+                if (btnLocal) {
+                    btnLocal.className = 'btn flex-1 py-2 text-xs bg-green-700 hover:bg-green-600 text-white font-bold border-green-500';
+                }
+                if (btnCloud) {
+                    btnCloud.className = 'btn flex-1 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-white font-bold';
+                }
+            }
+        }
+    };
+
+    window.switchToLocalMode = function () {
+        const currentMode = localStorage.getItem('klh_storage_mode') || 'local';
+        if (currentMode === 'local') return;
+
+        localStorage.setItem('klh_storage_mode', 'local');
+        window.updateStorageModeUI();
+        if (typeof refreshLoadBtnVisibility === 'function') {
+            refreshLoadBtnVisibility();
+        }
+
+        // 重新渲染存檔選擇畫面 (如果目前開著)
+        const slotSelectPanel = document.getElementById('slot-select-panel');
+        if (slotSelectPanel && !slotSelectPanel.classList.contains('hidden')) {
+            if (typeof openSlotSelect === 'function') {
+                openSlotSelect(window._slotMode || 'load');
+            }
+        }
+        window.showToast('已切換回本地儲存模式，存檔將只保存在本機瀏覽器。', 'success');
+    };
+
+    window.switchToCloudMode = async function () {
+        localStorage.setItem('klh_storage_mode', 'cloud');
+        window.updateStorageModeUI();
+
+        // 切換到雲端時，自動同步一次雲端
+        await window.syncFromCloud(true);
+
+        // 重新渲染存檔選擇畫面 (如果目前開著)
+        const slotSelectPanel = document.getElementById('slot-select-panel');
+        if (slotSelectPanel && !slotSelectPanel.classList.contains('hidden')) {
+            if (typeof openSlotSelect === 'function') {
+                openSlotSelect(window._slotMode || 'load');
+            }
+        }
     };
 
     // 注入雲端存檔 UI 至主畫面
@@ -542,47 +749,66 @@
         if (!mainMenu) return;
         if (document.getElementById('cloud-save-container')) return;
 
+        const showLock = (typeof window.openGMShop === 'function') ? '' : '🔒固定';
+
         const container = document.createElement('div');
         container.id = 'cloud-save-container';
         container.className = 'w-80 flex flex-col gap-3 mt-6 p-4 rounded-xl border border-slate-700 bg-slate-900/40 text-center';
         container.innerHTML = `
-            <div class="text-sm font-bold text-yellow-500">雲端存檔同步 (JSONBlob)</div>
-            <input id="jsonblob-input" type="text" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
-            <div class="w-full">
-                <button onclick="handleCloudSaveReadClick()" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold">讀取雲端</button>
+            <div class="text-sm font-bold text-yellow-500">存檔儲存模式</div>
+            <div id="storage-mode-status" class="text-xs text-slate-300 font-bold bg-slate-950/60 p-2.5 rounded border border-slate-800 flex justify-between items-center">
+                <span>目前存檔模式：</span>
+                <span id="current-storage-mode-text" class="font-bold text-green-400">本地模式</span>
             </div>
-            <div class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
-            <div class="flex flex-col gap-1.5 text-sm">
-                <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-amber-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb1f-b31c-769f-8475-02be610a13b0">
-                    <span style="position: absolute; left: 16px;">1.</span>
-                    <span class="font-bold">太陽神阿波羅</span>
-                    <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(預設)</span>
-                </button>
-                <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-orange-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-0d11-7569-a341-463d28054478">
-                    <span style="position: absolute; left: 16px;">2.</span>
-                    <span class="font-bold">火神赫發斯特斯</span>
-                </button>
-                <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-green-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-58de-78fd-8139-eca46c089de3">
-                    <span style="position: absolute; left: 16px;">3.</span>
-                    <span class="font-bold">勝利女神雅典那</span>
-                </button>
-                <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-rose-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-ad04-76f1-81df-d15d7b2d03d0">
-                    <span style="position: absolute; left: 16px;">4.</span>
-                    <span class="font-bold">天后海拉</span>
-                    <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">🔒固定</span>
-                </button>
-                <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-cyan-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-e777-7ab7-b744-aaab13066231">
-                    <span style="position: absolute; left: 16px;">5.</span>
-                    <span class="font-bold">天神宙斯</span>
-                    <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">🔒固定</span>
-                </button>
+            
+            <div class="flex gap-2 w-full">
+                <button id="btn-switch-local" onclick="switchToLocalMode()" class="btn flex-1 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-white font-bold">切回本地</button>
+                <button id="btn-switch-cloud" onclick="switchToCloudMode()" class="btn flex-1 py-2 text-xs bg-indigo-700 hover:bg-indigo-600 text-white font-bold">切換雲端</button>
+            </div>
+
+            <div id="cloud-settings-section" class="flex flex-col gap-3 border-t border-slate-800 pt-3" style="display: none;">
+                <input id="jsonblob-input" type="text" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
+                <div class="w-full">
+                    <button onclick="handleCloudSaveReadClick()" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold">手動讀取雲端</button>
+                </div>
+                <div class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
+                <div class="flex flex-col gap-1.5 text-sm">
+                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-amber-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb1f-b31c-769f-8475-02be610a13b0">
+                        <span style="position: absolute; left: 16px;">1.</span>
+                        <span class="font-bold">太陽神阿波羅</span>
+                        <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(預設)</span>
+                    </button>
+                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-orange-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-0d11-7569-a341-463d28054478">
+                        <span style="position: absolute; left: 16px;">2.</span>
+                        <span class="font-bold">火神赫發斯特斯</span>
+                    </button>
+                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-green-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-58de-78fd-8139-eca46c089de3">
+                        <span style="position: absolute; left: 16px;">3.</span>
+                        <span class="font-bold">勝利女神雅典那</span>
+                    </button>
+                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-rose-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-ad04-76f1-81df-d15d7b2d03d0">
+                        <span style="position: absolute; left: 16px;">4.</span>
+                        <span class="font-bold">天后海拉</span>
+                        <span id="lock-hella-tag" style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${showLock}</span>
+                    </button>
+                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-cyan-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-e777-7ab7-b744-aaab13066231">
+                        <span style="position: absolute; left: 16px;">5.</span>
+                        <span class="font-bold">天神宙斯</span>
+                        <span id="lock-zeus-tag" style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${showLock}</span>
+                    </button>
+                </div>
             </div>
         `;
         mainMenu.appendChild(container);
 
+        // 初始化狀態更新
+        window.updateStorageModeUI();
+
         const inputEl = document.getElementById('jsonblob-input');
-        inputEl.placeholder = '019ebb1f-b31c-769f-8475-02be610a13b0';
-        inputEl.value = window.activeKey;
+        if (inputEl) {
+            inputEl.placeholder = '019ebb1f-b31c-769f-8475-02be610a13b0';
+            inputEl.value = window.activeKey;
+        }
     }
 
     // 攔截 saveGame() / saveWarehouse() / loadGame() / slotSummary()
@@ -614,7 +840,7 @@
             try {
                 let d = JSON.parse(s);
                 d.difficulty = window.gameDifficulty;
-                
+
                 // 注入自定義設定，以防被原版 saveGame() 覆寫擦除
                 if (d.p) {
                     if (!d.p.config) d.p.config = {};
@@ -626,17 +852,25 @@
                     d.p.config.setAutoBuyDroprate = chkAutoBuyDroprate ? chkAutoBuyDroprate.checked : false;
                     d.p.config.setGodBless = chkGodBless ? chkGodBless.checked : false;
                 }
-                
+
                 localStorage.setItem('lineage_idle_save_' + currentSlot, JSON.stringify(d));
             } catch (e) { }
         }
-        return await window.uploadToCloud();
+
+        const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
+        if (storageMode === 'cloud') {
+            return await window.uploadToCloud();
+        }
     };
 
     const originalSaveWarehouse = window.saveWarehouse;
     window.saveWarehouse = async function (w) {
         originalSaveWarehouse(w);
-        return await window.uploadToCloud();
+
+        const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
+        if (storageMode === 'cloud') {
+            return await window.uploadToCloud();
+        }
     };
 
     const originalLoadGame = window.loadGame;
@@ -814,43 +1048,89 @@
         const jacketItem = { id: 'amr_jacket', uid: jacketUid, cnt: 1, en: 0, bless: false, anc: false, attr: false, seteff: false, lock: false, junk: false };
         const potionItem = { id: 'potion_heal', uid: potionUid, cnt: 100, en: 0, bless: false, anc: false, attr: false, seteff: false, lock: false, junk: false };
 
-        // 騎士基礎：str:16, dex:12, con:14, int:8, wis:9, cha:8, pts:8
-        // 乘2後：str:32, dex:24, con:28, int:16, wis:18, cha:16
-        // pts三倍後：24。全部分配給力量。力量 = 32 + 24 = 56。
+        // 根據遊戲規則與創角順序動態分配屬性點數：依據「力量滿上限再分配至敏捷、敏捷滿上限再分配至體質...」之規則進行分配
+        let baseStr = 32, baseDex = 24, baseCon = 28, baseInt = 16, baseWis = 18, baseCha = 16, pts = 24;
+        let multStats = 2; // 預設屬性倍率
+
+        if (typeof createBase !== 'undefined' && createBase.knight) {
+            let knightBase = createBase.knight;
+            baseStr = knightBase.str;
+            baseDex = knightBase.dex;
+            baseCon = knightBase.con;
+            baseInt = knightBase.int;
+            baseWis = knightBase.wis;
+            baseCha = knightBase.cha;
+            pts = knightBase.pts;
+            // 透過「當前力量值 / 騎士原始力量值 16」動態推算目前的屬性倍率，以支援未來任何倍率 (如 1.5x、3x 等)
+            multStats = baseStr / 16;
+        }
+
+        const capN = 20 * multStats; // 創角階段單屬性上限：原始上限 20 乘以動態倍率
+        let stats = { str: baseStr, dex: baseDex, con: baseCon, int: baseInt, wis: baseWis, cha: baseCha };
+        const order = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+        let remainingPts = pts;
+
+        for (let i = 0; i < order.length; i++) {
+            if (remainingPts <= 0) break;
+            let key = order[i];
+            let currentVal = stats[key];
+            let room = capN - currentVal;
+            if (room > 0) {
+                let allocate = Math.min(remainingPts, room);
+                stats[key] += allocate;
+                remainingPts -= allocate;
+            }
+        }
+
         const playerObj = {
-            avatar: '女騎士',
             cls: 'knight',
             name: '初心者',
-            base: { str: 56, dex: 24, con: 28, int: 16, wis: 18, cha: 16 },
+            avatar: '女騎士',
             lv: 1,
             exp: 0,
             gold: 32767,
-            inv: [daggerItem, jacketItem, potionItem],
-            eq: {
-                wpn: daggerItem,
-                helm: null,
-                armor: jacketItem,
-                shield: null,
-                cloak: null,
-                tshirt: null,
-                gloves: null,
-                boots: null,
-                ring1: null,
-                ring2: null,
-                amulet: null,
-                belt: null
-            },
-            junkPrefs: {},
-            skills: [],
-            summon: null, charmed: null, manualCd: {}, hot: null, elfEle: null,
-            buffs: { haste: 0, brave: 0, blue: 0, cautious: 0, elfcookie: 0, poly: 0, shield: 0 },
+            hp: 16,
+            mhp: 16,
+            mp: 1,
+            mmp: 1,
+            blessings: {},
+            base: { str: stats.str, dex: stats.dex, con: stats.con, int: stats.int, wis: stats.wis, cha: stats.cha },
+            bonus: 0,
             alloc: { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 },
             panacea: { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 },
             panaceaUsed: 0,
-            bonus: 0,
-            hp: 1,
-            mp: 1,
-            dead: false
+            junkPrefs: {},
+            bloodPledge: null,
+            magicShieldCd: 0,
+            lastMapByCat: {},
+            tracking: null,
+            ismaelAccUsed: false,
+            sherineWorld: false,
+            masteryQuest: null,
+            mastery: null,
+            masteryChangeCnt: 0,
+            siege: { active: false, city: 'kent', victoryCity: null, gateKilled: false, towerKilled: false, endTime: 0, kills: 0, result: null, cooldownUntil: 0, rewardPending: false, victoryUntil: 0, accCdUntil: 0 },
+            inv: [daggerItem, jacketItem, potionItem],
+            eq: { wpn: daggerItem, arrow: null, helm: null, armor: jacketItem, shield: null, cloak: null, tshirt: null, gloves: null, boots: null, ring1: null, ring2: null, ring3: null, ring4: null, amulet: null, belt: null },
+            skills: [],
+            buffs: { haste: 0, brave: 0, blue: 0, cautious: 0, elfcookie: 0, poly: 0, shield: 0, sk_magic_shield: 0 },
+            poly: null,
+            allies: [],
+            summon: null, charmed: null, manualCd: {}, elfEle: null, hot: null,
+            cds: { pot: 0, atkSk: 0, healSk: 0, purifySk: 0 },
+            dead: false,
+            statuses: { stun: 0, freeze: 0, stone: 0, poison: 0, poisonDmg: 0, poisonTick: 0, burn: 0, burnDmg: 0, burnTick: 0, scald: 0, scaldDmg: 0, scaldTick: 0, bleed: 0, bleedDmg: 0, bleedTick: 0, sleep: 0, silence: 0, paralyze: 0, magicseal: 0, armorBreak: 0, slowAtk: 0, cleave: 0 },
+            d: {
+                str: stats.str, dex: stats.dex, con: stats.con, int: stats.int, wis: stats.wis, cha: stats.cha,
+                meleeDmg: 0, meleeHit: 0, meleeCrit: 0,
+                rangedDmg: 0, rangedHit: 0, rangedCrit: 0,
+                extraDmg: 0, extraHit: 0,
+                magicDmg: 0, magicHit: 0, magicCrit: 0, extraMp: 0, mpReduce: 0,
+                meleeCritDmg: 50, rangedCritDmg: 50, magicCritDmg: 50,
+                ac: 10, mr: 0, er: 0, dr: 0,
+                resFire: 0, resWater: 0, resEarth: 0, resWind: 0,
+                hpRegenMax: 0, hpR: 0, mpR: 0, aspd: 1.0
+            }
         };
 
         if (window.applySaveDefaults) {
@@ -868,6 +1148,9 @@
 
     window.checkAndPrepopulateSlots = function () {
         for (let n = 1; n <= 3; n++) {
+            if (localStorage.getItem('lineage_idle_save_' + n + '_empty_flag') === 'true') {
+                continue; // 手動清空的存檔位，不自動預填
+            }
             if (!localStorage.getItem('lineage_idle_save_' + n)) {
                 const saveObj = window.createDefaultFemaleKnightSave(n);
                 localStorage.setItem('lineage_idle_save_' + n, JSON.stringify(saveObj));
@@ -889,7 +1172,10 @@
         localStorage.removeItem('lineage_idle_warehouse');
 
         window.checkAndPrepopulateSlots();
-        window.uploadToCloud();
+        const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
+        if (storageMode === 'cloud') {
+            window.uploadToCloud();
+        }
 
         if (typeof window.openSlotSelect === 'function') {
             window.openSlotSelect(window._slotMode || 'load');
@@ -918,6 +1204,7 @@
         let sum = slotSummary(n);
         if (sum && !confirm(`存檔 ${n} 已有角色（${sum.cls} Lv.${sum.lv} ${sum.name}），確定覆蓋並重新創角？`)) return;
 
+        localStorage.removeItem('lineage_idle_save_' + n + '_empty_flag');
         currentSlot = n;
         document.getElementById('slot-select-panel').classList.add('hidden');
         showCreation();
@@ -954,6 +1241,34 @@
             };
             descEl.innerHTML = descs[diff] || "";
         }
+    };
+
+    window.deleteSingleSave = function (n) {
+        if (typeof window.openGMShop !== 'function') {
+            window.showToast('權限不足：單獨刪除存檔僅限 GM 權限使用！', 'error');
+            return;
+        }
+        if (checkIsPrivileged()) {
+            window.showToast('特權金鑰限制：禁止刪除此存檔！', 'error');
+            return;
+        }
+        let sum = slotSummary(n);
+        if (!sum) return;
+        if (!confirm(`確定要單獨刪除存檔 ${n} 嗎？\n角色：${sum.cls} Lv.${sum.lv} ${sum.name}\n⚠ 刪除後此位置將填成空，並自動同步至雲端。`)) return;
+
+        let cur = localStorage.getItem('lineage_idle_save_' + n);
+        if (cur) {
+            localStorage.setItem('lineage_idle_save_' + n + '_bak', cur);
+        }
+        localStorage.removeItem('lineage_idle_save_' + n);
+        localStorage.setItem('lineage_idle_save_' + n + '_empty_flag', 'true');
+
+        const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
+        if (storageMode === 'cloud') {
+            window.uploadToCloud();
+        }
+        window.openSlotSelect(window._slotMode || 'load');
+        window.showToast(`已成功刪除存檔 ${n}！`, 'success');
     };
 
     // 重新實作 openSlotSelect
@@ -1012,9 +1327,18 @@
             }
             let disabled = (mode === 'load' && !sum);
             let bak = (mode === 'load') ? slotBackupSummary(n) : null;
-            let importBtn = `<button onclick="importSave(${n})" class="btn flex-1 min-w-0 py-4 px-2 text-base font-bold bg-indigo-700 hover:bg-indigo-600 border-indigo-500 whitespace-nowrap">匯入進度</button>`;
-            let restoreBtn = bak ? `<button onclick="restoreBackup(${n})" title="復原匯入前自動備份的存檔（${bak.cls} Lv.${bak.lv}　${bak.name}）" class="btn flex-1 min-w-0 py-4 px-2 text-sm font-bold bg-amber-700 hover:bg-amber-600 border-amber-500 whitespace-nowrap">↩ 復原備份</button>` : '';
-            let actionArea = (mode === 'load') ? `<div class="flex gap-2 shrink-0 w-56">${importBtn}${restoreBtn}</div>` : '';
+            let importBtn = `<button onclick="importSave(${n})" class="btn flex-1 min-w-0 py-4 px-1 text-sm font-bold bg-indigo-700 hover:bg-indigo-600 border-indigo-500 whitespace-nowrap">匯入</button>`;
+            let restoreBtn = bak ? `<button onclick="restoreBackup(${n})" title="復原匯入前自動備份的存檔（${bak.cls} Lv.${bak.lv}　${bak.name}）" class="btn flex-1 min-w-0 py-4 px-1 text-sm font-bold bg-amber-700 hover:bg-amber-600 border-amber-500 whitespace-nowrap">復原</button>` : '';
+            let deleteBtn = (sum && typeof window.openGMShop === 'function') ? `<button onclick="deleteSingleSave(${n})" class="btn py-4 px-2 text-sm font-bold bg-red-700 hover:bg-red-600 border-red-500 whitespace-nowrap" style="width: 50px; flex-shrink: 0;">刪除</button>` : '';
+
+            let actionArea = '';
+            if (mode === 'load') {
+                actionArea = `<div class="flex gap-1 shrink-0 w-56">${importBtn}${restoreBtn}${deleteBtn}</div>`;
+            } else {
+                if (sum && typeof window.openGMShop === 'function') {
+                    actionArea = `<div class="flex gap-1 shrink-0 w-14">${deleteBtn}</div>`;
+                }
+            }
             list.innerHTML += `<div class="flex gap-2 w-full">`
                 + `<button onclick="chooseSlot(${n})" ${disabled ? 'disabled' : ''} class="btn flex-1 min-w-0 py-4 text-lg font-bold ${disabled ? 'opacity-40' : ''}">${label}</button>`
                 + actionArea
@@ -1576,6 +1900,12 @@
         if (started) return;
         started = true;
 
+        const creationScreen = document.getElementById('creation-screen');
+        if (creationScreen) {
+            creationScreen.style.maxHeight = 'calc(100vh - 32px)';
+            creationScreen.style.overflowY = 'auto';
+        }
+
         // 增添感謝文字與更新說明按鈕
         const headerDiv = document.querySelector('#creation-screen > div.text-center') || document.querySelector('#creation-screen > div:first-child');
         if (headerDiv) {
@@ -1659,14 +1989,22 @@
         attachHoldEventsToStatButtons();
         attachHoldEventsToInGameStatButtons();
 
-        // 修正 _slotMode 作用域遮蔽問題
+        // 修正 _slotMode 作用域遮蔽問題與清理空存檔標記
         patchGlobalFunctionMultiple('importSave', [
+            {
+                find: `localStorage.setItem('lineage_idle_save_' + n, saveText);`,
+                replace: `localStorage.setItem('lineage_idle_save_' + n, saveText); localStorage.removeItem('lineage_idle_save_' + n + '_empty_flag');`
+            },
             {
                 find: `openSlotSelect(_slotMode);`,
                 replace: `openSlotSelect(window._slotMode);`
             }
         ]);
         patchGlobalFunctionMultiple('restoreBackup', [
+            {
+                find: `localStorage.setItem('lineage_idle_save_' + n, bak);`,
+                replace: `localStorage.setItem('lineage_idle_save_' + n, bak); localStorage.removeItem('lineage_idle_save_' + n + '_empty_flag');`
+            },
             {
                 find: `openSlotSelect(_slotMode);`,
                 replace: `openSlotSelect(window._slotMode);`
@@ -1705,10 +2043,15 @@
             }
         }, true); // 注意：必須設為 true 以啟用捕獲階段攔截！
 
-        // 自動雲端載入並同步（靜音，不跳警告窗）
-        window.syncFromCloud(false).then(() => {
+        // 自動雲端載入並同步（僅在雲端模式下執行）
+        const initialStorageMode = localStorage.getItem('klh_storage_mode') || 'local';
+        if (initialStorageMode === 'cloud') {
+            window.syncFromCloud(false).then(() => {
+                refreshLoadBtnVisibility();
+            });
+        } else {
             refreshLoadBtnVisibility();
-        });
+        }
 
         // 延遲一段時間，確保 afk-mobile.js 已經對 window.openSlotSelect 進行了第一次包裝
         setTimeout(() => {
