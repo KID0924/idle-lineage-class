@@ -413,6 +413,9 @@
         let freeCheckbox = document.getElementById('gm-free-checkbox');
         let isFree = freeCheckbox ? freeCheckbox.checked : true;
 
+        let legendCheckbox = document.getElementById('gm-legend-checkbox');
+        let isLegendOnly = legendCheckbox ? legendCheckbox.checked : false;
+
         let enhanceVal = 0;
         let enhanceSel = document.getElementById('gm-enhance-select');
         if (enhanceSel) {
@@ -451,7 +454,7 @@
             seteffVal = seteffSel.value;
         }
 
-        return { isFree, enhanceVal, blessVal, ancVal, attrVal, seteffVal };
+        return { isFree, isLegendOnly, enhanceVal, blessVal, ancVal, attrVal, seteffVal };
     }
 
     // 3. 渲染裝備網格
@@ -466,6 +469,9 @@
 
         // 過濾裝備
         let filtered = equipments.filter(item => {
+            // 0. 僅傳說裝備篩選
+            if (opts.isLegendOnly && !item.legend) return false;
+
             // 1. 主分類過濾
             if (mainCat !== 'all' && item.type !== mainCat) return false;
             
@@ -704,10 +710,14 @@
                     <!-- 側邊欄控制面版 -->
                     <div class="gm-shop-sidebar">
                         <div class="gm-shop-control-group" id="gm-ctrl-free">
-                            <span class="gm-shop-control-label">價格模式</span>
+                            <span class="gm-shop-control-label">價格與篩選</span>
                             <label class="gm-shop-checkbox-container mt-1">
                                 <input type="checkbox" id="gm-free-checkbox" class="gm-shop-checkbox" checked onchange="onGMShopOptionChange()">
                                 <span class="font-bold text-yellow-400">免費獲得 (0金)</span>
+                            </label>
+                            <label class="gm-shop-checkbox-container mt-2">
+                                <input type="checkbox" id="gm-legend-checkbox" class="gm-shop-checkbox" onchange="onGMShopOptionChange()">
+                                <span class="font-bold text-orange-400">僅傳說裝備</span>
                             </label>
                         </div>
                         
