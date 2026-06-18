@@ -1,9 +1,32 @@
 /* ============================================================================
- * klh_GM2.js — 高級藥水、神之祝福與掉寶藥水機制 & 克里斯特兌換 & 強力短劍屬性繼承 & 快速批量賣出
+/* ============================================================================
+ * klh_GM2.js — 高級藥水、神之祝福與掉寶藥水機制 & 克里斯特兌換 & 快速批量賣出 & 轉生系統 & 碧恩席琳附魔
  *
  * 設計原則: 完全不改原作者程式碼，只從外面「包住」全域函式 (monkey-patch)。
  * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
  * * <script src="klh_GM2.js?v=20260616"></script>
+ *
+ * 功能一覽:
+ *   1. 發光 CSS 注入     —— 注入屬性詞綴圖示動態光暈特效 (earth3/earth5-glow等)。
+ *   2. 自定義資料庫   —— 新增濃縮白水、超級濃縮白水、掉寶藥水、神之祝福藥水四種自定義藥水。
+ *   3. 自動啟用 UI    —— 動態注入自動喝藥水核取方塊（掉寶藥水 / 神之祝福藥水）至設定面板。
+ *   4. 自定義藥水效果   —— 觸發回血、添加 Buff 增益效果。
+ *   5. 商店注入       —— 針對含有白色藥水的店鋪自動加入自定義藥水選項。
+ *   6. 藥水使用覆蓋     —— useItem Hook，支援八種自定義藥水效果。
+ *   7. 克里斯特兌換     —— 新增席琳結晶兌換 (100k 金幣1個 / 2000k 金幣20個)。
+ *   8. 掉寶/祝福機制     —— killMob Hook，掉寶藥水金幣x2、裝備掉寶x3、材料x2；
+ *                          神之祝福藥水提升祝福/席琳相剋機率。
+ *   9. gainItem 覆蓋    —— 怪物掉落裝備時即時判斷祝福和席琳相剋機率。
+ *  10. 存檔協調       —— saveGame/loadGame 同步輸存自定義設定 (掉寶/祝福核取方塊狀態)。
+ *  11. 快速批量賣出   —— 背包第三欄加入「批量賣出」模式，含模糊搜尋賣出功能。
+ *  12. 自動互斥處理   —— 批量賣出與快速強化模式相互排他。
+ *  13. renderTabs 覆蓋  —— 完整重寫背包標籤渲染邏輯，支援快速強化和批量賣出 UI 整合。
+ *  14. 轉生系統       —— 「時光使者」 NPC ，75 等以上可轉生重置等級，
+ *                          保留擁有屬性點數並額外獲得 (Lv-50) 點數。
+ *  15. 回憶蠟燭保護   —— Hook resetStatsCandle ，防止轉生點數被回憶蠟燭消耗。
+ *  16. 象牙塔 NPC 碧恩  —— 覆寫 renderBianBless ，對席琳支援部位嵌入「席琳 [部位]」按鈕，
+ *                          每次費用席琳結晶x2，隨機賦予 SHERINE_EFFECTS 中一種效果。
+ *                          最下方附祝福/遠古印記/屬性/席琳套裝詳細卡片介紹。
  * ========================================================================== */
 
 (function () {
@@ -271,6 +294,12 @@
         } else if (kind === 'god_bless_20') {
             cost = 200000;
             count = 20;
+        } else if (kind === 'sherine_crystal_1') {
+            cost = 100000;
+            count = 1;
+        } else if (kind === 'sherine_crystal_20') {
+            cost = 2000000;
+            count = 20;
         }
 
         if ((player.gold || 0) < cost) {
@@ -284,7 +313,9 @@
             acc: { out: 'new_item_bless_acc', outNm: '賦予飾品祝福卷軸', type: '張' },
             uncurse: { out: 'new_item_uncurse', outNm: '解除詛咒的卷軸', type: '張' },
             god_bless_1: { out: 'potion_god_bless', outNm: '神之祝福藥水', type: '瓶' },
-            god_bless_20: { out: 'potion_god_bless', outNm: '神之祝福藥水', type: '瓶' }
+            god_bless_20: { out: 'potion_god_bless', outNm: '神之祝福藥水', type: '瓶' },
+            sherine_crystal_1: { out: 'sherine_crystal', outNm: '席琳結晶', type: '個' },
+            sherine_crystal_20: { out: 'sherine_crystal', outNm: '席琳結晶', type: '個' }
         }[kind];
 
         if (!cfg) return;
@@ -295,7 +326,7 @@
         updateUI();
         saveGame();
 
-        let colorClass = cfg.out === 'potion_god_bless' ? 'text-yellow-300' : 'text-purple-300';
+        let colorClass = cfg.out === 'potion_god_bless' ? 'text-yellow-300' : (cfg.out === 'sherine_crystal' ? 'text-green-300' : 'text-purple-300');
         logSys(`花費 ${cost.toLocaleString()} 金幣，換得 ${count} ${cfg.type} <span class="${colorClass} font-bold">${cfg.outNm}</span>。`);
 
         let _e = document.getElementById('interaction-content');
@@ -324,6 +355,14 @@
             <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
                 <div class="text-sm text-slate-200 leading-relaxed">200,000 金幣 → 20 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
                 <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_20')">兌換</button>
+            </div>
+            <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
+                <div class="text-sm text-slate-200 leading-relaxed">100,000 金幣 → 1 個 <span class="text-green-300 font-bold">席琳結晶</span></div>
+                <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('sherine_crystal_1')">兌換</button>
+            </div>
+            <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
+                <div class="text-sm text-slate-200 leading-relaxed">2,000,000 金幣 → 20 個 <span class="text-green-300 font-bold">席琳結晶</span></div>
+                <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('sherine_crystal_20')">兌換</button>
             </div>
         </div>`;
     };
@@ -1325,6 +1364,173 @@
             };
             window.updateUI.__klhRebirthGlowWrapped = true;
         }
+
+        // ==========================================
+        // 16. 象牙塔 碧恩（NPC Bian）：新增席琳套裝效果附加功能
+        // ==========================================
+        
+        // 檢查部位是否支援席琳套裝效果
+        function isSherineSlot(slotKey, it) {
+            if (!it) return false;
+            let d = DB.items[it.id];
+            if (!d) return false;
+            return (d.type === 'wpn' && !d.isArrow)
+                || (d.type === 'arm' && ['helm','armor','gloves','boots','cloak'].includes(d.slot))
+                || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
+        }
+
+        // 碧恩：隨機附加席琳效果
+        window.doBianSherine = function (slotKey) {
+            let item = player.eq[slotKey];
+            if (!item) { logSys('該欄位沒有裝備。'); return; }
+            if (item.bless === 'cursed') { logSys('<span class="text-red-400 font-bold">被詛咒的裝備無法施加席琳力量，請先解除詛咒。</span>'); return; }
+            
+            let sc = player.inv.find(i => i.id === 'sherine_crystal');
+            if (!sc || sc.cnt < 2) { logSys('<span class="text-red-400">缺少 席琳結晶*2。</span>'); return; }
+
+            sc.cnt -= 2;
+            if (sc.cnt <= 0) player.inv = player.inv.filter(i => i.uid !== sc.uid);
+
+            let seteff = SHERINE_EFFECTS[Math.floor(Math.random() * SHERINE_EFFECTS.length)];
+            item.seteff = seteff;
+
+            if (DB.items[item.id] && DB.items[item.id].grantSkills) renderSkillSelects();
+            calcStats();
+            updateUI();
+            renderTabs(true);
+            saveGame();
+
+            logSys(`碧恩為你的裝備注入了席琳的恩賜 → ${getItemFullName(item)}（【${seteff}】）。`);
+            let _e = document.getElementById('interaction-content');
+            if (_e) renderBianBless(_e);
+        };
+
+        // 覆寫碧恩介面渲染，加入「席琳」按鈕與最下方故事介紹
+        window.renderBianBless = function (el) {
+            let slots = [{k:'wpn',n:'武器'},{k:'shield',n:'盾牌'},{k:'helm',n:'頭盔'},{k:'armor',n:'盔甲'},{k:'tshirt',n:'T恤'},{k:'cloak',n:'斗篷'},{k:'gloves',n:'手套'},{k:'boots',n:'長靴'},{k:'amulet',n:'項鍊'},{k:'ring1',n:'戒指'},{k:'ring2',n:'戒指'},{k:'ring3',n:'戒指'},{k:'ring4',n:'戒指'},{k:'belt',n:'腰帶'}];
+            let cnt = id => pledgeCountItem(id);
+            let rows = slots.map(sl => {
+                let it = player.eq[sl.k];
+                let name = it ? getItemFullName(it) : '<span class="text-slate-500">（未裝備）</span>';
+                let _cursed = !!(it && it.bless === 'cursed');
+                let _uncurse = _cursed ? `<button class="btn py-1 px-2 text-sm font-bold shrink-0 bg-cyan-800 border-cyan-500 text-cyan-100" onclick="doBianUncurse('${sl.k}')">解除詛咒</button>` : '';
+                
+                // 🔧 詛咒裝備：祝福與席琳按鈕變灰禁用
+                let _blessBtn = (it && !_cursed)
+                    ? `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-purple-800 border-purple-500 text-purple-100 shrink-0" onclick="doBianBless('${sl.k}')">祝福${sl.n}</button>`
+                    : `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-slate-700 border-slate-600 text-slate-400 cursor-not-allowed shrink-0" disabled title="${_cursed ? '被詛咒的裝備需先解除詛咒' : ''}">${_cursed ? '🔒 詛咒中' : '祝福'+sl.n}</button>`;
+                
+                let _sherineBtn = '';
+                if (it && isSherineSlot(sl.k, it)) {
+                    _sherineBtn = (!_cursed)
+                        ? `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-emerald-800 border-emerald-500 text-emerald-100 shrink-0" onclick="doBianSherine('${sl.k}')">席琳${sl.n}</button>`
+                        : `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-slate-700 border-slate-600 text-slate-400 cursor-not-allowed shrink-0" disabled>🔒 席琳</button>`;
+                }
+
+                return `<div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-2 text-sm">
+                    <span class="truncate"><b class="text-amber-300">${sl.n}</b>：${name}</span>
+                    <div class="flex items-center gap-1 shrink-0">${_uncurse}${_sherineBtn}${_blessBtn}</div>
+                </div>`;
+            }).join('');
+
+            el.innerHTML = `
+                <div class="flex flex-col gap-2 p-1 max-h-[85vh] overflow-y-auto">
+                    <div class="text-slate-300 text-sm leading-relaxed">碧恩：我能為你的裝備灌注力量。每次祝福會在「屬性 / 遠古系 / 祝福」三者中平均抽一個詞綴，隨機<b>附加、取代或消除</b>（只影響該詞綴）。</div>
+                    <div class="text-xs text-slate-400">武器用 賦予武器祝福卷軸(持有 ${cnt('new_item_bless_wpn')})；防具用 賦予盔甲祝福卷軸(持有 ${cnt('new_item_bless_arm')})；飾品用 賦予飾品祝福卷軸(持有 ${cnt('new_item_bless_acc')})。<br>使用 席琳結晶(持有 ${cnt('sherine_crystal')}) 可對符合條件的裝備進行席琳附魔，每次需要 2 個。含詛咒的裝備可用 解除詛咒的卷軸(持有 ${cnt('new_item_uncurse')}) 移除詛咒。</div>
+                    <div class="flex flex-col gap-1.5">${rows}</div>
+                    
+                    <!-- 天堂口吻之祝福與席琳介紹區塊 -->
+                    <div class="mt-4 border-t border-slate-700 pt-3 flex flex-col gap-3">
+                        <!-- 卡片一：✨ 殷海薩的祝福 -->
+                        <div class="bg-slate-800/60 border border-yellow-600/40 rounded p-3 text-xs leading-relaxed flex flex-col gap-2 shadow-[0_0_8px_rgba(234,179,8,0.15)]">
+                            <div class="text-yellow-400 font-bold text-sm">✨ 殷海薩的祝福傳奇</div>
+                            <div class="text-slate-300 italic">「當創造之神殷海薩的光芒灑落，平凡的鐵器也將昇華為聖物。」</div>
+                            <div class="text-slate-400 border-t border-slate-700/60 pt-2 flex flex-col gap-1">
+                                <div class="font-bold text-slate-300">⚔️ 聖力祝福加成 (與詛咒負值對稱)</div>
+                                <div>• <b>武器</b>：<span class="c-blessed font-bold">祝福的</span> (外傷+1/外命+1/魔量+2) ｜ <span class="c-cursed font-bold">詛咒的</span> (外傷-1/外命-1/魔量-2)</div>
+                                <div>• <b>防具</b>：<span class="c-blessed font-bold">祝福的</span> (AC-1/傷減+1) ｜ <span class="c-cursed font-bold">詛咒的</span> (AC+1/傷減-1)</div>
+                                <div>• <b>飾品</b>：<span class="c-blessed font-bold">祝福的</span> (AC-1/魔防+1) ｜ <span class="c-cursed font-bold">詛咒的</span> (AC+1/魔防-1)</div>
+                            </div>
+                        </div>
+
+                        <!-- 卡片二：💎 遠古之印 -->
+                        <div class="bg-slate-800/60 border border-purple-600/40 rounded p-3 text-xs leading-relaxed flex flex-col gap-2 shadow-[0_0_8px_rgba(147,51,234,0.15)]">
+                            <div class="text-purple-400 font-bold text-sm">💎 遠古之印能力變體</div>
+                            <div class="text-slate-300 italic">「來自遠古時空的烙印，賦予裝備強大的能力變體。」</div>
+                            <div class="text-slate-400 border-t border-slate-700/60 pt-2 flex flex-col gap-1">
+                                <div class="font-bold text-slate-300">⚔️ 遠古印記加成</div>
+                                <div>• <b>武器</b>：<span class="c-ancient font-bold">遠古</span> (外傷+2/魔傷+1) ｜ <span class="c-eternal font-bold">永恆</span> (外傷+4) ｜ <span class="c-immortal font-bold">不朽</span> (外命+4) ｜ <span class="c-primordial font-bold">太初</span> (魔傷+2)</div>
+                                <div>• <b>防具</b>：<span class="c-ancient font-bold">遠古</span> (傷減+2) ｜ <span class="c-eternal font-bold">永恆</span> (AC-2) ｜ <span class="c-immortal font-bold">不朽</span> (迴避ER+2) ｜ <span class="c-primordial font-bold">太初</span> (魔防MR+4)</div>
+                                <div>• <b>飾品</b>：<span class="c-ancient font-bold">遠古</span> (傷減+1/魔防+1) ｜ <span class="c-eternal font-bold">永恆</span> (外傷+1/AC-1) ｜ <span class="c-immortal font-bold">不朽</span> (外傷+1/外命+1) ｜ <span class="c-primordial font-bold">太初</span> (魔防+2/外魔+2)</div>
+                            </div>
+                        </div>
+
+                        <!-- 卡片三：🔥 屬性印記與元素共鳴 -->
+                        <div class="bg-slate-800/60 border border-amber-600/40 rounded p-3 text-xs leading-relaxed flex flex-col gap-2 shadow-[0_0_8px_rgba(245,158,11,0.15)]">
+                            <div class="text-amber-500 font-bold text-sm">🔥 屬性印記與元素共鳴 (將武器攻擊轉為該屬性，剋屬關係為 火克地/地克風/風克水/水克火)</div>
+                            <div class="text-slate-300 italic">「將大自然的元素之力封入武器與防具中，激發相生相剋的共鳴。」</div>
+                            <div class="text-slate-400 border-t border-slate-700/60 pt-2 flex flex-col gap-2">
+                                <div>
+                                    <div class="font-bold text-slate-300">⚔️ 武器加成 (固定物理傷害 / 剋屬性怪額外固定傷害)</div>
+                                    <ul class="list-none space-y-0.5 mt-1">
+                                        <li>• <span class="c-attr-fire1 font-bold">火之</span> / <span class="c-attr-fire3 font-bold">爆炎</span> / <span class="c-attr-fire5 c-attr-glow font-bold">火靈</span>：物理傷害 +1/+3/+5 ｜ 剋地屬怪 +6/+9/+12</li>
+                                        <li>• <span class="c-attr-water1 font-bold">水之</span> / <span class="c-attr-water3 font-bold">海嘯</span> / <span class="c-attr-water5 c-attr-glow font-bold">水靈</span>：物理傷害 +1/+3/+5 ｜ 剋火屬怪 +6/+9/+12</li>
+                                        <li>• <span class="c-attr-wind1 font-bold">風之</span> / <span class="c-attr-wind3 font-bold">暴風</span> / <span class="c-attr-wind5 c-attr-glow font-bold">風靈</span>：物理傷害 +1/+3/+5 ｜ 剋水屬怪 +6/+9/+12</li>
+                                        <li>• <span class="c-attr-earth1 font-bold">地之</span> / <span class="c-attr-earth3 font-bold">崩裂</span> / <span class="c-attr-earth5 c-attr-glow font-bold">地靈</span>：物理傷害 +1/+3/+5 ｜ 剋風屬怪 +6/+9/+12</li>
+                                    </ul>
+                                </div>
+                                <div class="border-t border-slate-800/80 pt-1.5">
+                                    <div class="font-bold text-slate-300">🛡️ 防具/飾品加成 (對應元素抗性 / 魔法防禦 MR)</div>
+                                    <ul class="list-none space-y-0.5 mt-1">
+                                        <li>• <span class="c-attr-fire1 font-bold">火之</span> / <span class="c-attr-fire3 font-bold">爆炎</span> / <span class="c-attr-fire5 c-attr-glow font-bold">火靈</span>：火抗 +1%/+2%/+3% ｜ 魔法防禦 +1/+2/+3</li>
+                                        <li>• <span class="c-attr-water1 font-bold">水之</span> / <span class="c-attr-water3 font-bold">海嘯</span> / <span class="c-attr-water5 c-attr-glow font-bold">水靈</span>：水抗 +1%/+2%/+3% ｜ 魔法防禦 +1/+2/+3</li>
+                                        <li>• <span class="c-attr-wind1 font-bold">風之</span> / <span class="c-attr-wind3 font-bold">暴風</span> / <span class="c-attr-wind5 c-attr-glow font-bold">風靈</span>：風抗 +1%/+2%/+3% ｜ 魔法防禦 +1/+2/+3</li>
+                                        <li>• <span class="c-attr-earth1 font-bold">地之</span> / <span class="c-attr-earth3 font-bold">崩裂</span> / <span class="c-attr-earth5 c-attr-glow font-bold">地靈</span>：地抗 +1%/+2%/+3% ｜ 魔法防禦 +1/+2/+3</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 卡片四：👁️ 席琳的怨念與混沌套裝 -->
+                        <div class="bg-slate-800/60 border border-green-600/40 rounded p-3 text-xs leading-relaxed flex flex-col gap-2 shadow-[0_0_8px_rgba(74,222,128,0.15)]">
+                            <div class="text-emerald-400 font-bold text-sm">👁️ 席琳的怨念與混沌套裝 (武器/頭盔/防具/手套/長靴/斗篷/腰帶 隨機印記賦予)</div>
+                            <div class="text-slate-300 italic">「自死神席琳的嘆息中流出的結晶，帶有使凡人裝備產生套裝共鳴的禁忌魔能。」</div>
+                            <div class="text-slate-400 border-t border-slate-700/60 pt-2 flex flex-col gap-2">
+                                <div class="font-bold text-slate-300">⚔️ 九大混沌套裝效果 (須裝備同套裝且「不重複」的效果印記名稱方可累積件數，重複名稱只計 1 件)</div>
+                                <div class="grid grid-cols-1 gap-2 text-slate-400">
+                                    <div>
+                                        <b class="text-red-400">【紅獅】(技能輸出)</b> <span class="text-slate-300 ml-1.5">(誓言/壯志/復仇/熱情/單思)</span><br>— 2件：外傷+5/外魔+3 ｜ 3件：傷減+10 ｜ 5件：技能最終傷害+20%
+                                    </div>
+                                    <div>
+                                        <b class="text-blue-400">【白鳥】(命中脆弱)</b> <span class="text-slate-300 ml-1.5">(誓言/依戀/夢想/情愫/犧牲)</span><br>— 2件：外命+5 ｜ 3件：魅力+10 ｜ 5件：命中附加「脆弱」(受傷+20%) 3秒
+                                    </div>
+                                    <div>
+                                        <b class="text-slate-400">【鐵衛】(減傷反擊)</b> <span class="text-slate-300 ml-1.5">(誓言/象徵/盟約/奮戰/守護)</span><br>— 2件：AC-3/傷減+5 ｜ 3件：受傷-20% ｜ 5件：反擊/居合時對全體敵人橫掃普攻
+                                    </div>
+                                    <div>
+                                        <b class="text-yellow-500">【麗人】(近戰重擊)</b> <span class="text-slate-300 ml-1.5">(誓言/加護/期盼/依靠/單戀)</span><br>— 2件：近傷+3/近命+3 ｜ 3件：近暴+2% ｜ 5件：重擊後下一次攻擊 100% 必中
+                                    </div>
+                                    <div>
+                                        <b class="text-sky-400">【疾風】(遠程連射)</b> <span class="text-slate-300 ml-1.5">(誓言/灑脫/傳說/襲擊/迅捷)</span><br>— 2件：遠傷+3/遠命+3 ｜ 3件：遠暴+2% ｜ 5件：連射傷害由 30% 提升至 80%
+                                    </div>
+                                    <div>
+                                        <b class="text-violet-400">【月光】(魔避雙防)</b> <span class="text-slate-300 ml-1.5">(誓言/隱情/幽蔽/純潔/消逝)</span><br>— 2件：外傷+2/外命+2 ｜ 3件：ER+5/MR+10 ｜ 5件：可用迴避率(ER)迴避魔法攻擊
+                                    </div>
+                                    <div>
+                                        <b class="text-orange-400">【學徒】(省魔回魔)</b> <span class="text-slate-300 ml-1.5">(誓言/好奇/研究/夢想/智慧)</span><br>— 2件：MP恢復+5/外魔+6 ｜ 3件：魔暴+2% ｜ 5件：魔量&lt;30%時技能耗魔減半
+                                    </div>
+                                    <div>
+                                        <b class="text-teal-400">【魔女】(魔法共鳴)</b> <span class="text-slate-300 ml-1.5">(誓言/哀戚/束縛/瘋狂/冷冽)</span><br>— 2件：魔傷+2 ｜ 3件：水抗+10/外魔+5 ｜ 5件：每5次共鳴免費冰矛圍籬一次
+                                    </div>
+                                    <div>
+                                        <b class="text-fuchsia-400">【暗影】(物傷連擊)</b> <span class="text-slate-300 ml-1.5">(誓言/護衛/抉擇/瞥視/忠誠)</span><br>— 2件：外傷+7 ｜ 3件：成功迴避回 20 HP ｜ 5件：連擊追加攻擊傷害提升至 100%
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        };
     }
 
     // 註冊 DOM 載入與即時啟動
