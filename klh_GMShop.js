@@ -962,6 +962,119 @@
         let zTag = document.getElementById('lock-zeus-tag');
         if (hTag) hTag.innerText = '';
         if (zTag) zTag.innerText = '';
+
+        // 強制解鎖清除所有存檔按鈕的顯示狀態
+        let clearAllBtn = document.getElementById('btn-clear-all');
+        if (clearAllBtn) {
+            clearAllBtn.style.setProperty('display', '', 'important');
+        }
+    }
+
+    // 繞過 jsonblob.js 的特權限制（解除存檔鎖定與覆蓋限制）
+    function bypassJsonBlobRestrictions() {
+        // 1. 覆寫 window.clearAllSaves 繞過 checkIsPrivileged 檢查
+        if (typeof window.clearAllSaves === 'function' && !window.clearAllSaves.isBypassedByGMShop) {
+            window.clearAllSaves = function () {
+                if (!confirm('確定要清除所有存檔嗎？此動作將無法復原。')) return;
+
+                for (let n = 1; n <= 4; n++) {
+                    localStorage.removeItem('lineage_idle_save_' + n);
+                    localStorage.removeItem('lineage_idle_save_' + n + '_bak');
+                }
+                localStorage.removeItem('lineage_idle_warehouse');
+
+                if (typeof checkAndPrepopulateSlots === 'function') {
+                    checkAndPrepopulateSlots();
+                } else if (typeof window.checkAndPrepopulateSlots === 'function') {
+                    window.checkAndPrepopulateSlots();
+                }
+
+                if (typeof uploadToCloud === 'function') {
+                    uploadToCloud();
+                } else if (typeof window.uploadToCloud === 'function') {
+                    window.uploadToCloud();
+                }
+
+                if (typeof openSlotSelect === 'function') {
+                    openSlotSelect(window._slotMode || 'load');
+                } else if (typeof window.openSlotSelect === 'function') {
+                    window.openSlotSelect(window._slotMode || 'load');
+                }
+
+                if (typeof showToast === 'function') {
+                    showToast('已成功清除所有存檔，並自動為您初始化存檔位 1-3！', 'success');
+                } else if (typeof window.showToast === 'function') {
+                    window.showToast('已成功清除所有存檔，並自動為您初始化存檔位 1-3！', 'success');
+                }
+            };
+            window.clearAllSaves.isBypassedByGMShop = true;
+        }
+
+        // 2. 覆寫 window.chooseSlot 繞過 checkIsPrivileged 檢查
+        if (typeof window.chooseSlot === 'function' && !window.chooseSlot.isBypassedByGMShop) {
+            window.chooseSlot = function (n) {
+                const mode = window._slotMode || (typeof window._slotMode !== 'undefined' ? window._slotMode : 'new');
+                if (mode === 'load') {
+                    currentSlot = n;
+                    if (typeof loadGame === 'function') {
+                        loadGame();
+                    } else if (typeof window.loadGame === 'function') {
+                        window.loadGame();
+                    }
+                    return;
+                }
+
+                // 創角模式 (new) —— 直接跳過 checkIsPrivileged() 檢查
+                let sum = null;
+                if (typeof slotSummary === 'function') {
+                    sum = slotSummary(n);
+                } else if (typeof window.slotSummary === 'function') {
+                    sum = window.slotSummary(n);
+                }
+
+                if (sum && !confirm(`存檔 ${n} 已有角色（${sum.cls} Lv.${sum.lv} ${sum.name}），確定覆蓋並重新創角？`)) return;
+
+                currentSlot = n;
+                const panel = document.getElementById('slot-select-panel');
+                if (panel) panel.classList.add('hidden');
+
+                if (typeof showCreation === 'function') {
+                    showCreation();
+                } else if (typeof window.showCreation === 'function') {
+                    window.showCreation();
+                }
+            };
+            window.chooseSlot.isBypassedByGMShop = true;
+        }
+
+        // 3. Hook window.openSlotSelect 以在開啟選檔畫面時強制解鎖
+        if (typeof window.openSlotSelect === 'function' && !window.openSlotSelect.isBypassedByGMShop) {
+            const originalOpenSlotSelect = window.openSlotSelect;
+            window.openSlotSelect = function (mode) {
+                originalOpenSlotSelect(mode);
+                
+                // 強制顯示清除所有存檔按鈕，並移除🔒固定
+                const clearAllBtn = document.getElementById('btn-clear-all');
+                if (clearAllBtn) {
+                    clearAllBtn.style.setProperty('display', '', 'important');
+                }
+                const hTag = document.getElementById('lock-hella-tag');
+                const zTag = document.getElementById('lock-zeus-tag');
+                if (hTag) hTag.innerText = '';
+                if (zTag) zTag.innerText = '';
+            };
+            window.openSlotSelect.isBypassedByGMShop = true;
+        }
+
+        // 4. 立即嘗試更新現有的 UI 元件
+        const clearAllBtn = document.getElementById('btn-clear-all');
+        if (clearAllBtn) {
+            clearAllBtn.style.setProperty('display', '', 'important');
+        }
+        const hTag = document.getElementById('lock-hella-tag');
+        const zTag = document.getElementById('lock-zeus-tag');
+        if (hTag) hTag.innerText = '';
+        if (zTag) zTag.innerText = '';
     }
 
     // 7. 初始化外掛
@@ -979,6 +1092,9 @@
             btn.onclick = openGMShop;
             document.body.appendChild(btn);
         }
+
+        // 繞過特權金鑰與存檔鎖定限制
+        bypassJsonBlobRestrictions();
 
         // 立即檢查一次顯示狀態
         checkGMShopBtnVisibility();
