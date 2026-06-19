@@ -1,4 +1,26 @@
-      # 2. 🌟 關鍵修正：檢查原作者進度 (手動觸發直接硬上！)
+name: 🚀 自動同步並注入外掛
+
+# 設定觸發條件
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *' # 每 15 分鐘自動執行一次巡邏
+  workflow_dispatch:    # 允許在 GitHub 網頁上隨時手動點擊更新
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      
+      # 1. 複製基地的現有檔案
+      - name: 📥 複製我的基地儲存庫
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      # 2. 🌟 檢查原作者進度 (手動觸發直接暴力覆蓋！)
       - name: 🕵️‍♀️ 檢查原作者是否有新進度
         run: |
           git clone --depth=1 https://github.com/shines871/idle-lineage-class.git upstream_check
@@ -23,7 +45,7 @@
           
           rm -rf upstream_check
 
-      # 3. 執行 Python 腳本（注入外掛與同步時間）
+      # 3. 執行 Python 腳本（注入動態版號、時間戳記與外掛）
       - name: 💉 注入動態版號、時間戳記與外掛
         if: env.SKIP_UPDATE != 'true'
         run: |
@@ -32,7 +54,7 @@
 
           dynamic_v = time.strftime("%Y%m%d%H%M")
           
-          # GitHub 主機在國外，手動加 8 小時換算成台灣時間
+          # 手動加 8 小時換算成台灣時間
           tw_time = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
           sync_str = tw_time.strftime("%Y/%m/%d %H:%M")
 
@@ -63,7 +85,6 @@
               footer.style.opacity = '0.8';
               footer.innerHTML = '原作者：秋玥 · 原版最後同步：{sync_str}';
               
-              // 找看看有沒有主要的容器，沒有就直接掛在 body 最底下
               let container = document.querySelector('.container') || document.body;
               container.appendChild(footer);
             }}, 500);
@@ -99,3 +120,26 @@
           
           python3 inject.py
           rm inject.py
+
+      # 4. 把組裝完成的程式碼推回 GitHub
+      - name: 📤 存檔並推回我的 GitHub 倉庫
+        if: env.SKIP_UPDATE != 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add .
+          
+          if git diff-index --quiet HEAD; then
+            echo "🥱 其實沒有檔案變動，收工！"
+            exit 0
+          fi
+          
+          ADDED_COUNT=$(git diff --cached --name-status | grep -iE '^A.*\.(png|jpg|jpeg|gif|webp)$' | wc -l | tr -d ' ')
+          MODIFIED_COUNT=$(git diff --cached --name-status | grep -iE '^M.*\.(png|jpg|jpeg|gif|webp)$' | wc -l | tr -d ' ')
+          
+          COMMIT_MSG="chore(sync): 自動同步原作者最新 index.html(新增 $ADDED_COUNT 張、更新 $MODIFIED_COUNT 張)"
+          
+          echo "🔥 準備送出的 Commit 訊息：$COMMIT_MSG"
+          git commit -m "$COMMIT_MSG"
+          git push
