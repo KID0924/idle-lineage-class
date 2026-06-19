@@ -39,8 +39,15 @@
     function getRedirectedKey(key) {
         const mode = originalGetItem.call(localStorage, 'klh_storage_mode') || 'local';
         if (mode === 'cloud') {
+            const activeKey = window.activeKey || originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '019ed445-679f-7ae4-9f05-f887591d1266';
+            const suffix = '_' + activeKey.trim();
+            // 🚀 遊戲存檔與倉庫：重定向至雲端快取鍵 + 金鑰後綴
             if (key.startsWith('lineage_idle_save_') || key === 'lineage_idle_warehouse') {
-                return key.replace('lineage_idle_save_', 'klh_cloud_save_').replace('lineage_idle_warehouse', 'klh_cloud_warehouse');
+                return key.replace('lineage_idle_save_', 'klh_cloud_save_').replace('lineage_idle_warehouse', 'klh_cloud_warehouse') + suffix;
+            }
+            // 🚀 離線掛機模組 (afk-offline.js) 的狀態鍵：直接加金鑰後綴，防止不同伺服器的地圖/時間戳互相污染
+            if (key.startsWith('afk_ts_') || key.startsWith('afk_map_') || key.startsWith('afk_pride_')) {
+                return key + suffix;
             }
         }
         return key;
@@ -86,38 +93,42 @@
     }
 
     function clearLocalCloudCache() {
+        const activeKey = window.activeKey || originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '019ed445-679f-7ae4-9f05-f887591d1266';
+        const suffix = '_' + activeKey.trim();
         ['1', '2', '3', '4'].forEach(n => {
-            originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n);
-            originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag');
+            originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + suffix);
+            originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag' + suffix);
         });
-        originalRemoveItem.call(localStorage, 'klh_cloud_warehouse');
-        console.log("[JSONBlob] 本地雲端存檔快取已清空。");
+        originalRemoveItem.call(localStorage, 'klh_cloud_warehouse' + suffix);
+        console.log("[JSONBlob] 本地雲端存檔快取已清空。後綴:", suffix);
     }
 
     window.copyLocalSavesToCloudCache = function () {
+        const activeKey = window.activeKey || originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '019ed445-679f-7ae4-9f05-f887591d1266';
+        const suffix = '_' + activeKey.trim();
         ['1', '2', '3', '4'].forEach(n => {
             const localVal = originalGetItem.call(localStorage, 'lineage_idle_save_' + n);
             if (localVal !== null) {
-                originalSetItem.call(localStorage, 'klh_cloud_save_' + n, localVal);
+                originalSetItem.call(localStorage, 'klh_cloud_save_' + n + suffix, localVal);
             } else {
-                originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n);
+                originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + suffix);
             }
             
             // 同步複製空存檔標記
             const localEmptyFlag = originalGetItem.call(localStorage, 'lineage_idle_save_' + n + '_empty_flag');
             if (localEmptyFlag !== null) {
-                originalSetItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag', localEmptyFlag);
+                originalSetItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag' + suffix, localEmptyFlag);
             } else {
-                originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag');
+                originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag' + suffix);
             }
         });
         const localWarehouse = originalGetItem.call(localStorage, 'lineage_idle_warehouse');
         if (localWarehouse !== null) {
-            originalSetItem.call(localStorage, 'klh_cloud_warehouse', localWarehouse);
+            originalSetItem.call(localStorage, 'klh_cloud_warehouse' + suffix, localWarehouse);
         } else {
-            originalRemoveItem.call(localStorage, 'klh_cloud_warehouse');
+            originalRemoveItem.call(localStorage, 'klh_cloud_warehouse' + suffix);
         }
-        console.log("[JSONBlob] 已成功將本地存檔複製到雲端暫存區。");
+        console.log("[JSONBlob] 已成功將本地存檔複製到雲端暫存區。後綴:", suffix);
     };
 
     // ==========================================
@@ -457,9 +468,8 @@
         const method = options.method || 'GET';
         const customProxy = localStorage.getItem('klh_custom_proxy') || "https://fragrant-glade-bab3.dreammy0924.workers.dev/";
         
-        // 取得上一次成功的連線方式，預設為 'direct' (除非在 file:/// 協議下預設為 'proxy')
+        // file:/// 協議下直連 CORS 必定被擋，直接跳過省時間
         const isFileProtocol = window.location.protocol === 'file:';
-        let preferred = isFileProtocol ? 'proxy' : (localStorage.getItem('klh_preferred_conn') || 'direct');
 
         async function tryDirect() {
             if (isFileProtocol) {
@@ -470,7 +480,6 @@
             if (res.ok) {
                 console.log(`[JSONBlob] 直接 ${method} 請求成功！`);
                 res.connectionMethod = "直接連線";
-                localStorage.setItem('klh_preferred_conn', 'direct');
                 return res;
             }
             throw new Error(`Direct connection returned status ${res.status}`);
@@ -489,17 +498,17 @@
             if (res.status === 200 || res.status === 201 || res.ok) {
                 console.log(`[JSONBlob] 透過主要代理讀寫成功！`);
                 res.connectionMethod = "主要代理";
-                localStorage.setItem('klh_preferred_conn', 'proxy');
                 return res;
             }
             throw new Error(`Proxy connection returned status ${res.status}`);
         }
 
-        if (preferred === 'proxy') {
+        // 🚀 永遠優先直連，失敗才走代理（file:/// 除外，因為 CORS 必定擋住直連）
+        if (isFileProtocol) {
             try {
                 return await tryProxy();
             } catch (err) {
-                console.warn(`[JSONBlob] 優先嘗試代理失敗，回退至直接連線...`, err);
+                console.warn(`[JSONBlob] 代理失敗，嘗試直接連線...`, err);
                 try {
                     return await tryDirect();
                 } catch (err2) {
@@ -511,7 +520,7 @@
             try {
                 return await tryDirect();
             } catch (err) {
-                console.warn(`[JSONBlob] 優先嘗試直接連線失敗，回退至主要代理...`, err);
+                console.warn(`[JSONBlob] 直接連線失敗，回退至主要代理...`, err);
                 try {
                     return await tryProxy();
                 } catch (err2) {
@@ -521,6 +530,7 @@
             }
         }
     }
+
 
     window.saveJsonBlobConfig = function (key) {
         key = (key || "").trim();
