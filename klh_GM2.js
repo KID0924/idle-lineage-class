@@ -83,22 +83,13 @@
     function initCustomDB() {
         if (typeof DB === 'undefined' || !DB.items) return;
 
-        // 1-1. 開發者測試短劍數值繼承 (繼承 v1.17 測試版設定)
-        let dagger = DB.items["wpn_shortsword"];
-        if (dagger) {
-            dagger.dmgS = 600;
-            dagger.dmgL = 800;
-            dagger.hit = 1000;
-            dagger.spd = 0.1;
-            dagger.safe = 1000;
-        }
 
         // 1-2. 新增四種自定義藥水 (加入對應外觀與發光屬性)
         DB.items["potion_super_white"] = {
             n: "濃縮白色藥水",
             type: "pot",
             req: "all",
-            p: 1200,
+            p: 3000,
             c: "text-white font-bold",
             d: "恢復 180 HP",
             val: 180,
@@ -110,7 +101,7 @@
             n: "超級濃縮白色藥水",
             type: "pot",
             req: "all",
-            p: 2400,
+            p: 15000,
             c: "text-white font-bold",
             d: "恢復 540 HP",
             val: 540,
@@ -122,11 +113,11 @@
             n: "掉寶藥水",
             type: "pot",
             req: "all",
-            p: 1000,
+            p: 100000,
             c: "text-green-300 font-bold",
-            d: "獲得金幣x2、裝備掉落率x3、材料掉落率x2，持續 600 秒",
+            d: "獲得金幣x2、裝備掉落率x3、材料掉落率x2，持續 300 秒",
             eff: "droprate",
-            dur: 600,
+            dur: 300,
             gachaWeight: 0,
             img: "assets/icons/items/自我加速藥水.png" // 外觀採用自我加速藥水圖案
         };
@@ -135,11 +126,11 @@
             n: "神之祝福藥水",
             type: "pot",
             req: "all",
-            p: 10000,
+            p: 1000000,
             c: "text-yellow-300 font-bold",
-            d: "怪物掉落裝備時祝福機率x3、附加席琳套裝效果機率x2，持續 600 秒 (無法自動購買)",
+            d: "怪物掉落裝備時祝福機率x3、附加席琳套裝效果機率x2，持續 300 秒 (無法自動購買)",
             eff: "god_bless",
-            dur: 600,
+            dur: 300,
             gachaWeight: 0,
             img: "assets/icons/items/萬能藥(WIS).png" // 外觀採用萬能藥(WIS)圖案
         };
@@ -306,87 +297,58 @@
     };
 
     // 7. 覆寫 Krista 兌換系統
+    const originalKristaExchange = window.kristaExchange;
+    const originalRenderKristaExchange = window.renderKristaExchange;
+
     window.kristaExchange = function (kind) {
-        let cost = 10000;
-        let count = 20;
+        if (kind === 'god_bless_1' || kind === 'god_bless_20') {
+            let cost = (kind === 'god_bless_1') ? 1000000 : 20000000;
+            let count = (kind === 'god_bless_1') ? 1 : 20;
 
-        if (kind === 'god_bless_1') {
-            cost = 10000;
-            count = 1;
-        } else if (kind === 'god_bless_20') {
-            cost = 200000;
-            count = 20;
-        } else if (kind === 'sherine_crystal_1') {
-            cost = 100000;
-            count = 1;
-        } else if (kind === 'sherine_crystal_20') {
-            cost = 2000000;
-            count = 20;
+            if ((player.gold || 0) < cost) {
+                logSys(`<span class="text-red-400">金幣不足（需 ${cost.toLocaleString()}）。</span>`);
+                return;
+            }
+
+            player.gold -= cost;
+            gainItem('potion_god_bless', count, true, true);
+            renderTabs();
+            updateUI();
+            saveGame();
+
+            logSys(`花費 ${cost.toLocaleString()} 金幣，換得 ${count} 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span>。`);
+
+            let _e = document.getElementById('interaction-content');
+            if (_e) renderKristaExchange(_e);
+        } else {
+            if (typeof originalKristaExchange === 'function') {
+                originalKristaExchange(kind);
+            }
         }
-
-        if ((player.gold || 0) < cost) {
-            logSys(`<span class="text-red-400">金幣不足（需 ${cost.toLocaleString()}）。</span>`);
-            return;
-        }
-
-        let cfg = {
-            wpn: { out: 'new_item_bless_wpn', outNm: '賦予武器祝福卷軸', type: '張' },
-            arm: { out: 'new_item_bless_arm', outNm: '賦予盔甲祝福卷軸', type: '張' },
-            acc: { out: 'new_item_bless_acc', outNm: '賦予飾品祝福卷軸', type: '張' },
-            uncurse: { out: 'new_item_uncurse', outNm: '解除詛咒的卷軸', type: '張' },
-            god_bless_1: { out: 'potion_god_bless', outNm: '神之祝福藥水', type: '瓶' },
-            god_bless_20: { out: 'potion_god_bless', outNm: '神之祝福藥水', type: '瓶' },
-            sherine_crystal_1: { out: 'sherine_crystal', outNm: '席琳結晶', type: '個' },
-            sherine_crystal_20: { out: 'sherine_crystal', outNm: '席琳結晶', type: '個' }
-        }[kind];
-
-        if (!cfg) return;
-
-        player.gold -= cost;
-        gainItem(cfg.out, count, true, true);
-        renderTabs();
-        updateUI();
-        saveGame();
-
-        let colorClass = cfg.out === 'potion_god_bless' ? 'text-yellow-300' : (cfg.out === 'sherine_crystal' ? 'text-green-300' : 'text-purple-300');
-        logSys(`花費 ${cost.toLocaleString()} 金幣，換得 ${count} ${cfg.type} <span class="${colorClass} font-bold">${cfg.outNm}</span>。`);
-
-        let _e = document.getElementById('interaction-content');
-        if (_e) renderKristaExchange(_e);
     };
 
     window.renderKristaExchange = function (el) {
-        let row = (kind, outNm, type) => `
-        <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
-            <div class="text-sm text-slate-200 leading-relaxed">10,000 金幣 → 20 ${type} <span class="text-purple-300 font-bold">${outNm}</span></div>
-            <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('${kind}')">兌換</button>
-        </div>`;
+        if (typeof originalRenderKristaExchange === 'function') {
+            originalRenderKristaExchange(el);
+            let container = el.querySelector('.flex.flex-col.gap-3.p-1');
+            if (container) {
+                let row1 = document.createElement('div');
+                row1.className = 'flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3';
+                row1.innerHTML = `
+                    <div class="text-sm text-slate-200 leading-relaxed">1,000,000 金幣 → 1 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
+                    <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_1')">兌換</button>
+                `;
+                container.appendChild(row1);
 
-        el.innerHTML = `
-        <div class="flex flex-col gap-3 p-1">
-            <div class="text-slate-300 text-sm leading-relaxed">克里斯特：只需 10,000 金幣，我就能為你提供各種祝福卷軸、解咒卷軸與神之祝福藥水。</div>
-            <div class="text-sm">你的金幣：<span class="text-yellow-400 font-bold">${(player.gold || 0).toLocaleString()}</span></div>
-            ${row('wpn', '賦予武器祝福卷軸', '張')}
-            ${row('arm', '賦予盔甲祝福卷軸', '張')}
-            ${row('acc', '賦予飾品祝福卷軸', '張')}
-            ${row('uncurse', '解除詛咒的卷軸', '張')}
-            <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
-                <div class="text-sm text-slate-200 leading-relaxed">10,000 金幣 → 1 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
-                <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_1')">兌換</button>
-            </div>
-            <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
-                <div class="text-sm text-slate-200 leading-relaxed">200,000 金幣 → 20 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
-                <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_20')">兌換</button>
-            </div>
-            <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
-                <div class="text-sm text-slate-200 leading-relaxed">100,000 金幣 → 1 個 <span class="text-green-300 font-bold">席琳結晶</span></div>
-                <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('sherine_crystal_1')">兌換</button>
-            </div>
-            <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
-                <div class="text-sm text-slate-200 leading-relaxed">2,000,000 金幣 → 20 個 <span class="text-green-300 font-bold">席琳結晶</span></div>
-                <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('sherine_crystal_20')">兌換</button>
-            </div>
-        </div>`;
+                let row2 = document.createElement('div');
+                row2.className = 'flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3';
+                row2.innerHTML = `
+                    <div class="text-sm text-slate-200 leading-relaxed">20,000,000 金幣 → 20 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
+                    <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_20')">兌換</button>
+                `;
+                container.appendChild(row2);
+            }
+        }
     };
 
     // 8. 掉寶與神之祝福核心機制 (Monkey Patch 掉落系統)
@@ -1184,6 +1146,12 @@
         originalInteractNPC(npcId, townId);
     };
 
+    function getRebirthPointsByLv(lv) {
+        const mult = (typeof getExpGainMult === 'function') ? getExpGainMult(lv) : (1/8);
+        const difficulty = mult > 0 ? (1 / mult) : 1024;
+        return Math.floor(Math.sqrt(difficulty)) + 1;
+    }
+
     function renderRebirthNPC(div) {
         if (!player) return;
         const count = player.rebirthCount || 0;
@@ -1192,7 +1160,7 @@
 
         let rebirthBtn = "";
         if (lv >= 75) {
-            const pointsEarned = lv - 50;
+            const pointsEarned = getRebirthPointsByLv(lv);
             rebirthBtn = `
                 <div class="mt-6 flex justify-center">
                     <button onclick="executeRebirthNPC()" class="btn py-3 px-6 text-base font-bold bg-emerald-700 hover:bg-emerald-600 border-emerald-500 w-full max-w-sm">
@@ -1215,7 +1183,7 @@
                     <div>1. **等級限制**：等級達到 <b class="text-orange-400">75 等</b> 以上方可進行轉生。</div>
                     <div>2. **轉生後狀態**：等級重置為 <b class="text-yellow-400">1 等</b>，經驗值歸零。</div>
                     <div>3. **屬性保留**：您之前分配的屬性點數、基礎屬性、以及萬能藥加成將**完全保留**。</div>
-                    <div>4. **額外屬性點**：每次轉生時，您將額外獲得 <b class="text-emerald-400">當前等級 - 50</b> 點的自由分配點數（例如：75等轉生送 25 點，80等轉生送 30 點）。</div>
+                    <div>4. **額外屬性點**：每次轉生時，您將額外獲得依當前等級難度衰減率計算的自由分配點數 <b>[√難度倒數] + 1</b> 點（例如：75~78等送 3 點，80~81等送 6 點，90等以上送 33 點）。</div>
                     <div>5. **回憶蠟燭保護**：轉生獲得的點數將受到系統保護，使用「回憶蠟燭」重置時不會遺失。</div>
                 </div>
                 
@@ -1243,7 +1211,7 @@
             return;
         }
 
-        const pointsEarned = player.lv - 50;
+        const pointsEarned = getRebirthPointsByLv(player.lv);
         const confirmMsg = `確定要進行轉生嗎？\n\n` +
             `• 等級重設為 1 等 (經驗值重設為 0)\n` +
             `• 目前的所有屬性與已分配點數將保留\n` +

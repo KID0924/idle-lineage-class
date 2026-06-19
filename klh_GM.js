@@ -21,30 +21,38 @@
     // 1. 初始化抽獎物品權重
     function initGachaWeights() {
         if (typeof DB === 'undefined' || !DB.items) return;
+
+        // 調整係數 (方便未來微調)
+        const multExtreme  = 0.5;  // 極度稀有砍半
+        const multRare     = 0.5;  // 稀有砍半
+        const multUncommon = 2;    // 罕見 * 2
+        const multCommon   = 3;    // 一般 * 3
+        const multJunk     = 10;   // 便宜貨 * 10
+
         for (let id in DB.items) {
             let item = DB.items[id];
             if (!item) continue;
 
-            // 如果已經有手動設定權重就跳過
-            if (item.gachaWeight !== undefined) continue;
-
-            // 任務道具、沒價格的物品，不放進抽獎池 (權重 0)
-            if (!item.p || item.p <= 1 || (item.n && (item.n.includes("鑰匙") || item.n.includes("地圖")))) {
+            // 任務道具、沒價格的物品，或已被主程式排除的商品 (權重 0)
+            if (item.gachaWeight === 0 || !item.p || item.p <= 1 || (item.n && (item.n.includes("鑰匙") || item.n.includes("地圖")))) {
                 item.gachaWeight = 0;
                 continue;
             }
 
-            // 依照價格 (p) 自動分配機率權重
+            // 取得目前已由 index.html 初始化好的權重值 (預設為 100)
+            let w = item.gachaWeight !== undefined ? item.gachaWeight : 100;
+
+            // 依照價格 (p) 乘上對應的調整係數
             if (item.p > 100000) {
-                item.gachaWeight = 1;     // 十萬以上極度稀有
+                item.gachaWeight = w * multExtreme;     // 十萬以上極度稀有
             } else if (item.p > 30000) {
-                item.gachaWeight = 10;    // 三萬以上稀有
+                item.gachaWeight = w * multRare;      // 三萬以上稀有
             } else if (item.p > 10000) {
-                item.gachaWeight = 20;    // 一萬以上罕見
+                item.gachaWeight = w * multUncommon;   // 一萬以上罕見
             } else if (item.p > 1000) {
-                item.gachaWeight = 50;    // 一千以上一般
+                item.gachaWeight = w * multCommon;     // 一千以上一般
             } else {
-                item.gachaWeight = 100;   // 便宜貨超容易抽到
+                item.gachaWeight = w * multJunk;      // 便宜貨超容易抽到
             }
         }
     }
@@ -83,12 +91,12 @@
         return pool[pool.length - 1].id;
     }
 
-    // 取得動態抽獎價格（50等（含）以上單抽 30 萬，以下單抽 3 萬）
+    // 取得動態抽獎價格（單抽固定 3 萬金幣，百抽因大宗物流及逃避查稅需加收 10 倍疏通費用）
     function getSisterGachaCost(mode) {
-        let base = (typeof player !== 'undefined' && player && player.lv >= 50) ? 300000 : 30000;
+        let base = 30000;
         if (mode === 'single') return base;
         if (mode === 'ten') return base * 10;
-        if (mode === 'hundred') return base * 100;
+        if (mode === 'hundred') return base * 100 * 10; // 百抽收 10 倍特別手續費
         return base;
     }
 
@@ -113,16 +121,14 @@
         let costTen = getSisterGachaCost('ten');
         let costHundred = getSisterGachaCost('hundred');
 
-        let warningHtml = (typeof player !== 'undefined' && player && player.lv >= 50)
-            ? `<p class="text-red-300 text-sm mb-2 text-center max-w-lg font-medium">⚠️ 慘了…私下便宜賣傳說裝備被潘朵拉姊姊發現，被狠狠罵了一頓！<br>現在 50 等（含）以上的玩家改收 10 倍價格囉…</p>`
-            : ``;
+        let warningHtml = `<p class="text-amber-300 text-sm mb-2 text-center max-w-lg font-medium">⚠️ 慘了…私自一次搬運 100 件商品會觸發潘朵拉姊姊的稅務查核警報！<br>因此百連抽需額外加收 10 倍「物流疏通費」喔！建議分批單抽或 10 連抽更划算！</p>`;
 
         let html = `
         <div class="flex flex-col items-center justify-start h-full p-4 w-full">
             <h3 class="text-3xl font-bold text-purple-400 mb-1 drop-shadow-md">潘朵拉的妹妹</h3>
             ${warningHtml}
             <p class="text-slate-300 text-xs mb-1 text-center">金幣抽獎：單抽 <span class="text-yellow-400 font-bold">${costSingle.toLocaleString()}</span> 金幣 / 十連抽 <span class="text-yellow-400 font-bold">${costTen.toLocaleString()}</span> 金幣 / 百連抽 <span class="text-yellow-400 font-bold">${costHundred.toLocaleString()}</span> 金幣</p>
-            <p class="text-slate-400 text-xs mb-3 text-center">抽中的武器 / 防具 / 飾品各有 1% 機率帶有 屬性 / 遠古 / 祝福 詞綴！</p>
+            <p class="text-slate-400 text-xs mb-3 text-center">抽中的武器 / 防具 / 飾品有 1% 機率帶有 祝福 詞綴！</p>
 
             <div class="flex gap-2 mb-4">
                 <button id="gacha-tab-single" class="btn py-1.5 px-4 text-sm rounded-full ${mode === 'single' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}" onclick="setGachaMode('single')">單抽</button>

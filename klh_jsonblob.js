@@ -73,7 +73,7 @@
     function updateLoadButtonState() {
         const btnLoad = document.getElementById('btn-load');
         if (!btnLoad) return;
-        
+
         if (window.isCloudSyncing) {
             btnLoad.disabled = true;
             btnLoad.classList.add('opacity-50', 'pointer-events-none');
@@ -113,7 +113,7 @@
             } else {
                 originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + suffix);
             }
-            
+
             // 同步複製空存檔標記
             const localEmptyFlag = originalGetItem.call(localStorage, 'lineage_idle_save_' + n + '_empty_flag');
             if (localEmptyFlag !== null) {
@@ -467,7 +467,7 @@
     async function fetchWithProxy(targetUrl, options = {}) {
         const method = options.method || 'GET';
         const customProxy = localStorage.getItem('klh_custom_proxy') || "https://fragrant-glade-bab3.dreammy0924.workers.dev/";
-        
+
         // file:/// 協議下直連 CORS 必定被擋，直接跳過省時間
         const isFileProtocol = window.location.protocol === 'file:';
 
@@ -535,7 +535,7 @@
     window.saveJsonBlobConfig = function (key) {
         key = (key || "").trim();
         if (!key) key = "019ed445-679f-7ae4-9f05-f887591d1266";
-        
+
         // 🚀 當切換的金鑰與目前不同時，清空本地的雲端快取，避免舊金鑰的資料殘留並跑到新金鑰中
         if (window.activeKey !== key) {
             clearLocalCloudCache();
@@ -661,7 +661,7 @@
             window.showToast('雲端金鑰格式無效，無法執行讀取！', 'error');
             return;
         }
-        
+
         window.isCloudSyncing = true;
         updateLoadButtonState();
 
@@ -734,7 +734,7 @@
         } finally {
             window.isCloudSyncing = false;
             updateLoadButtonState();
-            
+
             // 🚀 確保同步完成後（不論成功或失敗），若目前在選檔畫面，就重繪列表以呈現最新狀態（或解除正在同步狀態）
             const slotSelectPanel = document.getElementById('slot-select-panel');
             if (slotSelectPanel && !slotSelectPanel.classList.contains('hidden')) {
@@ -784,10 +784,10 @@
             window.saveJsonBlobConfig(key);
             localStorage.setItem('klh_storage_mode', 'cloud'); // 🚀 切換至雲端模式
             window.updateStorageModeUI();
-            
+
             // 🚀 在手動寫入前，將真實的本地存檔複製到雲端快取中
             window.copyLocalSavesToCloudCache();
-            
+
             await window.uploadToCloud(true);
         }
     };
@@ -865,7 +865,7 @@
                     <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-yellow-400 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="${customKey}">
                         <span style="position: absolute; left: 16px;">⭐</span>
                         <span class="font-bold">歷史自訂金鑰</span>
-                        <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${customKey.substring(0,8)}...)</span>
+                        <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${customKey.substring(0, 8)}...)</span>
                     </button>
                 `;
             } else {
@@ -1106,10 +1106,10 @@
     // 2. 創角數值優化與長按連續點擊 (Character Creation)
     // ==========================================
     const rawCreateBase = {
-        knight: {str:16, dex:12, con:14, int:8, wis:9, cha:8, pts:8},
-        mage: {str:8, dex:7, con:12, int:12, wis:12, cha:8, pts:16},
-        elf: {str:11, dex:12, con:12, int:12, wis:12, cha:8, pts:8},
-        dark: {str:12, dex:15, con:8, int:10, wis:11, cha:8, pts:11}
+        knight: { str: 16, dex: 12, con: 14, int: 8, wis: 9, cha: 8, pts: 8 },
+        mage: { str: 8, dex: 7, con: 12, int: 12, wis: 12, cha: 8, pts: 16 },
+        elf: { str: 11, dex: 12, con: 12, int: 12, wis: 12, cha: 8, pts: 8 },
+        dark: { str: 12, dex: 15, con: 8, int: 10, wis: 11, cha: 8, pts: 11 }
     };
 
     window.applyCreateBaseModifiers = function () {
@@ -1141,7 +1141,7 @@
         if (typeof updateCreateUI === 'function') {
             try {
                 updateCreateUI();
-            } catch(e) {}
+            } catch (e) { }
         }
     };
 
@@ -1446,11 +1446,11 @@
         const descEl = document.getElementById('diff-desc');
         if (descEl) {
             const descs = {
-                hell: "【地獄】怪物強度 3.0x，掉寶率 3.0x，金幣量 3.0x，<br>增益藥水效力 0.8x。出怪延遲 0.1秒。",
-                nightmare: "【惡夢】怪物強度 1.5x，掉寶率 1.5x，金幣量 1.5x，<br>增益藥水效力 0.9x。出怪延遲 1.0秒 / 日光 0.3秒。",
-                standard: "【標準】怪物強度 1.0x，掉寶率 1.0x，金幣量 1.0x，<br>增益藥水效力 1.0x。出怪延遲 5.0秒 / 日光 1.0秒。",
-                blessing: "【祝福】怪物強度 0.9x，掉寶率 1.5x，金幣量 1.5x，<br>增益藥水效力 1.0x。出怪延遲 1.0秒 / 日光 0.3秒。",
-                heaven: "【天堂】怪物強度 0.8x，掉寶率 2.0x，金幣量 2.0x，<br>增益藥水效力 2.0x。出怪延遲 1.0秒 / 日光 0.1秒。"
+                hell: "【地獄】怪物強度 3.0x，掉寶率 3.0x，金幣量 3.0x，<br>增益藥水效力 0.8x。出怪延遲 0.1秒。<br><span class=\"text-rose-400 font-semibold\">「無盡的絕望深淵，唯有強者能在冥界烈火中存活。」</span>",
+                nightmare: "【惡夢】怪物強度 1.5x，掉寶率 1.5x，金幣量 1.5x，<br>增益藥水效力 0.9x。出怪延遲 1.0秒 / 日光 0.3秒。<br><span class=\"text-orange-400 font-semibold\">「恐懼與迷霧籠罩，稍有不慎便會墮入萬劫不復深淵。」</span>",
+                standard: "【標準】怪物強度 1.0x，掉寶率 1.0x，金幣量 1.0x，<br>增益藥水效力 1.0x。出怪延遲 5.0秒 / 日光 1.0秒。<br><span class=\"text-slate-400 font-semibold\">「命運之輪平穩運轉，適合所有尋求經典冒險的旅者。」</span>",
+                blessing: "【祝福】怪物強度 0.9x，掉寶率 1.5x，金幣量 1.5x，<br>增益藥水效力 1.0x。出怪延遲 1.0秒 / 日光 0.3秒。<br><span class=\"text-emerald-400 font-semibold\">「神聖的光芒庇護著大地，豐饒與幸運伴隨你的每一步。」</span>",
+                heaven: "【天堂】怪物強度 0.8x，掉寶率 2.0x，金幣量 2.0x，<br>增益藥水效力 2.0x。出怪延遲 1.0秒 / 日光 0.1秒。<br><span class=\"text-sky-400 font-semibold\">「諸神眷顧的極樂之地，怪孱弱而寶藏無窮的夢幻旅途。」</span>"
             };
             descEl.innerHTML = descs[diff] || "";
         }
@@ -1509,7 +1509,7 @@
                     <button onclick="selectDifficulty('blessing')" id="btn-diff-blessing" class="btn btn-diff flex-1 py-2 text-sm font-bold">祝福</button>
                     <button onclick="selectDifficulty('heaven')" id="btn-diff-heaven" class="btn btn-diff flex-1 py-2 text-sm font-bold">天堂</button>
                 </div>
-                <div id="diff-desc" class="w-full max-w-md h-12 text-xs text-slate-300 text-center flex items-center justify-center border border-slate-800 bg-slate-950/40 rounded p-2"></div>
+                <div id="diff-desc" class="w-full max-w-md text-xs text-slate-300 text-center border border-slate-800 bg-slate-950/40 rounded p-3 leading-relaxed"></div>
             `;
             titleEl.parentNode.insertBefore(diffPanel, titleEl.nextSibling);
         }
@@ -1518,7 +1518,7 @@
         window.selectDifficulty(window.gameDifficulty || 'standard', window.difficultyManuallySelected);
 
         let list = document.getElementById('slot-list'); list.innerHTML = '';
-        
+
         // 🚀 如果目前正在非同步下載/同步雲端存檔中，顯示同步提示並中斷渲染，防止載入到舊的快取存檔
         if (window.isCloudSyncing) {
             list.innerHTML = `<div class="w-full text-center py-8 text-indigo-400 font-bold flex flex-col items-center gap-3">
@@ -1527,7 +1527,7 @@
             </div>`;
             return;
         }
-        
+
         // 🚀 為了確保與雲端伺服器誠實一致，我們不在此處自動預填空存檔
         // checkAndPrepopulateSlots();
 
@@ -2170,7 +2170,7 @@
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">4. 全新抽獎系統</span>
-                        <p class="pl-4 text-slate-400">實裝「潘朵拉的妹妹」專屬轉蛋/抽獎系統，測試歐氣的時刻到了。</p>
+                        <p class="pl-4 text-slate-400">實裝「潘朵拉的妹妹」專屬轉蛋/抽獎系統，測試歐氣的時刻到了。(機率微降)</p>
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">5. 新增強力藥水道具</span>
@@ -2183,6 +2183,10 @@
                     <div>
                         <span class="font-bold text-amber-300">7. 交易便利性優化</span>
                         <p class="pl-4 text-slate-400">新增批量賣出與模糊搜尋賣出功能，清理背包不再點到手軟。</p>
+                    </div>
+                    <div>
+                        <span class="font-bold text-amber-300">8. 奇岩「黃金交易所」</span>
+                        <p class="pl-4 text-slate-400">新增限量商店 NPC「財富收割者」，支援動態雲端商品上架、提領與自由交易機制。</p>
                     </div>
                 </div>
             `;

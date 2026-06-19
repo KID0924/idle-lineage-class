@@ -467,7 +467,7 @@
         let subCat = window.gmShopSubCategory || 'all';
         let search = (window.gmShopSearchQuery || '').toLowerCase().trim();
 
-        // 過濾裝備
+        // 過濾裝備與非裝備
         let filtered = equipments.filter(item => {
             // 0. 僅傳說裝備篩選
             if (opts.isLegendOnly && !item.legend) return false;
@@ -487,6 +487,25 @@
                     if (subCat === 'wand' && !isWand) return false;
                     if (subCat === 'twohand' && !isTwoHand) return false;
                     if (subCat === 'onehand' && !isOneHand) return false;
+                } else if (mainCat === 'scroll') {
+                    let isEnchant = item.id.includes('weapon') || item.id.includes('armor') || item.id.includes('acc');
+                    if (subCat === 'enchant' && !isEnchant) return false;
+                    if (subCat === 'utility' && isEnchant) return false;
+                } else if (mainCat === 'skillbk') {
+                    let isElf = item.id.startsWith('bk_elf_');
+                    let isDarkElf = item.id.startsWith('bk_dark_');
+                    const knightBks = ['bk_solid_shield', 'bk_reduction_armor', 'bk_shock_stun', 'bk_spike_armor', 'bk_counter_barrier'];
+                    let isKnight = knightBks.includes(item.id);
+                    let isGeneral = !isElf && !isDarkElf && !isKnight;
+
+                    if (subCat === 'elf' && !isElf) return false;
+                    if (subCat === 'darkelf' && !isDarkElf) return false;
+                    if (subCat === 'knight' && !isKnight) return false;
+                    if (subCat === 'general' && !isGeneral) return false;
+                } else if (mainCat === 'etc') {
+                    let isPotion = item.type === 'pot' || item.id.startsWith('potion_');
+                    if (subCat === 'potion' && !isPotion) return false;
+                    if (subCat === 'material' && isPotion) return false;
                 } else {
                     if (item.slot !== subCat) return false;
                 }
@@ -503,15 +522,17 @@
             let d = DB.items[eq.id];
             if (!d) return;
 
+            let isEquip = eq.type === 'wpn' || eq.type === 'arm' || eq.type === 'acc';
+
             // 構建預覽屬性
             let mockItem = {
                 id: eq.id,
                 cnt: 1,
-                en: opts.enhanceVal,
-                bless: (opts.blessVal === 'random') ? true : opts.blessVal, // 預覽用祝福
-                anc: (opts.ancVal === 'random') ? true : opts.ancVal, // 預覽用遠古
-                attr: (opts.attrVal === 'random') ? 'fire5' : opts.attrVal, // 預覽用火靈
-                seteff: (opts.seteffVal === 'random') ? '紅獅的誓言' : opts.seteffVal // 預覽用紅獅
+                en: isEquip ? opts.enhanceVal : 0,
+                bless: isEquip ? ((opts.blessVal === 'random') ? true : opts.blessVal) : false,
+                anc: isEquip ? ((opts.ancVal === 'random') ? true : opts.ancVal) : false,
+                attr: isEquip ? ((opts.attrVal === 'random') ? 'fire5' : opts.attrVal) : false,
+                seteff: isEquip ? ((opts.seteffVal === 'random') ? '紅獅的誓言' : opts.seteffVal) : false
             };
 
             let iconUrl = getIconUrl(d);
@@ -561,48 +582,66 @@
         let d = DB.items[id];
         if (!d) return;
 
-        let price = opts.isFree ? 0 : (d.p || 0);
+        let isEquip = d.type === 'wpn' || d.type === 'arm' || d.type === 'acc';
+        let buyQty = 1;
 
-        if (!opts.isFree && (player.gold || 0) < price) {
-            logSys(`<span class="text-red-400">金幣不足，無法購買！(需 ${price.toLocaleString()} 金幣)</span>`);
+        if (!isEquip) {
+            let inputQty = prompt(`請輸入購買數量 (${d.n})：`, "100");
+            if (inputQty === null) return; // 使用者按取消
+            buyQty = parseInt(inputQty) || 0;
+            if (buyQty <= 0) {
+                logSys('<span class="text-red-400">購買數量必須大於 0！</span>');
+                return;
+            }
+        }
+
+        let price = opts.isFree ? 0 : (d.p || 0);
+        let totalPrice = price * buyQty;
+
+        if (!opts.isFree && (player.gold || 0) < totalPrice) {
+            logSys(`<span class="text-red-400">金幣不足，無法購買！(需 ${totalPrice.toLocaleString()} 金幣)</span>`);
             return;
         }
 
         if (!opts.isFree) {
-            player.gold -= price;
+            player.gold -= totalPrice;
         }
 
         // 處理隨機選項
-        let blessVal = opts.blessVal;
-        if (blessVal === 'random') {
-            let _af = (typeof rollAffixesNew === 'function') ? rollAffixesNew() : { bless: true };
-            blessVal = _af.bless;
-        }
+        let enVal = isEquip ? opts.enhanceVal : 0;
+        let blessVal = isEquip ? opts.blessVal : false;
+        let ancVal = isEquip ? opts.ancVal : false;
+        let attrVal = isEquip ? opts.attrVal : false;
+        let seteffVal = isEquip ? opts.seteffVal : false;
 
-        let ancVal = opts.ancVal;
-        if (ancVal === 'random') {
-            let _af = (typeof rollAffixesNew === 'function') ? rollAffixesNew() : { anc: true };
-            ancVal = _af.anc;
-        }
+        if (isEquip) {
+            if (blessVal === 'random') {
+                let _af = (typeof rollAffixesNew === 'function') ? rollAffixesNew() : { bless: true };
+                blessVal = _af.bless;
+            }
 
-        let attrVal = opts.attrVal;
-        if (attrVal === 'random') {
-            attrVal = (typeof rollAttrAffix === 'function') ? rollAttrAffix() : 'fire1';
-        }
+            if (ancVal === 'random') {
+                let _af = (typeof rollAffixesNew === 'function') ? rollAffixesNew() : { anc: true };
+                ancVal = _af.anc;
+            }
 
-        let seteffVal = opts.seteffVal;
-        if (seteffVal === 'random') {
-            if (typeof SHERINE_EFFECTS !== 'undefined') {
-                seteffVal = SHERINE_EFFECTS[Math.floor(Math.random() * SHERINE_EFFECTS.length)];
-            } else {
-                seteffVal = false;
+            if (attrVal === 'random') {
+                attrVal = (typeof rollAttrAffix === 'function') ? rollAttrAffix() : 'fire1';
+            }
+
+            if (seteffVal === 'random') {
+                if (typeof SHERINE_EFFECTS !== 'undefined') {
+                    seteffVal = SHERINE_EFFECTS[Math.floor(Math.random() * SHERINE_EFFECTS.length)];
+                } else {
+                    seteffVal = false;
+                }
             }
         }
 
         // 構建物品探針
         let _probe = {
             id: id,
-            en: opts.enhanceVal,
+            en: enVal,
             bless: blessVal,
             anc: ancVal,
             attr: attrVal,
@@ -610,16 +649,16 @@
         };
 
         // 背包疊加與塞入邏輯
-        let ex = (opts.enhanceVal === 0) ? player.inv.find(i => (i.en || 0) === 0 && sameItemSig(i, _probe)) : null;
+        let ex = (enVal === 0) ? player.inv.find(i => (i.en || 0) === 0 && sameItemSig(i, _probe)) : null;
 
         if (ex) {
-            ex.cnt += 1;
+            ex.cnt += buyQty;
         } else {
             player.inv.push({
                 id: id,
                 uid: uid(),
-                cnt: 1,
-                en: opts.enhanceVal,
+                cnt: buyQty,
+                en: enVal,
                 bless: blessVal,
                 anc: ancVal,
                 attr: attrVal,
@@ -630,8 +669,8 @@
         }
 
         // 發送系統訊息
-        let displayItem = { id: id, cnt: 1, en: opts.enhanceVal, bless: blessVal, anc: ancVal, attr: attrVal, seteff: seteffVal };
-        logSys(`在 GM 商店購買了 <span class="font-bold">${getItemFullName(displayItem)}</span>${opts.isFree ? ' (免費)' : ` (花費 ${price.toLocaleString()} 金幣)`}`);
+        let displayItem = { id: id, cnt: buyQty, en: enVal, bless: blessVal, anc: ancVal, attr: attrVal, seteff: seteffVal };
+        logSys(`在 GM 商店購買了 <span class="font-bold">${getItemFullName(displayItem)}</span> x${buyQty}${opts.isFree ? ' (免費)' : ` (花費 ${totalPrice.toLocaleString()} 金幣)`}`);
 
         // 特殊頭盔之類的技能更新
         if (d.grantSkills) {
@@ -659,18 +698,33 @@
 
     // 5. 創建大視窗 DOM
     function createGMShopModal() {
-        // 抓取所有裝備 (只執行一次)
+        // 抓取所有商品 (只執行一次)
         if (equipments.length === 0) {
             for (let id in DB.items) {
                 let item = DB.items[id];
-                if (item && (item.type === 'wpn' || item.type === 'arm' || item.type === 'acc')) {
+                if (!item) continue;
+
+                // 1. 裝備類 (武器/防具/飾品)
+                if (item.type === 'wpn' || item.type === 'arm' || item.type === 'acc') {
                     if (item.isArrow) continue;
                     equipments.push({ id: id, ...item });
                 }
+                // 2. 卷軸類
+                else if (item.type === 'scroll' || id.startsWith('scroll_') || id.includes('bless') || id.includes('uncurse')) {
+                    equipments.push({ id: id, ...item, type: 'scroll' });
+                }
+                // 3. 魔法書類
+                else if (item.type === 'skillbk' || id.startsWith('bk_')) {
+                    equipments.push({ id: id, ...item, type: 'skillbk' });
+                }
+                // 4. 材料與其他
+                else if (id === 'sherine_crystal' || item.type === 'etc' || item.type === 'material' || id.startsWith('potion_')) {
+                    equipments.push({ id: id, ...item, type: 'etc' });
+                }
             }
-            // 排序: 武器 -> 防具 -> 飾品 (內部以售價排序)
+            // 排序: 武器 -> 防具 -> 飾品 -> 卷軸 -> 魔法書 -> 材料其他 (內部以售價排序)
             equipments.sort((a, b) => {
-                const typeOrder = { wpn: 1, arm: 2, acc: 3 };
+                const typeOrder = { wpn: 1, arm: 2, acc: 3, scroll: 4, skillbk: 5, etc: 6 };
                 let orderA = typeOrder[a.type] || 99;
                 let orderB = typeOrder[b.type] || 99;
                 if (orderA !== orderB) return orderA - orderB;
@@ -810,11 +864,14 @@
                             <input type="text" id="gm-shop-search" placeholder="🔍 搜尋裝備名稱..." class="gm-shop-search-input" style="height: 38px !important; padding: 8px 12px !important;" oninput="onGMShopSearchInput(this.value)">
                             
                             <!-- 主分類選擇 -->
-                            <select id="gm-main-cat-select" class="gm-shop-select" style="width: 80px !important; flex-shrink: 0 !important; padding: 6px 8px !important; height: 38px !important; line-height: 1.2 !important;" onchange="setGMShopMainCategory(this.value)">
+                            <select id="gm-main-cat-select" class="gm-shop-select" style="width: 105px !important; flex-shrink: 0 !important; padding: 6px 8px !important; height: 38px !important; line-height: 1.2 !important;" onchange="setGMShopMainCategory(this.value)">
                                 <option value="all">全部</option>
                                 <option value="wpn">武器</option>
                                 <option value="arm">防具</option>
                                 <option value="acc">飾品</option>
+                                <option value="scroll">卷軸</option>
+                                <option value="skillbk">魔法書</option>
+                                <option value="etc">材料其他</option>
                             </select>
                             
                             <!-- 子分類選擇 (預設隱藏) -->
@@ -939,6 +996,29 @@
                     <option value="amulet">項鍊</option>
                     <option value="ring">戒指</option>
                     <option value="belt">腰帶</option>
+                `;
+            } else if (cat === 'scroll') {
+                subSel.style.display = 'block';
+                subSel.innerHTML = `
+                    <option value="all">全部卷軸</option>
+                    <option value="enchant">強化卷軸</option>
+                    <option value="utility">一般/變卷</option>
+                `;
+            } else if (cat === 'skillbk') {
+                subSel.style.display = 'block';
+                subSel.innerHTML = `
+                    <option value="all">全部魔法書</option>
+                    <option value="general">一般魔法書</option>
+                    <option value="elf">精靈水晶</option>
+                    <option value="darkelf">精靈水晶(黑妖)</option>
+                    <option value="knight">技術書/其他</option>
+                `;
+            } else if (cat === 'etc') {
+                subSel.style.display = 'block';
+                subSel.innerHTML = `
+                    <option value="all">全部材料</option>
+                    <option value="potion">藥水</option>
+                    <option value="material">核心材料/結晶</option>
                 `;
             } else {
                 subSel.style.display = 'none';
@@ -1092,6 +1172,17 @@
         if (typeof DB === 'undefined' || !DB.items) return;
         
         injectStyles();
+
+        // 🌟 開啟 GMShop 時，直接覆寫短劍為測試超高數值
+        let dagger = DB.items["wpn_shortsword"];
+        if (dagger) {
+            dagger.dmgS = 600;
+            dagger.dmgL = 800;
+            dagger.hit = 1000;
+            dagger.spd = 0.1;
+            dagger.safe = 1000;
+            console.log("[klh_GMShop] GM 商店已啟動，已覆寫開發者測試短劍數值。");
+        }
 
         // 注入按鈕
         if (!document.getElementById('klh-gm-shop-btn')) {
