@@ -516,6 +516,18 @@
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
+                const PUBLIC_KEYS = [
+                    "019ed445-679f-7ae4-9f05-f887591d1266",
+                    "019ebb1f-b31c-769f-8475-02be610a13b0",
+                    "019ebb3a-0d11-7569-a341-463d28054478",
+                    "019ebb3a-58de-78fd-8139-eca46c089de3",
+                    "019ebb3a-ad04-76f1-81df-d15d7b2d03d0",
+                    "019ebb3a-e777-7ab7-b744-aaab13066231"
+                ];
+                const activeKeyLower = (window.activeKey || "").trim().toLowerCase();
+                if (window.isValidUuid(window.activeKey) && !PUBLIC_KEYS.includes(activeKeyLower)) {
+                    localStorage.setItem('klh_custom_key', (window.activeKey || "").trim());
+                }
                 if (isManual) {
                     window.showToast('成功將本機進度上傳至雲端！(管道：' + (res.connectionMethod || '直接連線') + ')', 'success');
                 }
@@ -563,6 +575,18 @@
 
                 const payload = await res.json();
                 if (payload) {
+                    const PUBLIC_KEYS = [
+                        "019ed445-679f-7ae4-9f05-f887591d1266",
+                        "019ebb1f-b31c-769f-8475-02be610a13b0",
+                        "019ebb3a-0d11-7569-a341-463d28054478",
+                        "019ebb3a-58de-78fd-8139-eca46c089de3",
+                        "019ebb3a-ad04-76f1-81df-d15d7b2d03d0",
+                        "019ebb3a-e777-7ab7-b744-aaab13066231"
+                    ];
+                    const activeKeyLower = (window.activeKey || "").trim().toLowerCase();
+                    if (window.isValidUuid(window.activeKey) && !PUBLIC_KEYS.includes(activeKeyLower)) {
+                        localStorage.setItem('klh_custom_key', (window.activeKey || "").trim());
+                    }
                     ['1', '2', '3', '4'].forEach(n => {
                         const val = payload['save_' + n] || payload['lineage_idle_save_' + n];
                         if (val !== undefined && val !== null) {
@@ -713,6 +737,23 @@
                 }
             }
         }
+
+        // 更新歷史自訂金鑰按鈕顯示
+        const customKey = localStorage.getItem('klh_custom_key');
+        const customContainer = document.getElementById('klh-custom-key-btn-container');
+        if (customContainer) {
+            if (customKey && window.isValidUuid(customKey)) {
+                customContainer.innerHTML = `
+                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-yellow-400 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="${customKey}">
+                        <span style="position: absolute; left: 16px;">⭐</span>
+                        <span class="font-bold">歷史自訂金鑰</span>
+                        <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${customKey.substring(0,8)}...)</span>
+                    </button>
+                `;
+            } else {
+                customContainer.innerHTML = '';
+            }
+        }
     };
 
     window.switchToLocalMode = function () {
@@ -781,6 +822,7 @@
                 </div>
                 <div class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
                 <div class="flex flex-col gap-1.5 text-sm">
+                    <div id="klh-custom-key-btn-container" class="flex flex-col gap-1.5 w-full"></div>
                     <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-sky-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ed445-679f-7ae4-9f05-f887591d1266">
                         <span style="position: absolute; left: 16px;">1.</span>
                         <span class="font-bold">水蛇許德拉</span>
@@ -953,10 +995,17 @@
 
     window.applyCreateBaseModifiers = function () {
         const mode = localStorage.getItem('klh_storage_mode') || 'local';
-        const isHydra = (mode === 'cloud' && (window.activeKey || "").trim() === '019ed445-679f-7ae4-9f05-f887591d1266');
-        const isLocal = (mode === 'local');
-        const multStats = (isHydra || isLocal) ? 1 : 2;
-        const multPts = (isHydra || isLocal) ? 1 : 3;
+        const MULTIPLIED_KEYS = [
+            "019ebb1f-b31c-769f-8475-02be610a13b0",
+            "019ebb3a-0d11-7569-a341-463d28054478",
+            "019ebb3a-58de-78fd-8139-eca46c089de3",
+            "019ebb3a-ad04-76f1-81df-d15d7b2d03d0",
+            "019ebb3a-e777-7ab7-b744-aaab13066231"
+        ];
+        const activeKeyLower = (window.activeKey || "").trim().toLowerCase();
+        const isMultiplied = (mode === 'cloud' && MULTIPLIED_KEYS.includes(activeKeyLower));
+        const multStats = isMultiplied ? 2 : 1;
+        const multPts = isMultiplied ? 3 : 1;
         if (typeof createBase !== 'undefined') {
             for (let cls in rawCreateBase) {
                 if (createBase[cls]) {
@@ -987,9 +1036,16 @@
     function adjStatCustom(s, dir, amount) {
         let b = createBase[curCreate.cls];
         const mode = localStorage.getItem('klh_storage_mode') || 'local';
-        const isHydra = (mode === 'cloud' && (window.activeKey || "").trim() === '019ed445-679f-7ae4-9f05-f887591d1266');
-        const isLocal = (mode === 'local');
-        const multStats = (isHydra || isLocal) ? 1 : 2;
+        const MULTIPLIED_KEYS = [
+            "019ebb1f-b31c-769f-8475-02be610a13b0",
+            "019ebb3a-0d11-7569-a341-463d28054478",
+            "019ebb3a-58de-78fd-8139-eca46c089de3",
+            "019ebb3a-ad04-76f1-81df-d15d7b2d03d0",
+            "019ebb3a-e777-7ab7-b744-aaab13066231"
+        ];
+        const activeKeyLower = (window.activeKey || "").trim().toLowerCase();
+        const isMultiplied = (mode === 'cloud' && MULTIPLIED_KEYS.includes(activeKeyLower));
+        const multStats = isMultiplied ? 2 : 1;
         let capN = 20 * multStats; // 創角階段各屬性最高點調至 20 * 倍率
         if (dir > 0) {
             let spent = curCreate.str + curCreate.dex + curCreate.con + curCreate.int + curCreate.wis + curCreate.cha;
@@ -1665,7 +1721,7 @@
     patchGlobalFunctionMultiple('adjStat', [
         {
             find: /let capN = (\d+);/,
-            replace: "let capN = parseInt($1) * (((localStorage.getItem('klh_storage_mode') || 'local') === 'local' || (localStorage.getItem('klh_storage_mode') || 'local') === 'cloud' && (window.activeKey || '').trim() === '019ed445-679f-7ae4-9f05-f887591d1266') ? 1 : 2);"
+            replace: "let capN = parseInt($1) * ((['019ebb1f-b31c-769f-8475-02be610a13b0', '019ebb3a-0d11-7569-a341-463d28054478', '019ebb3a-58de-78fd-8139-eca46c089de3', '019ebb3a-ad04-76f1-81df-d15d7b2d03d0', '019ebb3a-e777-7ab7-b744-aaab13066231'].includes((window.activeKey || '').trim().toLowerCase()) && (localStorage.getItem('klh_storage_mode') || 'local') === 'cloud') ? 2 : 1);"
         }
     ]);
 
@@ -1980,7 +2036,7 @@
                     <div>
                         <span class="font-bold text-amber-300">3. 初始福利大放送</span>
                         <p class="pl-4 text-slate-200 font-semibold">初始能力直接翻倍（2倍），可分配點數更暴增至 3 倍！</p>
-                        <p class="pl-4 text-slate-400 mt-0.5">（本地模式與水蛇許德拉伺服器除外，維持原版 1 倍設定）</p>
+                        <p class="pl-4 text-slate-400 mt-0.5">（本地模式、自訂金鑰與水蛇許德拉伺服器除外，維持原版 1 倍設定）</p>
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">4. 全新抽獎系統</span>
