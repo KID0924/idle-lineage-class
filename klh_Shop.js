@@ -13,6 +13,10 @@
     let wealthReaperStock = null;
     let isFetchingStock = false;
 
+    window.reaperGMBagMode = false;
+    window.reaperGMBagCategory = 'all';
+    window.reaperGMSelectedBagItem = null;
+
     // ==========================================
     // 代理與連線封裝
     // ==========================================
@@ -167,6 +171,11 @@
                 const listDiv = document.getElementById('shop-items-list');
                 if (!listDiv) return;
 
+                if (window.reaperGMBagMode) {
+                    renderGMBagItemsUI(listDiv);
+                    return;
+                }
+
                 if (wealthReaperStock === null && !isFetchingStock) {
                     isFetchingStock = true;
                     listDiv.innerHTML = `
@@ -184,7 +193,12 @@
                         }
                     } catch (err) {
                         console.error("[klh_Shop] 取得庫存失敗:", err);
-                        listDiv.innerHTML = '<div class="text-red-500 font-bold text-center py-8">無法連線交易所取得庫存，請確認網路連線。</div>';
+                        listDiv.innerHTML = `
+                            <div class="text-red-400 font-bold text-center py-8 px-4 leading-relaxed">
+                                💥 哎呀！交易所運送物資的馬車在奇岩地監被巴風特洗劫一空了！<br>
+                                <span class="text-slate-500 text-xs font-normal">（請檢查您的雲端金鑰設定與網路連線）</span>
+                            </div>
+                        `;
                         isFetchingStock = false;
                         return;
                     }
@@ -239,17 +253,30 @@
         if (isGM) {
             const adminPanel = document.createElement('div');
             adminPanel.className = 'bg-slate-900/60 border border-slate-700 rounded-lg p-3 mb-4 text-left flex flex-col gap-2 w-full';
+            
+            // 🌟 額外顯示目前選取的物品稱號 preview
+            const selectedTip = window.reaperGMSelectedBagItem
+                ? `<div class="text-xs text-indigo-300 font-bold border-t border-slate-700/50 pt-1.5 mt-1">已選取：${getItemFullName(window.reaperGMSelectedBagItem)}</div>`
+                : '';
+
+            const defaultId = window.reaperGMSelectedBagItem ? window.reaperGMSelectedBagItem.id : '';
+            const defaultStock = window.reaperGMSelectedBagItem ? window.reaperGMSelectedBagItem.cnt : '';
+
             adminPanel.innerHTML = `
                 <div class="text-yellow-400 font-bold text-xs flex justify-between items-center">
                     <span>🛠&nbsp;交易所 GM 管理上架面版</span>
                     <span class="text-slate-500 text-[10px] font-normal">限 GM 權限顯示</span>
                 </div>
                 <div class="flex flex-wrap gap-2 items-center text-xs">
-                    <input type="text" id="gm-reaper-item-id" placeholder="物品 ID (例如: wpn_shortsword)" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
-                    <input type="number" id="gm-reaper-stock" placeholder="上架數量" min="1" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-20 focus:outline-none">
+                    <input type="text" id="gm-reaper-item-id" value="${defaultId}" placeholder="物品 ID (例如: wpn_shortsword)" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
+                    <input type="number" id="gm-reaper-stock" value="${defaultStock}" placeholder="上架數量" min="1" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-20 focus:outline-none">
                     <input type="number" id="gm-reaper-price" placeholder="自訂單價 (留空使用原版價)" min="0" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
-                    <button onclick="submitGMReaperItem()" class="btn bg-amber-700 hover:bg-amber-600 border-amber-500 py-1.5 px-3 text-xs font-bold shadow text-white rounded">🚀 上架新商品</button>
+                    <button onclick="submitGMReaperItem()" class="btn bg-amber-700 hover:bg-amber-600 border-amber-500 py-1.5 px-3 text-xs font-bold shadow text-white rounded">🚀 上架商品</button>
+                    <button onclick="toggleGMBagMode()" class="btn ${window.reaperGMBagMode ? 'bg-slate-700 hover:bg-slate-600 border-slate-500' : 'bg-indigo-700 hover:bg-indigo-600 border-indigo-500'} py-1.5 px-3 text-xs font-bold shadow text-white rounded">
+                        ${window.reaperGMBagMode ? '🔙 返回商品列表' : '🎒 從背包選取物品'}
+                    </button>
                 </div>
+                ${selectedTip}
             `;
             listDiv.appendChild(adminPanel);
         }
@@ -264,13 +291,33 @@
         }
 
         ids.forEach(listingId => {
-            const info = getItemInfo(listingId);
-            if (!info.itemId) return;
+            const info = wealthReaperStock[listingId];
+            if (!info) return;
 
-            const d = DB.items[info.itemId];
-            if (!d) return;
+            // 舊版兼容格式
+            const itemId = listingId.startsWith('list_') ? info.itemId : listingId;
+            if (!itemId) return;
 
-            const price = info.price !== null ? info.price : shopPrice(d.p || 0);
+            const d = DB.items[itemId];
+            if (!d) return; // 🌟 1. 第一關防護：本版查無此物品則安全跳過不渲染
+
+            const en = listingId.startsWith('list_') ? (info.en || 0) : 0;
+            const bless = listingId.startsWith('list_') ? (info.bless || false) : false;
+            const anc = listingId.startsWith('list_') ? (info.anc || false) : false;
+            const attr = listingId.startsWith('list_') ? (info.attr || false) : false;
+            const seteff = listingId.startsWith('list_') ? (info.seteff || false) : false;
+
+            const mockItem = {
+                id: itemId,
+                en: en,
+                bless: bless,
+                anc: anc,
+                attr: attr,
+                seteff: seteff
+            };
+
+            const customPrice = listingId.startsWith('list_') ? info.price : (typeof info === 'object' ? info.price : null);
+            const price = (customPrice !== undefined && customPrice !== null) ? Math.max(0, parseInt(customPrice, 10)) : shopPrice(d.p || 0);
             const priceDisp = price.toLocaleString();
 
             const el = document.createElement('div');
@@ -278,24 +325,26 @@
             el.style.cssText = 'display:flex !important; justify-content:space-between !important; align-items:center !important; width:100% !important; box-sizing:border-box !important;';
 
             const imgUrl = getIconUrl(d);
-            const glowClass = getGlowClass(null, d);
-            const itemColorClass = getItemColor({ id: info.itemId });
+            const glowClass = getGlowClass(mockItem, d) || '';
+            const itemColorClass = getItemColor(mockItem);
+            const fullName = getItemFullName(mockItem);
 
-            const isSoldOut = info.stock <= 0;
+            const stockCount = listingId.startsWith('list_') ? (parseInt(info.stock, 10) || 0) : (typeof info === 'object' ? (parseInt(info.stock, 10) || 0) : (parseInt(info, 10) || 0));
+            const isSoldOut = stockCount <= 0;
             const opacityClass = isSoldOut ? 'opacity-50' : '';
 
             el.innerHTML = `
                 <div class="flex items-center gap-4 min-w-0 flex-1 ${opacityClass}">
-                    <div class="w-12 h-12 bg-slate-900 rounded border border-slate-600 flex items-center justify-center shrink-0">
+                    <div class="w-12 h-12 bg-slate-900 rounded border border-slate-600 flex items-center justify-center shrink-0 tip-host" data-tip-src="reaper" data-tip-uid="${listingId}">
                         <img src="${imgUrl}" onerror="this.style.display='none';" class="w-10 h-10 object-contain pointer-events-none ${glowClass}">
                     </div>
-                    <div class="flex flex-col items-start gap-1.5">
+                    <div class="flex flex-col items-start gap-1.5 min-w-0 flex-1">
                         <span class="${itemColorClass} font-bold text-lg leading-none truncate">
-                            ${d.n} <span class="text-slate-400 text-xs font-normal">(交易所庫存: ${info.stock})${info.price !== null ? ' <span class="text-amber-400 text-xs font-normal">[自訂價格]</span>' : ''}</span>
+                            ${fullName} <span class="text-slate-400 text-xs font-normal">(庫存: ${stockCount})${customPrice !== null && customPrice !== undefined ? ' <span class="text-amber-400 text-xs font-normal">[自訂價格]</span>' : ''}</span>
                         </span>
                         <div class="flex items-center gap-2">
                             <span class="text-yellow-400 font-bold text-base leading-none">${priceDisp} 金幣</span>
-                            <span class="text-slate-400 text-xs hidden md:block leading-none">${d.d || ''}</span>
+                            <span class="text-slate-400 text-xs hidden md:block leading-none truncate max-w-xs">${d.d || ''}</span>
                         </div>
                     </div>
                 </div>
@@ -303,7 +352,7 @@
                     ${isSoldOut
                         ? `<button class="btn bg-slate-700 border-slate-600 text-slate-500 py-2 px-6 font-bold shrink-0 cursor-not-allowed opacity-60" disabled>已售罄</button>`
                         : `
-                           <input type="number" id="shop-qty-${listingId}" value="1" min="1" max="${info.stock}" class="w-16 bg-slate-900 border border-slate-600 text-center text-white rounded py-1.5 outline-none">
+                           <input type="number" id="shop-qty-${listingId}" value="1" min="1" max="${stockCount}" class="w-16 bg-slate-900 border border-slate-600 text-center text-white rounded py-1.5 outline-none">
                            <button class="btn bg-blue-700 hover:bg-blue-600 border-blue-500 py-2 px-5 font-bold shadow text-white" onclick="buyWealthReaperItem('${listingId}', document.getElementById('shop-qty-${listingId}').value)">購買</button>
                           `
                     }
@@ -325,10 +374,25 @@
             return;
         }
 
-        const info = getItemInfo(listingId);
-        if (!info.itemId) return;
+        const info = wealthReaperStock[listingId];
+        const itemId = listingId.startsWith('list_') ? info.itemId : listingId;
+        
+        // 🌟 3. 購買防護：防止當前版本沒有此物品，讀取屬性報錯導致遮罩卡死
+        if (!itemId || !DB.items[itemId]) {
+            if (typeof showToast === 'function') {
+                showToast("此商品不適用於當前遊戲版本，交易已被取消！", "error");
+            }
+            return;
+        }
 
-        const price = info.price !== null ? info.price : shopPrice(DB.items[info.itemId].p || 0);
+        const en = listingId.startsWith('list_') ? (info.en || 0) : 0;
+        const bless = listingId.startsWith('list_') ? (info.bless || false) : false;
+        const anc = listingId.startsWith('list_') ? (info.anc || false) : false;
+        const attr = listingId.startsWith('list_') ? (info.attr || false) : false;
+        const seteff = listingId.startsWith('list_') ? (info.seteff || false) : false;
+
+        const customPrice = listingId.startsWith('list_') ? info.price : (typeof info === 'object' ? info.price : null);
+        const price = (customPrice !== undefined && customPrice !== null) ? Math.max(0, parseInt(customPrice, 10)) : shopPrice(DB.items[itemId].p || 0);
         const cost = price * qty;
 
         if (player.gold < cost) {
@@ -351,14 +415,19 @@
                 
                 // 讀取最新雲端該商品的庫存
                 const cloudRaw = latestStock[listingId];
+                if (!cloudRaw) {
+                    showToast("商品已下架或已被買走！", "error");
+                    wealthReaperStock = latestStock;
+                    if (typeof renderShopItems === 'function') renderShopItems();
+                    return;
+                }
+
                 let latestVal = 0;
-                if (cloudRaw !== undefined && cloudRaw !== null) {
-                    if (listingId.startsWith('list_')) {
-                        latestVal = Math.max(0, parseInt(cloudRaw.stock, 10) || 0);
-                    } else {
-                        // 兼容舊數字格式
-                        latestVal = typeof cloudRaw === 'object' ? (parseInt(cloudRaw.stock, 10) || 0) : (parseInt(cloudRaw, 10) || 0);
-                    }
+                if (listingId.startsWith('list_')) {
+                    latestVal = Math.max(0, parseInt(cloudRaw.stock, 10) || 0);
+                } else {
+                    // 兼容舊數字格式
+                    latestVal = typeof cloudRaw === 'object' ? (parseInt(cloudRaw.stock, 10) || 0) : (parseInt(cloudRaw, 10) || 0);
                 }
 
                 if (qty > latestVal) {
@@ -390,16 +459,38 @@
                 if (putRes.ok) {
                     // 扣除玩家金幣並給予道具
                     player.gold -= cost;
-                    gainItem(info.itemId, qty, true, true);
+
+                    // 🌟 核心：直接複製屬性建立 purchased 物件給予玩家，避免 gainItem 造成屬性隨機擲骰
+                    const purchased = {
+                        id: itemId,
+                        uid: uid(),
+                        cnt: qty,
+                        en: en,
+                        bless: bless,
+                        anc: anc,
+                        attr: attr,
+                        seteff: seteff,
+                        lock: false,
+                        junk: false
+                    };
+
+                    // 判斷背包中是否已有完全相同屬性的物品，有則疊加，無則 push
+                    const ex = player.inv.find(i => (i.en || 0) === (purchased.en || 0) && sameItemSig(i, purchased));
+                    if (ex) {
+                        ex.cnt += qty;
+                    } else {
+                        player.inv.push(purchased);
+                    }
+
                     if (typeof logSys === 'function') {
-                        logSys(`在黃金交易所購買了 ${DB.items[info.itemId].n} ×${qty}。`);
+                        logSys(`在黃金交易所購買了 ${getItemFullName(purchased)} ×${qty}。`);
                     }
 
                     // 更新本地庫存快取
                     wealthReaperStock = latestStock;
 
                     if (typeof showToast === 'function') {
-                        showToast(`交易成功！獲得 ${DB.items[info.itemId].n} ×${qty}`, "success");
+                        showToast(`交易成功！獲得 ${getItemFullName(purchased)} ×${qty}`, "success");
                     }
 
                     // 更新畫面
@@ -419,7 +510,7 @@
         } catch (err) {
             console.error("[klh_Shop] 交易所同步失敗:", err);
             if (typeof showToast === 'function') {
-                showToast("交易同步失敗，請檢查網路連線後重試！", "error");
+                showToast("不好了！交易所與您的水鏡魔法連線中斷，交易失敗！", "error");
             }
         } finally {
             // 🚀 強制將連線等待時間補足至至少 1000 毫秒，防止玩家連續點擊
@@ -477,11 +568,19 @@
                 // 生成獨立唯一的上架 ID：防止相同物品因價格不同而覆蓋合併
                 const listingId = 'list_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
 
-                // 上架結構
+                const selectedItem = window.reaperGMSelectedBagItem;
+                const hasMatchedStats = selectedItem && selectedItem.id === id;
+
+                // 上架結構 (加入特殊裝備屬性)
                 latestStock[listingId] = {
                     itemId: id,
                     stock: stock,
-                    price: price
+                    price: price,
+                    en: hasMatchedStats ? (selectedItem.en || 0) : 0,
+                    bless: hasMatchedStats ? (selectedItem.bless || false) : false,
+                    anc: hasMatchedStats ? (selectedItem.anc || false) : false,
+                    attr: hasMatchedStats ? (selectedItem.attr || false) : false,
+                    seteff: hasMatchedStats ? (selectedItem.seteff || false) : false
                 };
 
                 const putRes = await fetchWithProxy(WEALTH_REAPER_BLOB_URL, {
@@ -492,6 +591,8 @@
 
                 if (putRes.ok) {
                     wealthReaperStock = latestStock;
+                    window.reaperGMBagMode = false; // 🚀 上架成功後自動切回商品列表
+                    window.reaperGMSelectedBagItem = null; // 清除已選取的暫存
                     showToast(`商品 「${DB.items[id].n}」 上架成功！`, "success");
                     idInput.value = "";
                     stockInput.value = "";
@@ -558,6 +659,193 @@
             if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
         }
     };
+
+    // ==========================================
+    // GM 背包上架模式切換與輔助函數
+    // ==========================================
+    window.toggleGMBagMode = function () {
+        window.reaperGMBagMode = !window.reaperGMBagMode;
+        if (typeof renderShopItems === 'function') {
+            renderShopItems();
+        }
+    };
+
+    window.setReaperGMBagCategory = function (cat) {
+        window.reaperGMBagCategory = cat;
+        if (typeof renderShopItems === 'function') {
+            renderShopItems();
+        }
+    };
+
+    window.selectBagItemForUpload = function (uid) {
+        const item = player.inv.find(i => i.uid === uid);
+        if (!item) {
+            showToast("找不到選取的物品！", "error");
+            return;
+        }
+
+        window.reaperGMSelectedBagItem = item;
+
+        // 🌟 先刷新 DOM，讓 value="${defaultId}" 和 value="${defaultStock}" 自動被帶入
+        if (typeof renderShopItems === 'function') {
+            renderShopItems();
+        }
+
+        // 🌟 刷新後再獲取價格輸入框以清空並聚焦，這時它的 DOM 已經是重新渲染後的最新實例
+        const priceInput = document.getElementById('gm-reaper-price');
+        if (priceInput) {
+            priceInput.value = '';
+            priceInput.focus();
+        }
+
+        if (typeof showToast === 'function') {
+            showToast("已自動帶入物品屬性，請填寫自訂價格後上架！", "success");
+        }
+    };
+
+    function renderGMBagItemsUI(listDiv) {
+        listDiv.innerHTML = '';
+
+        // 1. 頂部仍渲染 GM 管理面板 (以供帶入和點擊上架)
+        const isGM = typeof window.openGMShop === 'function';
+        if (isGM) {
+            const adminPanel = document.createElement('div');
+            adminPanel.className = 'bg-slate-900/60 border border-slate-700 rounded-lg p-3 mb-4 text-left flex flex-col gap-2 w-full';
+            
+            // 🌟 額外顯示目前選取的物品稱號 preview
+            const selectedTip = window.reaperGMSelectedBagItem
+                ? `<div class="text-xs text-indigo-300 font-bold border-t border-slate-700/50 pt-1.5 mt-1">已選取：${getItemFullName(window.reaperGMSelectedBagItem)}</div>`
+                : '';
+
+            const defaultId = window.reaperGMSelectedBagItem ? window.reaperGMSelectedBagItem.id : '';
+            const defaultStock = window.reaperGMSelectedBagItem ? window.reaperGMSelectedBagItem.cnt : '';
+
+            adminPanel.innerHTML = `
+                <div class="text-yellow-400 font-bold text-xs flex justify-between items-center">
+                    <span>🛠&nbsp;交易所 GM 管理上架面版</span>
+                    <span class="text-slate-500 text-[10px] font-normal">限 GM 權限顯示</span>
+                </div>
+                <div class="flex flex-wrap gap-2 items-center text-xs">
+                    <input type="text" id="gm-reaper-item-id" value="${defaultId}" placeholder="物品 ID (例如: wpn_shortsword)" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
+                    <input type="number" id="gm-reaper-stock" value="${defaultStock}" placeholder="上架數量" min="1" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-20 focus:outline-none">
+                    <input type="number" id="gm-reaper-price" placeholder="自訂單價 (留空使用原版價)" min="0" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
+                    <button onclick="submitGMReaperItem()" class="btn bg-amber-700 hover:bg-amber-600 border-amber-500 py-1.5 px-3 text-xs font-bold shadow text-white rounded">🚀 上架商品</button>
+                    <button onclick="toggleGMBagMode()" class="btn ${window.reaperGMBagMode ? 'bg-slate-700 hover:bg-slate-600 border-slate-500' : 'bg-indigo-700 hover:bg-indigo-600 border-indigo-500'} py-1.5 px-3 text-xs font-bold shadow text-white rounded">
+                        ${window.reaperGMBagMode ? '🔙 返回商品列表' : '🎒 從背包選取物品'}
+                    </button>
+                </div>
+                ${selectedTip}
+            `;
+            listDiv.appendChild(adminPanel);
+        }
+
+        // 2. 渲染分類 Tab 頁籤
+        const cat = window.reaperGMBagCategory || 'all';
+        const tabsDiv = document.createElement('div');
+        tabsDiv.className = 'flex gap-2 mb-3 w-full border-b border-slate-700 pb-2 text-xs justify-start';
+        tabsDiv.innerHTML = `
+            <button onclick="setReaperGMBagCategory('all')" class="btn py-1 px-3 text-xs font-bold rounded ${cat === 'all' ? 'bg-indigo-700 border-indigo-500' : 'bg-slate-800 border-slate-700'} text-white">全部 (${player.inv.length})</button>
+            <button onclick="setReaperGMBagCategory('equip')" class="btn py-1 px-3 text-xs font-bold rounded ${cat === 'equip' ? 'bg-indigo-700 border-indigo-500' : 'bg-slate-800 border-slate-700'} text-white">裝備</button>
+            <button onclick="setReaperGMBagCategory('consume')" class="btn py-1 px-3 text-xs font-bold rounded ${cat === 'consume' ? 'bg-indigo-700 border-indigo-500' : 'bg-slate-800 border-slate-700'} text-white">消耗品</button>
+        `;
+        listDiv.appendChild(tabsDiv);
+
+        // 3. 獲取並過濾背包物品
+        const bagItems = player.inv || [];
+        const filtered = bagItems.filter(item => {
+            const d = DB.items[item.id];
+            if (!d) return false;
+            if (cat === 'equip') {
+                return d.type === 'wpn' || d.type === 'arm' || d.type === 'acc';
+            }
+            if (cat === 'consume') {
+                return d.type !== 'wpn' && d.type !== 'arm' && d.type !== 'acc';
+            }
+            return true;
+        });
+
+        if (filtered.length === 0) {
+            const emptyEl = document.createElement('div');
+            emptyEl.className = 'text-slate-500 text-sm text-center py-8 w-full';
+            emptyEl.innerText = '您的背包中沒有此分類的物品。';
+            listDiv.appendChild(emptyEl);
+            return;
+        }
+
+        // 4. 渲染背包物品列表 (帶有 tip-host 與 data-tip-uid 以支持完整屬性 Hover 彈窗)
+        filtered.forEach(item => {
+            const d = DB.items[item.id];
+            if (!d) return;
+
+            const imgUrl = getIconUrl(d);
+            const glowClass = getGlowClass(item, d) || '';
+            const fullName = getItemFullName(item);
+            const colorClass = getItemColor(item);
+
+            const el = document.createElement('div');
+            el.className = 'list-item bg-slate-800 rounded mb-2 border border-slate-700 p-3 hover:bg-slate-750 transition-colors';
+            el.style.cssText = 'display:flex !important; justify-content:space-between !important; align-items:center !important; width:100% !important; box-sizing:border-box !important;';
+
+            el.innerHTML = `
+                <div class="flex items-center gap-4 min-w-0 flex-1">
+                    <div class="w-12 h-12 bg-slate-900 rounded border border-slate-600 flex items-center justify-center shrink-0 tip-host" data-tip-uid="${item.uid}" data-tip-src="inv">
+                        <img src="${imgUrl}" onerror="this.style.display='none';" class="w-10 h-10 object-contain pointer-events-none ${glowClass}">
+                    </div>
+                    <div class="flex flex-col items-start gap-1.5 min-w-0 flex-1">
+                        <span class="${colorClass} font-bold text-base leading-none truncate">
+                            ${fullName}
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400 text-xs leading-none">擁有數量: ${item.cnt}</span>
+                            <span class="text-slate-400 text-xs hidden md:block leading-none truncate max-w-xs">${d.d || ''}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button class="btn bg-indigo-700 hover:bg-indigo-600 border-indigo-500 py-1.5 px-4 font-bold shadow text-white rounded text-xs" onclick="selectBagItemForUpload('${item.uid}')">選取上架</button>
+                </div>
+            `;
+            listDiv.appendChild(el);
+        });
+    }
+
+    // ==========================================
+    // Hook 全域 Tooltip 物品檢索
+    // ==========================================
+    if (typeof window.findTipItem === 'function') {
+        const originalFindTipItem = window.findTipItem;
+        window.findTipItem = function (src, uidv) {
+            if (src === 'reaper') {
+                const info = wealthReaperStock ? wealthReaperStock[uidv] : null;
+                if (info) {
+                    const itemId = uidv.startsWith('list_') ? info.itemId : uidv;
+                    
+                    // 🌟 2. Tooltip 防護：若本版沒有此物品，回傳 null 避免 buildItemDescHTML 崩潰
+                    if (!DB.items[itemId]) return null;
+                    
+                    const en = uidv.startsWith('list_') ? (info.en || 0) : 0;
+                    const bless = uidv.startsWith('list_') ? (info.bless || false) : false;
+                    const anc = uidv.startsWith('list_') ? (info.anc || false) : false;
+                    const attr = uidv.startsWith('list_') ? (info.attr || false) : false;
+                    const seteff = uidv.startsWith('list_') ? (info.seteff || false) : false;
+                    
+                    return {
+                        id: itemId,
+                        uid: uidv,
+                        cnt: 1,
+                        en: en,
+                        bless: bless,
+                        anc: anc,
+                        attr: attr,
+                        seteff: seteff,
+                        lock: false,
+                        junk: false
+                    };
+                }
+            }
+            return originalFindTipItem(src, uidv);
+        };
+    }
 
     // ==========================================
     // 初始化啟動
