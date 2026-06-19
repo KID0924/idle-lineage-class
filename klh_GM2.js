@@ -51,6 +51,28 @@
                     font-size: 16px !important;
                 }
             }
+
+            /* 廢品清單 Modal 動畫與美化 */
+            #klh-junk-modal {
+                animation: klhFadeIn 0.2s ease-out;
+            }
+            @keyframes klhFadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            #klh-junk-list-content::-webkit-scrollbar {
+                width: 6px;
+            }
+            #klh-junk-list-content::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            #klh-junk-list-content::-webkit-scrollbar-thumb {
+                background: rgba(156, 163, 175, 0.3);
+                border-radius: 999px;
+            }
+            #klh-junk-list-content::-webkit-scrollbar-thumb:hover {
+                background: rgba(156, 163, 175, 0.5);
+            }
         `;
         let style = document.createElement('style');
         style.textContent = css;
@@ -1299,6 +1321,189 @@
         }
     }
 
+    // ==========================================
+    // 15. 廢品記憶清單管理系統
+    // ==========================================
+    function parseItemSig(sig) {
+        const parts = sig.split('|');
+        const itemId = parts[0];
+        const en = parseInt(parts[1], 10) || 0;
+        const blessVal = parts[2];
+        const ancVal = parts[3];
+        const attr = parts[4] || '';
+        const seteff = parts[5] || '';
+        
+        let bless = false;
+        if (blessVal === 'B') bless = true;
+        else if (blessVal === 'C') bless = 'C';
+        
+        let anc = false;
+        if (ancVal === 'A') anc = true;
+        else if (ancVal && ancVal !== '0') anc = ancVal;
+        
+        return {
+            id: itemId,
+            en: en,
+            bless: bless,
+            anc: anc,
+            attr: attr,
+            seteff: seteff
+        };
+    }
+
+    window.openJunkListModal = function () {
+        let modal = document.getElementById('klh-junk-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'klh-junk-modal';
+            modal.className = 'fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 hidden';
+            modal.innerHTML = `
+                <div class="bg-slate-900 border border-slate-700/80 w-full max-w-md rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden text-slate-200">
+                    <!-- Header -->
+                    <div class="px-5 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/30">
+                        <span class="font-bold text-yellow-500 flex items-center gap-1.5">
+                            🗑️ 廢品記憶清單
+                        </span>
+                        <button onclick="closeJunkListModal()" class="text-slate-400 hover:text-white transition cursor-pointer text-xl font-bold focus:outline-none">&times;</button>
+                    </div>
+                    
+                    <!-- Content List -->
+                    <div id="klh-junk-list-content" class="p-5 overflow-y-auto flex-1 flex flex-col gap-2.5 min-h-[250px]">
+                        <!-- Dynamic content goes here -->
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div class="px-5 py-4 border-t border-slate-800 bg-slate-950/30 flex flex-col sm:flex-row justify-between items-center gap-3">
+                        <button onclick="clearAllJunkPrefs()" class="btn border-red-700 bg-red-950/40 hover:bg-red-900 text-red-200 px-4 py-2 rounded-xl font-bold text-xs transition w-full sm:w-auto">
+                            💥 清除所有設定
+                        </button>
+                        <div class="flex gap-2 w-full sm:w-auto justify-end">
+                            <button onclick="sellAllJunkFromModal()" class="btn border-amber-600 bg-amber-800 hover:bg-amber-700 text-amber-100 px-4 py-2 rounded-xl font-bold text-xs transition w-full sm:w-auto">
+                                💰 一鍵賣出廢品
+                            </button>
+                            <button onclick="closeJunkListModal()" class="btn border-slate-600 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl font-bold text-xs transition w-full sm:w-auto">
+                                關閉
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        // Render content
+        window.renderJunkListContent();
+        
+        // Show modal
+        modal.classList.remove('hidden');
+    };
+
+    window.closeJunkListModal = function () {
+        const modal = document.getElementById('klh-junk-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    };
+
+    window.renderJunkListContent = function () {
+        const container = document.getElementById('klh-junk-list-content');
+        if (!container) return;
+        
+        if (typeof player === 'undefined' || !player) return;
+        if (!player.junkPrefs) player.junkPrefs = {};
+        
+        const sigs = Object.keys(player.junkPrefs).filter(k => player.junkPrefs[k]);
+        
+        if (sigs.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-slate-400 py-10 flex flex-col items-center justify-center gap-3 my-auto">
+                    <span class="text-4xl opacity-50">📁</span>
+                    <p class="text-sm font-semibold">尚無任何設定為廢品的道具</p>
+                    <p class="text-xs text-slate-500 max-w-[280px]">您可以直接在背包中點選物品，並點選「設為廢品」將其加入記憶清單，下次獲得該品項時便會自動標記為廢品。</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '';
+        sigs.forEach(sig => {
+            const item = parseItemSig(sig);
+            const d = DB.items[item.id];
+            if (!d) return;
+            
+            const fullName = getItemFullName(item);
+            const imgUrl = getIconUrl(d);
+            const glowClass = getGlowClass(item, d);
+            
+            let specText = '';
+            if (item.seteff) specText += ` [席琳效果]`;
+            
+            html += `
+                <div class="flex items-center justify-between bg-slate-800/40 border border-slate-800/80 rounded-xl p-2.5 hover:bg-slate-800/80 transition">
+                    <div class="flex items-center gap-2">
+                        <img src="${imgUrl}" onerror="this.style.opacity='0';" class="w-6 h-6 object-contain pointer-events-none ${glowClass}">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold flex items-center gap-1">${fullName}</span>
+                            ${specText ? `<span class="text-[10px] text-green-400 font-semibold mt-0.5">${specText}</span>` : ''}
+                        </div>
+                    </div>
+                    <button onclick="removeJunkPref('${sig}')" class="text-red-400 hover:text-red-200 transition text-xs font-bold bg-red-950/20 hover:bg-red-950/60 border border-red-900/40 hover:border-red-700/60 px-2.5 py-1 rounded-lg focus:outline-none cursor-pointer">
+                        刪除
+                    </button>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    };
+
+    window.removeJunkPref = function (sig) {
+        if (player && player.junkPrefs) {
+            delete player.junkPrefs[sig];
+        }
+        if (player && player.inv) {
+            player.inv.forEach(i => {
+                if (itemSig(i) === sig) {
+                    i.junk = false;
+                }
+            });
+        }
+        
+        window.renderJunkListContent();
+        if (typeof renderTabs === 'function') renderTabs();
+        if (typeof saveGame === 'function') saveGame();
+        
+        logSys(`已將該品項移出廢品記憶設定。`);
+    };
+
+    window.clearAllJunkPrefs = function () {
+        if (!confirm('確定要清除所有廢品記憶設定嗎？\n清除後，所有道具將不再自動標記為廢品。')) {
+            return;
+        }
+        
+        if (player) {
+            player.junkPrefs = {};
+            if (player.inv) {
+                player.inv.forEach(i => {
+                    i.junk = false;
+                });
+            }
+        }
+        
+        window.renderJunkListContent();
+        if (typeof renderTabs === 'function') renderTabs();
+        if (typeof saveGame === 'function') saveGame();
+        
+        logSys(`已清除所有廢品記憶設定。`);
+    };
+
+    window.sellAllJunkFromModal = function () {
+        if (typeof window.originalSellAllJunk === 'function') {
+            window.originalSellAllJunk();
+            window.renderJunkListContent();
+        }
+    };
+
     function startupGM2() {
         injectGlowStyles();
         initCustomDB();
@@ -1531,6 +1736,36 @@
                     </div>
                 </div>`;
         };
+
+        // ==========================================
+        // 17. 廢品記憶清單管理與 UI 攔截
+        // ==========================================
+        if (typeof window.sellAllJunk === 'function' && !window.sellAllJunk.__klhJunkWrapped) {
+            const originalSellAllJunk = window.sellAllJunk;
+            window.originalSellAllJunk = originalSellAllJunk;
+            window.sellAllJunk = function () {
+                window.openJunkListModal();
+            };
+            window.sellAllJunk.__klhJunkWrapped = true;
+        }
+
+        function initJunkButton() {
+            const btn = document.getElementById('btn-sell-junk');
+            if (btn) {
+                btn.innerText = "廢品清單";
+            }
+        }
+        initJunkButton();
+
+        // 由於可能存在延遲載入或重繪，Hook updateUI 同步更新按鈕文字
+        if (typeof window.updateUI === 'function' && !window.updateUI.__klhJunkBtnWrapped) {
+            const originalUpdateUI = window.updateUI;
+            window.updateUI = function () {
+                originalUpdateUI();
+                initJunkButton();
+            };
+            window.updateUI.__klhJunkBtnWrapped = true;
+        }
     }
 
     // 註冊 DOM 載入與即時啟動
