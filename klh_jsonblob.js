@@ -59,6 +59,44 @@
     };
 
     // ==========================================
+    // 本地雲端存檔快取管理
+    // ==========================================
+    function clearLocalCloudCache() {
+        ['1', '2', '3', '4'].forEach(n => {
+            originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n);
+            originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag');
+        });
+        originalRemoveItem.call(localStorage, 'klh_cloud_warehouse');
+        console.log("[JSONBlob] 本地雲端存檔快取已清空。");
+    }
+
+    window.copyLocalSavesToCloudCache = function () {
+        ['1', '2', '3', '4'].forEach(n => {
+            const localVal = originalGetItem.call(localStorage, 'lineage_idle_save_' + n);
+            if (localVal !== null) {
+                originalSetItem.call(localStorage, 'klh_cloud_save_' + n, localVal);
+            } else {
+                originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n);
+            }
+            
+            // 同步複製空存檔標記
+            const localEmptyFlag = originalGetItem.call(localStorage, 'lineage_idle_save_' + n + '_empty_flag');
+            if (localEmptyFlag !== null) {
+                originalSetItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag', localEmptyFlag);
+            } else {
+                originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag');
+            }
+        });
+        const localWarehouse = originalGetItem.call(localStorage, 'lineage_idle_warehouse');
+        if (localWarehouse !== null) {
+            originalSetItem.call(localStorage, 'klh_cloud_warehouse', localWarehouse);
+        } else {
+            originalRemoveItem.call(localStorage, 'klh_cloud_warehouse');
+        }
+        console.log("[JSONBlob] 已成功將本地存檔複製到雲端暫存區。");
+    };
+
+    // ==========================================
     // 0. 全域常數與設定
     // ==========================================
     window.DEFAULT_CLOUD_URL = "https://api.jsonblob.com/api/jsonBlob";
@@ -393,48 +431,82 @@
     // 帶有自動備份/備用代理的 CORS 請求封裝（防 Adblock 或代理伺服器斷線）
     async function fetchWithProxy(targetUrl, options = {}) {
         const method = options.method || 'GET';
+        const customProxy = localStorage.getItem('klh_custom_proxy') || "https://fragrant-glade-bab3.dreammy0924.workers.dev/";
+        
+        // 取得上一次成功的連線方式，預設為 'direct' (除非在 file:/// 協議下預設為 'proxy')
+        const isFileProtocol = window.location.protocol === 'file:';
+        let preferred = isFileProtocol ? 'proxy' : (localStorage.getItem('klh_preferred_conn') || 'direct');
 
-        // 1. 優先嘗試直接發送請求（不分本機伺服器或 file:///，一律嘗試直接連線）
-        try {
+        async function tryDirect() {
+            if (isFileProtocol) {
+                throw new Error("File protocol forces proxy.");
+            }
             console.log(`[JSONBlob] 嘗試直接進行 ${method} 請求...`);
             const res = await fetch(targetUrl, options);
             if (res.ok) {
                 console.log(`[JSONBlob] 直接 ${method} 請求成功！`);
                 res.connectionMethod = "直接連線";
+                localStorage.setItem('klh_preferred_conn', 'direct');
                 return res;
             }
-            console.warn(`[JSONBlob] 直接 ${method} 請求回傳非成功狀態碼:`, res.status);
-        } catch (err) {
-            console.warn(`[JSONBlob] 直接 ${method} 請求失敗，嘗試使用自訂代理伺服器...`, err);
+            throw new Error(`Direct connection returned status ${res.status}`);
         }
 
-        // 2. 當直接請求失敗時，嘗試使用主要代理伺服器
-        const customProxy = localStorage.getItem('klh_custom_proxy') || "https://fragrant-glade-bab3.dreammy0924.workers.dev/";
-        if (customProxy.trim()) {
+        async function tryProxy() {
+            if (!customProxy.trim()) {
+                throw new Error("No custom proxy defined.");
+            }
             let p = customProxy.trim();
             if (!p.endsWith('/')) p += '/';
             const proxyUrl = p + targetUrl;
             const fetchOptions = method === 'PUT' ? { ...options, mode: 'cors' } : options;
-            try {
-                console.log(`[JSONBlob] 嘗試使用主要代理 ${method}: ${proxyUrl}`);
-                const res = await fetch(proxyUrl, fetchOptions);
-                if (res.status === 200 || res.status === 201 || res.ok) {
-                    console.log(`[JSONBlob] 透過主要代理讀寫成功！`);
-                    res.connectionMethod = "主要代理";
-                    return res;
-                }
-                console.warn(`[JSONBlob] 主要代理回傳狀態碼 ${res.status}: ${proxyUrl}`);
-            } catch (err) {
-                console.warn(`[JSONBlob] 主要代理失敗: ${proxyUrl}`, err);
+            console.log(`[JSONBlob] 嘗試使用主要代理 ${method}: ${proxyUrl}`);
+            const res = await fetch(proxyUrl, fetchOptions);
+            if (res.status === 200 || res.status === 201 || res.ok) {
+                console.log(`[JSONBlob] 透過主要代理讀寫成功！`);
+                res.connectionMethod = "主要代理";
+                localStorage.setItem('klh_preferred_conn', 'proxy');
+                return res;
             }
+            throw new Error(`Proxy connection returned status ${res.status}`);
         }
 
-        throw new Error(`CORS proxy and direct connection failed for ${method}.`);
+        if (preferred === 'proxy') {
+            try {
+                return await tryProxy();
+            } catch (err) {
+                console.warn(`[JSONBlob] 優先嘗試代理失敗，回退至直接連線...`, err);
+                try {
+                    return await tryDirect();
+                } catch (err2) {
+                    console.error(`[JSONBlob] 所有連線管道皆失敗:`, err2);
+                    throw err2;
+                }
+            }
+        } else {
+            try {
+                return await tryDirect();
+            } catch (err) {
+                console.warn(`[JSONBlob] 優先嘗試直接連線失敗，回退至主要代理...`, err);
+                try {
+                    return await tryProxy();
+                } catch (err2) {
+                    console.error(`[JSONBlob] 所有連線管道皆失敗:`, err2);
+                    throw err2;
+                }
+            }
+        }
     }
 
     window.saveJsonBlobConfig = function (key) {
         key = (key || "").trim();
         if (!key) key = "019ed445-679f-7ae4-9f05-f887591d1266";
+        
+        // 🚀 當切換的金鑰與目前不同時，清空本地的雲端快取，避免舊金鑰的資料殘留並跑到新金鑰中
+        if (window.activeKey !== key) {
+            clearLocalCloudCache();
+        }
+
         window.activeKey = key;
         localStorage.setItem('lineage_idle_jsonblob_url', key);
 
@@ -670,6 +742,10 @@
             window.saveJsonBlobConfig(key);
             localStorage.setItem('klh_storage_mode', 'cloud'); // 🚀 切換至雲端模式
             window.updateStorageModeUI();
+            
+            // 🚀 在手動寫入前，將真實的本地存檔複製到雲端快取中
+            window.copyLocalSavesToCloudCache();
+            
             await window.uploadToCloud(true);
         }
     };
@@ -2114,7 +2190,14 @@
                 e.preventDefault();
 
                 const msgEl = document.getElementById('m-logout-msg');
-                if (msgEl) msgEl.innerHTML = "正在儲存並同步至雲端，請稍候...";
+                const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
+                if (msgEl) {
+                    if (storageMode === 'cloud') {
+                        msgEl.innerHTML = "正在儲存並同步至雲端，請稍候...";
+                    } else {
+                        msgEl.innerHTML = "正在儲存進度，請稍候...";
+                    }
+                }
                 const btnsEl = document.getElementById('m-logout-btns');
                 if (btnsEl) btnsEl.style.display = 'none';
 
