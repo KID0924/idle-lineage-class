@@ -76,14 +76,14 @@
             localStorage.removeItem('klh_jsonblob_key'); // 刪除多餘的新金鑰欄位
         }
     }
-    window.activeKey = initialKey || "019ebb1f-b31c-769f-8475-02be610a13b0";
+    window.activeKey = initialKey || "019ed445-679f-7ae4-9f05-f887591d1266";
     window.gameDifficulty = 'standard';
     window._slotMode = 'new';
 
     // 取得乾淨正規化後的雲端存檔 URL
     function getCleanCloudUrl(key) {
         key = (key || "").trim();
-        if (!key) key = "019ebb1f-b31c-769f-8475-02be610a13b0";
+        if (!key) key = "019ed445-679f-7ae4-9f05-f887591d1266";
 
         // 如果是完整的 URL 且包含 jsonblob.com
         if (key.startsWith("http://") || key.startsWith("https://")) {
@@ -434,7 +434,7 @@
 
     window.saveJsonBlobConfig = function (key) {
         key = (key || "").trim();
-        if (!key) key = "019ebb1f-b31c-769f-8475-02be610a13b0";
+        if (!key) key = "019ed445-679f-7ae4-9f05-f887591d1266";
         window.activeKey = key;
         localStorage.setItem('lineage_idle_jsonblob_url', key);
 
@@ -443,7 +443,7 @@
     };
 
     window.clearJsonBlobConfig = function () {
-        window.saveJsonBlobConfig("019ebb1f-b31c-769f-8475-02be610a13b0");
+        window.saveJsonBlobConfig("019ed445-679f-7ae4-9f05-f887591d1266");
     };
 
     // 異步上傳至雲端
@@ -669,6 +669,9 @@
 
     // 儲存模式 UI 控制與切換
     window.updateStorageModeUI = function () {
+        if (typeof window.applyCreateBaseModifiers === 'function') {
+            window.applyCreateBaseModifiers();
+        }
         const mode = localStorage.getItem('klh_storage_mode') || 'local';
         const modeTextEl = document.getElementById('current-storage-mode-text');
         const settingsSection = document.getElementById('cloud-settings-section');
@@ -681,6 +684,7 @@
                 let keyName = "自訂金鑰";
                 const normalized = (window.activeKey || "").trim().toLowerCase();
                 const keys = {
+                    "019ed445-679f-7ae4-9f05-f887591d1266": "水蛇許德拉",
                     "019ebb1f-b31c-769f-8475-02be610a13b0": "太陽神阿波羅",
                     "019ebb3a-0d11-7569-a341-463d28054478": "火神赫發斯特斯",
                     "019ebb3a-58de-78fd-8139-eca46c089de3": "勝利女神雅典那",
@@ -777,26 +781,30 @@
                 </div>
                 <div class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
                 <div class="flex flex-col gap-1.5 text-sm">
-                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-amber-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb1f-b31c-769f-8475-02be610a13b0">
+                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-sky-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ed445-679f-7ae4-9f05-f887591d1266">
                         <span style="position: absolute; left: 16px;">1.</span>
+                        <span class="font-bold">水蛇許德拉</span>
+                        <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(預設) (標準)</span>
+                    </button>
+                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-amber-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb1f-b31c-769f-8475-02be610a13b0">
+                        <span style="position: absolute; left: 16px;">2.</span>
                         <span class="font-bold">太陽神阿波羅</span>
-                        <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(預設)</span>
                     </button>
                     <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-orange-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-0d11-7569-a341-463d28054478">
-                        <span style="position: absolute; left: 16px;">2.</span>
+                        <span style="position: absolute; left: 16px;">3.</span>
                         <span class="font-bold">火神赫發斯特斯</span>
                     </button>
                     <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-green-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-58de-78fd-8139-eca46c089de3">
-                        <span style="position: absolute; left: 16px;">3.</span>
+                        <span style="position: absolute; left: 16px;">4.</span>
                         <span class="font-bold">勝利女神雅典那</span>
                     </button>
                     <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-rose-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-ad04-76f1-81df-d15d7b2d03d0">
-                        <span style="position: absolute; left: 16px;">4.</span>
+                        <span style="position: absolute; left: 16px;">5.</span>
                         <span class="font-bold">天后海拉</span>
                         <span id="lock-hella-tag" style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${showLock}</span>
                     </button>
                     <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-cyan-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-e777-7ab7-b744-aaab13066231">
-                        <span style="position: absolute; left: 16px;">5.</span>
+                        <span style="position: absolute; left: 16px;">6.</span>
                         <span class="font-bold">天神宙斯</span>
                         <span id="lock-zeus-tag" style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${showLock}</span>
                     </button>
@@ -810,7 +818,7 @@
 
         const inputEl = document.getElementById('jsonblob-input');
         if (inputEl) {
-            inputEl.placeholder = '019ebb1f-b31c-769f-8475-02be610a13b0';
+            inputEl.placeholder = '019ed445-679f-7ae4-9f05-f887591d1266';
             inputEl.value = window.activeKey;
         }
     }
@@ -936,19 +944,41 @@
     // ==========================================
     // 2. 創角數值優化與長按連續點擊 (Character Creation)
     // ==========================================
-    // 初始數值 (2倍化) 與 分配點數 (3倍化)
-    if (createBase) {
-        for (let cls in createBase) {
-            let base = createBase[cls];
-            base.str *= 2;
-            base.dex *= 2;
-            base.con *= 2;
-            base.int *= 2;
-            base.wis *= 2;
-            base.cha *= 2;
-            base.pts *= 3;
+    const rawCreateBase = {
+        knight: {str:16, dex:12, con:14, int:8, wis:9, cha:8, pts:8},
+        mage: {str:8, dex:7, con:12, int:12, wis:12, cha:8, pts:16},
+        elf: {str:11, dex:12, con:12, int:12, wis:12, cha:8, pts:8},
+        dark: {str:12, dex:15, con:8, int:10, wis:11, cha:8, pts:11}
+    };
+
+    window.applyCreateBaseModifiers = function () {
+        const mode = localStorage.getItem('klh_storage_mode') || 'local';
+        const isHydra = (mode === 'cloud' && (window.activeKey || "").trim() === '019ed445-679f-7ae4-9f05-f887591d1266');
+        const isLocal = (mode === 'local');
+        const multStats = (isHydra || isLocal) ? 1 : 2;
+        const multPts = (isHydra || isLocal) ? 1 : 3;
+        if (typeof createBase !== 'undefined') {
+            for (let cls in rawCreateBase) {
+                if (createBase[cls]) {
+                    createBase[cls].str = rawCreateBase[cls].str * multStats;
+                    createBase[cls].dex = rawCreateBase[cls].dex * multStats;
+                    createBase[cls].con = rawCreateBase[cls].con * multStats;
+                    createBase[cls].int = rawCreateBase[cls].int * multStats;
+                    createBase[cls].wis = rawCreateBase[cls].wis * multStats;
+                    createBase[cls].cha = rawCreateBase[cls].cha * multStats;
+                    createBase[cls].pts = rawCreateBase[cls].pts * multPts;
+                }
+            }
         }
-    }
+        if (typeof updateCreateUI === 'function') {
+            try {
+                updateCreateUI();
+            } catch(e) {}
+        }
+    };
+
+    // 初始套用一次
+    window.applyCreateBaseModifiers();
 
     // 長按加減點邏輯
     let holdTimeout = null;
@@ -956,7 +986,11 @@
 
     function adjStatCustom(s, dir, amount) {
         let b = createBase[curCreate.cls];
-        let capN = 40; // 創角階段各屬性最高點調至 40 (原為 20 的 2 倍)
+        const mode = localStorage.getItem('klh_storage_mode') || 'local';
+        const isHydra = (mode === 'cloud' && (window.activeKey || "").trim() === '019ed445-679f-7ae4-9f05-f887591d1266');
+        const isLocal = (mode === 'local');
+        const multStats = (isHydra || isLocal) ? 1 : 2;
+        let capN = 20 * multStats; // 創角階段各屬性最高點調至 20 * 倍率
         if (dir > 0) {
             let spent = curCreate.str + curCreate.dex + curCreate.con + curCreate.int + curCreate.wis + curCreate.cha;
             let left = b.pts - spent;
@@ -1631,7 +1665,7 @@
     patchGlobalFunctionMultiple('adjStat', [
         {
             find: /let capN = (\d+);/,
-            replace: 'let capN = parseInt($1) + 20;'
+            replace: "let capN = parseInt($1) * (((localStorage.getItem('klh_storage_mode') || 'local') === 'local' || (localStorage.getItem('klh_storage_mode') || 'local') === 'cloud' && (window.activeKey || '').trim() === '019ed445-679f-7ae4-9f05-f887591d1266') ? 1 : 2);"
         }
     ]);
 
@@ -1945,7 +1979,8 @@
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">3. 初始福利大放送</span>
-                        <p class="pl-4 text-slate-400">初始能力直接翻倍（2倍），可分配點數更暴增至 3 倍！</p>
+                        <p class="pl-4 text-slate-200 font-semibold">初始能力直接翻倍（2倍），可分配點數更暴增至 3 倍！</p>
+                        <p class="pl-4 text-slate-400 mt-0.5">（本地模式與水蛇許德拉伺服器除外，維持原版 1 倍設定）</p>
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">4. 全新抽獎系統</span>
