@@ -848,14 +848,35 @@
     }
 
     // ==========================================
+    // 防止手機輸入框點擊放大 (CSS 注入)
+    // ==========================================
+    function injectMobileInputStyle() {
+        const styleId = 'reaper-mobile-input-style';
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.innerHTML = `
+                /* 📱 解決 iOS / 手機版點擊輸入框會自動放大網頁的問題 */
+                #interaction-content input[type="text"], 
+                #interaction-content input[type="number"] {
+                    font-size: 16px !important;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+
+    // ==========================================
     // 初始化啟動
     // ==========================================
     function startup() {
         registerWealthReaperNPC();
+        injectMobileInputStyle();
     }
 
-    // 1. 立即嘗試註冊一次
+    // 1. 立即嘗試註冊與注入樣式
     registerWealthReaperNPC();
+    injectMobileInputStyle();
 
     // 2. 於 DOMContentLoaded 觸發時嘗試一次
     document.addEventListener('DOMContentLoaded', startup);
