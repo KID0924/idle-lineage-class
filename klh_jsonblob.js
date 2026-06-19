@@ -30,11 +30,11 @@
 
 (function () {
     // ==========================================
-    // localStorage 模式隔離代理
+    // localStorage 模式隔離代理 (Storage.prototype 代理，相容手機版 Safari/Chrome)
     // ==========================================
-    const originalGetItem = localStorage.getItem;
-    const originalSetItem = localStorage.setItem;
-    const originalRemoveItem = localStorage.removeItem;
+    const originalGetItem = Storage.prototype.getItem;
+    const originalSetItem = Storage.prototype.setItem;
+    const originalRemoveItem = Storage.prototype.removeItem;
 
     function getRedirectedKey(key) {
         const mode = originalGetItem.call(localStorage, 'klh_storage_mode') || 'local';
@@ -46,16 +46,16 @@
         return key;
     }
 
-    localStorage.getItem = function (key) {
-        return originalGetItem.call(localStorage, getRedirectedKey(key));
+    Storage.prototype.getItem = function (key) {
+        return originalGetItem.call(this, getRedirectedKey(key));
     };
 
-    localStorage.setItem = function (key, value) {
-        return originalSetItem.call(localStorage, getRedirectedKey(key), value);
+    Storage.prototype.setItem = function (key, value) {
+        return originalSetItem.call(this, getRedirectedKey(key), value);
     };
 
-    localStorage.removeItem = function (key) {
-        return originalRemoveItem.call(localStorage, getRedirectedKey(key));
+    Storage.prototype.removeItem = function (key) {
+        return originalRemoveItem.call(this, getRedirectedKey(key));
     };
 
     // ==========================================
