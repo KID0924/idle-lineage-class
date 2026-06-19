@@ -17,6 +17,12 @@
     window.reaperGMBagCategory = 'all';
     window.reaperGMSelectedBagItem = null;
 
+    function clearReaperMocks() {
+        if (typeof player !== 'undefined' && player && player.inv) {
+            player.inv = player.inv.filter(x => !x._reaperMock);
+        }
+    }
+
     // ==========================================
     // 代理與連線封裝
     // ==========================================
@@ -156,6 +162,7 @@
             window._currentShopNpc = npcId; // 🚀 關鍵修復：將 npcId 綁定至 window 屬性 (因原生 _currentShopNpc 是以 let 宣告的變數，window 預設讀不到)
             if (npcId === WEALTH_REAPER_NPC_ID) {
                 wealthReaperStock = null; // 清除舊庫存快取，強制重新下載
+                clearReaperMocks();
             }
             originalRenderTownShop(containerElement, npcId);
         };
@@ -846,26 +853,28 @@
     }
 
     // ==========================================
-    // Hook 全域 Tooltip 物品檢索
+    // 瞞天過海 Tooltip 機制 (因 findTipItem 為遊戲閉包區域變數，無法從外部 Hook)
+    // 透過在 mouseover 捕獲階段將虛擬物品臨時寫入 player.inv，
+    // 原生 mousemove 便能在 inv 中找到該物品並成功展示說明，移出時自動移除。
     // ==========================================
-    if (typeof window.findTipItem === 'function') {
-        const originalFindTipItem = window.findTipItem;
-        window.findTipItem = function (src, uidv) {
-            if (src === 'reaper') {
+    document.addEventListener('mouseover', function (e) {
+        const host = e.target && e.target.closest ? e.target.closest('.tip-host') : null;
+        if (host && host.getAttribute('data-tip-src') === 'reaper') {
+            const uidv = host.getAttribute('data-tip-uid');
+            if (uidv) {
                 const info = wealthReaperStock ? wealthReaperStock[uidv] : null;
                 if (info) {
                     const itemId = uidv.startsWith('list_') ? info.itemId : uidv;
-                    
-                    // 🌟 2. Tooltip 防護：若本版沒有此物品，回傳 null 避免 buildItemDescHTML 崩潰
-                    if (!DB.items[itemId]) return null;
-                    
+                    // 🌟 Tooltip 防護：若本版沒有此物品，不進行 mock 避免 buildItemDescHTML 崩潰
+                    if (!DB.items[itemId]) return;
+
                     const en = uidv.startsWith('list_') ? (info.en || 0) : 0;
                     const bless = uidv.startsWith('list_') ? (info.bless || false) : false;
                     const anc = uidv.startsWith('list_') ? (info.anc || false) : false;
                     const attr = uidv.startsWith('list_') ? (info.attr || false) : false;
                     const seteff = uidv.startsWith('list_') ? (info.seteff || false) : false;
-                    
-                    return {
+
+                    const mockItem = {
                         id: itemId,
                         uid: uidv,
                         cnt: 1,
@@ -875,13 +884,28 @@
                         attr: attr,
                         seteff: seteff,
                         lock: false,
-                        junk: false
+                        junk: false,
+                        _reaperMock: true
                     };
+
+                    // 確保背包中目前沒有這個虛擬物品，防止重複 push
+                    if (!player.inv.some(x => x.uid === uidv)) {
+                        player.inv.push(mockItem);
+                    }
                 }
             }
-            return originalFindTipItem(src, uidv);
-        };
-    }
+        }
+    }, true); // 使用 Capture 捕獲階段，領先原生 mousemove 的 Bubble 冒泡階段執行
+
+    document.addEventListener('mouseout', function (e) {
+        const host = e.target && e.target.closest ? e.target.closest('.tip-host') : null;
+        if (host && host.getAttribute('data-tip-src') === 'reaper') {
+            const uidv = host.getAttribute('data-tip-uid');
+            if (uidv) {
+                clearReaperMocks();
+            }
+        }
+    }, true);
 
     // ==========================================
     // 防止手機輸入框點擊放大 (CSS 注入)
