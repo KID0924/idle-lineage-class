@@ -59,8 +59,32 @@
     };
 
     // ==========================================
-    // 本地雲端存檔快取管理
+    // 本地雲端存檔快取管理與同步鎖
     // ==========================================
+    window.isCloudSyncing = false;
+
+    function updateLoadButtonState() {
+        const btnLoad = document.getElementById('btn-load');
+        if (!btnLoad) return;
+        
+        if (window.isCloudSyncing) {
+            btnLoad.disabled = true;
+            btnLoad.classList.add('opacity-50', 'pointer-events-none');
+            if (!btnLoad.dataset.originalText) {
+                btnLoad.dataset.originalText = btnLoad.textContent || "載入遊戲進度";
+            }
+            btnLoad.textContent = "雲端同步中...";
+            btnLoad.classList.remove('hidden');
+        } else {
+            btnLoad.disabled = false;
+            btnLoad.classList.remove('opacity-50', 'pointer-events-none');
+            if (btnLoad.dataset.originalText) {
+                btnLoad.textContent = btnLoad.dataset.originalText;
+            }
+            refreshLoadBtnVisibility();
+        }
+    }
+
     function clearLocalCloudCache() {
         ['1', '2', '3', '4'].forEach(n => {
             originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n);
@@ -622,12 +646,15 @@
     };
 
     // 異步自雲端讀取並同步本機
-    // 異步自雲端讀取並同步本機
     window.syncFromCloud = async function (isManual) {
         if (!window.isValidUuid(window.activeKey)) {
             window.showToast('雲端金鑰格式無效，無法執行讀取！', 'error');
             return;
         }
+        
+        window.isCloudSyncing = true;
+        updateLoadButtonState();
+
         const targetUrl = getCleanCloudUrl(window.activeKey);
 
         // 顯示讀取與防呆進度條遮罩 (僅在手動操作時顯示，避免網頁載入時阻擋使用者)
@@ -678,18 +705,13 @@
                         localStorage.removeItem('lineage_idle_warehouse');
                     }
 
-                    checkAndPrepopulateSlots();
+                    // 🚀 雲端模式下讀取完畢後不在此處偷偷自動預填空存檔，以保持雲端與本地狀態誠實一致
+                    // checkAndPrepopulateSlots();
                     if (isManual) window.showToast('雲端存檔讀取並同步本機成功！(管道：' + (res.connectionMethod || '未知') + ')', 'success');
 
                     refreshLoadBtnVisibility();
 
-                    // 如果當前使用者已經停留在選檔畫面，則自動刷新以呈現最新自雲端同步下來的存檔
-                    const slotSelectPanel = document.getElementById('slot-select-panel');
-                    if (slotSelectPanel && !slotSelectPanel.classList.contains('hidden')) {
-                        if (typeof openSlotSelect === 'function') {
-                            openSlotSelect(window._slotMode || 'load');
-                        }
-                    }
+                    // 🚀 此處原有的選檔列表刷新已移至下方 finally 區塊統一執行
                 }
             } else if (res.status === 404) {
                 window.showToast('雲端無存檔或金鑰已失效！如果是全新金鑰，請點選「手動寫入雲端」進行初始化。', 'error');
@@ -700,7 +722,17 @@
             console.error(err);
             if (isManual) window.showToast('讀取雲端存檔失敗，請檢查網路連線。', 'error');
         } finally {
-            // 隱藏讀取遮罩
+            window.isCloudSyncing = false;
+            updateLoadButtonState();
+            
+            // 🚀 確保同步完成後（不論成功或失敗），若目前在選檔畫面，就重繪列表以呈現最新狀態（或解除正在同步狀態）
+            const slotSelectPanel = document.getElementById('slot-select-panel');
+            if (slotSelectPanel && !slotSelectPanel.classList.contains('hidden')) {
+                if (typeof openSlotSelect === 'function') {
+                    openSlotSelect(window._slotMode || 'load');
+                }
+            }
+
             if (isManual) {
                 window.hideLoadingOverlay();
             }
@@ -1036,7 +1068,8 @@
 
     // 重新實作 slotSummary，讀取難度欄位並整合於摘要
     window.slotSummary = function (n) {
-        checkAndPrepopulateSlots();
+        // 🚀 不在此處自動預填空存檔，以保持與雲端一致的真實狀態
+        // checkAndPrepopulateSlots();
         let s = localStorage.getItem('lineage_idle_save_' + n);
         if (!s) return null;
         try {
@@ -1475,7 +1508,18 @@
         window.selectDifficulty(window.gameDifficulty || 'standard', window.difficultyManuallySelected);
 
         let list = document.getElementById('slot-list'); list.innerHTML = '';
-        checkAndPrepopulateSlots();
+        
+        // 🚀 如果目前正在非同步下載/同步雲端存檔中，顯示同步提示並中斷渲染，防止載入到舊的快取存檔
+        if (window.isCloudSyncing) {
+            list.innerHTML = `<div class="w-full text-center py-8 text-indigo-400 font-bold flex flex-col items-center gap-3">
+                <div class="klh-loading-spinner" style="width:36px; height:36px; border-top-color:#818cf8; border-left-color:rgba(129,140,248,0.1); border-right-color:rgba(129,140,248,0.1); border-bottom-color:rgba(129,140,248,0.1);"></div>
+                <span>正在同步雲端存檔中，請稍候...</span>
+            </div>`;
+            return;
+        }
+        
+        // 🚀 為了確保與雲端伺服器誠實一致，我們不在此處自動預填空存檔
+        // checkAndPrepopulateSlots();
 
         for (let n = 1; n <= 4; n++) {
             let sum = slotSummary(n);
