@@ -1238,7 +1238,7 @@ const DB = {
         "wpn_demonking_spear": { n: "惡魔王矛", type: "wpn", w2h: true, dmgS: 25, dmgL: 25, hit: 2, dmgBonus: 3, spd: 1.0, req: "knight", safe: 6, p: 80000, legend: true, gachaWeight: 1, eff: "pierce", pierceChance: 90, procStatusSkill: { skId: "sk_disease", rate: 10 }, d: "惡魔王的雙手矛。穿透90%；攻擊時10%機率施放疾病術。" },
         "wpn_demonking_dual": { n: "惡魔王雙刀", type: "wpn", w2h: true, dmgS: 18, dmgL: 16, hit: 5, dmgBonus: 3, spd: 0.8, req: "dark", safe: 6, p: 50000, legend: true, gachaWeight: 1, eff: "combo", procStatusSkill: { skId: "sk_disease", rate: 10 }, d: "惡魔王的雙刀。連擊；攻擊時10%機率施放疾病術。" },
         "wpn_demonking_2hsword": { n: "惡魔王雙手劍", type: "wpn", w2h: true, dmgS: 23, dmgL: 24, hit: 1, dmgBonus: 5, spd: 0.8, req: "knight", safe: 6, p: 354510, legend: true, gachaWeight: 1, eff: "cleave", procStatusSkill: { skId: "sk_disease", rate: 10 }, d: "惡魔王的雙手劍。切割；攻擊時10%機率施放疾病術。" },
-        "wpn_demonking_wand": { n: "惡魔王魔杖", type: "wpn", w2h: true, dmgS: 12, dmgL: 12, hit: 6, dmgBonus: 2, spd: 1.0, req: "mage", safe: 6, p: 494510, legend: true, gachaWeight: 1, eff: "mp_drain", mdmg: 2, mpR: 10, procStatusSkill: { skId: "sk_disease", rate: 10 }, d: "惡魔王的魔杖。共鳴；魔法傷害+2、MP自然恢復+10；一般攻擊命中恢復MP（+7起每強化額外+1）；攻擊時10%機率施放疾病術。" },
+        "wpn_demonking_wand": { n: "惡魔王魔杖", type: "wpn", w2h: true, dmgS: 12, dmgL: 12, hit: 6, dmgBonus: 2, spd: 1.0, req: "mage", safe: 6, p: 494510, legend: true, gachaWeight: 1, eff: "magicburst", mdmg: 2, mpR: 10, mpOnHit: true, procStatusSkill: { skId: "sk_disease", rate: 10 }, d: "惡魔王的魔杖。魔爆；魔法傷害+2、MP自然恢復+10；一般攻擊命中恢復MP（+7起每強化額外+1）；攻擊時10%機率施放疾病術。" },
         "wpn_demonking_bow": { n: "惡魔王弓", type: "wpn", isBow: true, ranged: true, rapidfire: 90, w2h: true, dmgS: 5, dmgL: 5, hit: 4, dmgBonus: 6, spd: 1.0, req: "elf", safe: 6, p: 547300, legend: true, gachaWeight: 1, procStatusSkill: { skId: "sk_disease", rate: 10 }, d: "惡魔王的弓。連射90%；攻擊時10%機率施放疾病術。" },
         // ===== 法師魔法書 =====
         "bk_heal1": { type: "skillbk", n: "魔法書(初級治癒術)", p: 100, sk: "sk_heal1", gachaWeight: 0 },
@@ -4780,7 +4780,7 @@ function consumeArrow() {
 }
 
 // ===== 法杖共鳴：裝備指定魔法杖時，一般攻擊(不論命中與否)有 智力/60 機率免費施展光箭 =====
-const WAND_LIGHTARROW_IDS = ['wpn_oakwand', 'wpn_38', 'wpn_witchwand', 'wpn_manawand', 'wpn_crystalwand', 'wpn_baless', 'wpn_wand_rasta', 'wpn_red_crystalwand', 'wpn_laia_wand', 'wpn_icequeen_wand', 'wpn_demon_scythe', 'wpn_darkmage_wand', 'wpn_baphomet_wand', 'wpn_demonking_wand'];   // 🏅 共鳴：含蕾雅魔杖／冰之女王魔杖／惡魔鐮刀／黑法師之杖／🔧巴風特魔杖／👑惡魔王魔杖
+const WAND_LIGHTARROW_IDS = ['wpn_oakwand', 'wpn_38', 'wpn_witchwand', 'wpn_manawand', 'wpn_crystalwand', 'wpn_baless', 'wpn_wand_rasta', 'wpn_red_crystalwand', 'wpn_laia_wand', 'wpn_icequeen_wand', 'wpn_demon_scythe', 'wpn_darkmage_wand', 'wpn_baphomet_wand'];   // 🏅 共鳴：含蕾雅魔杖／冰之女王魔杖／惡魔鐮刀／黑法師之杖／🔧巴風特魔杖（👑惡魔王魔杖已改為魔爆 eff:magicburst）
 function wandLightArrowProc(target) {
     let wpn = player.eq.wpn;
     if (!wpn || !WAND_LIGHTARROW_IDS.includes(wpn.id)) return;
@@ -5110,7 +5110,7 @@ function playerAttack() {
             target._delayTicks = 30;
         }
 
-        if (wpn && wpn.eff === 'mp_drain') {
+        if (wpn && (wpn.eff === 'mp_drain' || wpn.mpOnHit)) {   // 🔧 mpOnHit：eff 已被其他特效(如惡魔王魔杖魔爆)佔用仍可保留命中回MP
             let en = capWpnEn((player.eq.wpn && player.eq.wpn.en) || 0);
             let mpGain = 1 + Math.max(0, en - 6);   // +0~+6：恢復1MP；之後每+1多恢復1（+7:2、+8:3…）
             player.mp = Math.min(player.mmp, player.mp + mpGain); updateUI();
@@ -7313,7 +7313,7 @@ function allyWeaponProcs(ally, target, hitInfo) {
     if (wpn.procPoison) applyWeaponProcPoison(target, wpn.procPoison);   // 🔧 死亡之指：傭兵攻擊時毒咒（與玩家一致）
     if (wpn.procStatusSkill) { let _sv = player; player = ally; try { applyWeaponProcStatusSkill(target, wpn.procStatusSkill); } finally { player = _sv; } }   // 🌑 惡魔王武器：傭兵攻擊時施放疾病術（以傭兵自身魔法命中判定）
     let d = ally.d || {};
-    if (hitInfo && hitInfo.hit && wpn.eff === 'mp_drain') {   // 瑪那魔杖：命中恢復MP → 傭兵自身（恢復量同玩家：1 + max(0, 強化-6)）
+    if (hitInfo && hitInfo.hit && (wpn.eff === 'mp_drain' || wpn.mpOnHit)) {   // 瑪那魔杖/惡魔王魔杖(mpOnHit)：命中恢復MP → 傭兵自身（恢復量同玩家：1 + max(0, 強化-6)）
         let en = capWpnEn(wpnInst.en);
         ally.mp = Math.min(ally.mmp||0, (ally.mp||0) + 1 + Math.max(0, en - 6));
     }
@@ -9625,7 +9625,7 @@ function buildItemDescHTML(item) {
         if((item.en || 0) >= 11) desc += `<br><span class="text-amber-300">強化最終傷害 ×${enhanceWpnFinalMult(item.en).toFixed(1)}</span>`;   // 🔧 武器強化最終傷害倍率
 
         // 瑪那魔杖等「命中恢復MP」武器：依此物品的強化等級(+N)動態顯示恢復量
-        if(d.eff === 'mp_drain') {
+        if(d.eff === 'mp_drain' || d.mpOnHit) {
             let en = capEn(item.en, d);
             let mpGain = 1 + Math.max(0, en - 6);
             desc += `<br><span class="text-sky-300">命中時恢復 ${mpGain} 點 MP（+7 起每強化 +1）。</span>`;
@@ -14689,7 +14689,8 @@ window.onload = () => {
             if(d.eff === 'crush')      _eff.push('重擊');
             if(d.eff === 'cleave')     _eff.push('切割');
             if(d.block)                _eff.push('格檔：' + d.block + '%');
-            if(d.eff === 'mp_drain')   _eff.push('命中恢復MP');
+            if(d.eff === 'magicburst') _eff.push('魔爆');
+            if(d.eff === 'mp_drain' || d.mpOnHit)   _eff.push('命中恢復MP');
             if(d.immStone)             _eff.push('免疫石化');
             if(d.immPoison)            _eff.push('免疫中毒');
             if(d.unique)               _eff.push('唯一（最多裝備1個）');
@@ -14750,17 +14751,17 @@ window.onload = () => {
 })();
 </script>
 
-<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606191612"></script>
-<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606191612"></script>
-<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606191612"></script>
-<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606191612"></script>
-<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606191612"></script>
-<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606191612"></script>
-<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606191612"></script>
-<script src="klh_jsonblob.js?v=202606191612"></script>
-<script src="klh_GM.js?v=202606191612"></script>
-<script src="klh_GM2.js?v=202606191612"></script>
-<script src="klh_Shop.js?v=202606191612"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606191800"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606191800"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606191800"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606191800"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606191800"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606191800"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606191800"></script>
+<script src="klh_jsonblob.js?v=202606191800"></script>
+<script src="klh_GM.js?v=202606191800"></script>
+<script src="klh_GM2.js?v=202606191800"></script>
+<script src="klh_Shop.js?v=202606191800"></script>
 
 <script>
   document.addEventListener("DOMContentLoaded", function() {
@@ -14774,7 +14775,7 @@ window.onload = () => {
       footer.style.marginTop = '10px';
       footer.style.lineHeight = '1.6';
       
-      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/20 00:12';
+      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/20 02:00';
       menu.appendChild(footer);
     } else {
       console.warn("找不到 #main-menu，時間戳記外掛潛水去啦~");
