@@ -333,6 +333,23 @@
             const isSoldOut = stockCount <= 0;
             const opacityClass = isSoldOut ? 'opacity-50' : '';
 
+            // 🌟 格式化售完時間
+            let soldOutTipHtml = '';
+            if (isSoldOut && info && info.soldOutTime) {
+                try {
+                    const dObj = new Date(info.soldOutTime);
+                    if (!isNaN(dObj.getTime())) {
+                        const m = dObj.getMonth() + 1;
+                        const date = dObj.getDate();
+                        const hours = String(dObj.getHours()).padStart(2, '0');
+                        const minutes = String(dObj.getMinutes()).padStart(2, '0');
+                        soldOutTipHtml = `<div class="text-[10px] text-slate-500 mt-0.5 text-right font-medium tracking-tight">最後一件已經在 ${m}月${date}日 ${hours}:${minutes} 被買走囉～</div>`;
+                    }
+                } catch (e) {
+                    console.warn("[klh_Shop] 格式化售出時間失敗:", e);
+                }
+            }
+
             el.innerHTML = `
                 <div class="flex items-center gap-4 min-w-0 flex-1 ${opacityClass}">
                     <div class="w-12 h-12 bg-slate-900 rounded border border-slate-600 flex items-center justify-center shrink-0 tip-host" data-tip-src="reaper" data-tip-uid="${listingId}">
@@ -348,15 +365,18 @@
                         </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-2 shrink-0">
-                    ${isSoldOut
-                        ? `<button class="btn bg-slate-700 border-slate-600 text-slate-500 py-2 px-6 font-bold shrink-0 cursor-not-allowed opacity-60" disabled>已售罄</button>`
-                        : `
-                           <input type="number" id="shop-qty-${listingId}" value="1" min="1" max="${stockCount}" class="w-16 bg-slate-900 border border-slate-600 text-center text-white rounded py-1.5 outline-none">
-                           <button class="btn bg-blue-700 hover:bg-blue-600 border-blue-500 py-2 px-5 font-bold shadow text-white" onclick="buyWealthReaperItem('${listingId}', document.getElementById('shop-qty-${listingId}').value)">購買</button>
-                          `
-                    }
-                    ${isGM ? `<button class="btn bg-red-700 hover:bg-red-600 border-red-500 py-2 px-4 font-bold shadow text-white rounded" onclick="deleteGMReaperListing('${listingId}')">下架</button>` : ''}
+                <div class="flex flex-col items-end gap-1 shrink-0">
+                    <div class="flex items-center gap-2">
+                        ${isSoldOut
+                            ? `<button class="btn bg-slate-700 border-slate-600 text-slate-500 py-2 px-6 font-bold shrink-0 cursor-not-allowed opacity-60" disabled>已售罄</button>`
+                            : `
+                               <input type="number" id="shop-qty-${listingId}" value="1" min="1" max="${stockCount}" class="w-16 bg-slate-900 border border-slate-600 text-center text-white rounded py-1.5 outline-none">
+                               <button class="btn bg-blue-700 hover:bg-blue-600 border-blue-500 py-2 px-5 font-bold shadow text-white" onclick="buyWealthReaperItem('${listingId}', document.getElementById('shop-qty-${listingId}').value)">購買</button>
+                              `
+                        }
+                        ${isGM ? `<button class="btn bg-red-700 hover:bg-red-600 border-red-500 py-2 px-4 font-bold shadow text-white rounded" onclick="deleteGMReaperListing('${listingId}')">下架</button>` : ''}
+                    </div>
+                    ${soldOutTipHtml}
                 </div>
             `;
             listDiv.appendChild(el);
@@ -439,14 +459,30 @@
                     return;
                 }
 
-                // 扣除並更新雲端庫存 (維持原有的 JSON 欄位結構)
+                // 扣除並更新雲端庫存 (維持原有的 JSON 欄位結構，並在售空時記錄 soldOutTime)
                 if (listingId.startsWith('list_')) {
                     latestStock[listingId].stock = latestVal - qty;
+                    if (latestStock[listingId].stock === 0) {
+                        latestStock[listingId].soldOutTime = Date.now();
+                    }
                 } else {
                     if (typeof latestStock[listingId] === 'object' && latestStock[listingId] !== null) {
                         latestStock[listingId].stock = latestVal - qty;
+                        if (latestStock[listingId].stock === 0) {
+                            latestStock[listingId].soldOutTime = Date.now();
+                        }
                     } else {
-                        latestStock[listingId] = latestVal - qty;
+                        const newStockVal = latestVal - qty;
+                        if (newStockVal === 0) {
+                            // 舊純數字格式升級為包含售罄時間的物件
+                            latestStock[listingId] = {
+                                itemId: itemId,
+                                stock: 0,
+                                soldOutTime: Date.now()
+                            };
+                        } else {
+                            latestStock[listingId] = newStockVal;
+                        }
                     }
                 }
 
