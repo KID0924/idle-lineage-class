@@ -73,7 +73,8 @@ jobs:
           <script src="klh_jsonblob.js?v={dynamic_v}"></script>
           <script src="klh_GM.js?v={dynamic_v}"></script>
           <script src="klh_GM2.js?v={dynamic_v}"></script>
-          
+          <script src="klh_Shop.js?v={dynamic_v}"></script>
+
           <script>
             document.addEventListener("DOMContentLoaded", function() {{
               let menu = document.getElementById('main-menu');
