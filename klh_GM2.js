@@ -1,4 +1,4 @@
-﻿/* ============================================================================
+/* ============================================================================
  * klh_GM2.js — 高級藥水、神之祝福與掉寶藥水機制 & 克里斯特兌換 & 快速批量賣出 & 轉生系統 & 碧恩席琳附魔說明 & 超強短劍覆寫
  *
  * 設計原則: 完全不改原作者程式碼，只從外面「包住」全域函式 (monkey-patch)。
@@ -1228,8 +1228,10 @@
             };
             for (let townId in DB.towns) {
                 let town = DB.towns[townId];
-                if (town.npcs && !town.npcs.some(n => n.id === "npc_rebirth")) {
-                    if (townId.startsWith("town_") && !townId.includes("castle")) {
+                if (town.npcs) {
+                    // 先移除非象牙塔的時光使者以防殘留，且只將其加入到象牙塔
+                    town.npcs = town.npcs.filter(n => n.id !== "npc_rebirth");
+                    if (townId === "town_ivory_tower") {
                         town.npcs.push(rebirthNpc);
                     }
                 }
@@ -1239,56 +1241,56 @@
 
     // 攔截並 Hook interactNPC 以支援時光使者
     const originalInteractNPC = window.interactNPC;
-    window.interactNPC = function (npcId, townId) {
-        if (npcId === "npc_rebirth") {
-            window._activePanel = null;
-            document.getElementById('town-npc-container').classList.add('hidden');
-            document.getElementById('town-interaction-container').classList.remove('hidden');
-            document.getElementById('town-interaction-container').classList.add('flex');
+window.interactNPC = function (npcId, townId) {
+    if (npcId === "npc_rebirth") {
+        window._activePanel = null;
+        document.getElementById('town-npc-container').classList.add('hidden');
+        document.getElementById('town-interaction-container').classList.remove('hidden');
+        document.getElementById('town-interaction-container').classList.add('flex');
 
-            document.getElementById('interaction-npc-name').innerText = "時光使者";
-            document.getElementById('interaction-npc-title').innerText = "[轉生系統]";
+        document.getElementById('interaction-npc-name').innerText = "時光使者";
+        document.getElementById('interaction-npc-title').innerText = "[轉生系統]";
 
-            let contentDiv = document.getElementById('interaction-content');
-            renderRebirthNPC(contentDiv);
-            return;
-        }
-        originalInteractNPC(npcId, townId);
-    };
-
-    function getRebirthPointsByLv(lv) {
-        // 原公式：Math.floor(Math.sqrt(difficulty)) + 1
-        // const mult = (typeof getExpGainMult === 'function') ? getExpGainMult(lv) : (1 / 8);
-        // const difficulty = mult > 0 ? (1 / mult) : 1024;
-        // return Math.floor(Math.sqrt(difficulty)) + 1;
-        return Math.floor((lv - 50) / 2);
+        let contentDiv = document.getElementById('interaction-content');
+        renderRebirthNPC(contentDiv);
+        return;
     }
+    originalInteractNPC(npcId, townId);
+};
 
-    function renderRebirthNPC(div) {
-        if (!player) return;
-        const count = player.rebirthCount || 0;
-        const totalPoints = player.rebirthPoints || 0;
-        const lv = player.lv;
+function getRebirthPointsByLv(lv) {
+    // 原公式：Math.floor(Math.sqrt(difficulty)) + 1
+    // const mult = (typeof getExpGainMult === 'function') ? getExpGainMult(lv) : (1 / 8);
+    // const difficulty = mult > 0 ? (1 / mult) : 1024;
+    // return Math.floor(Math.sqrt(difficulty)) + 1;
+    return Math.floor((lv - 50) / 2);
+}
 
-        let rebirthBtn = "";
-        if (lv >= 75) {
-            const pointsEarned = getRebirthPointsByLv(lv);
-            rebirthBtn = `
+function renderRebirthNPC(div) {
+    if (!player) return;
+    const count = player.rebirthCount || 0;
+    const totalPoints = player.rebirthPoints || 0;
+    const lv = player.lv;
+
+    let rebirthBtn = "";
+    if (lv >= 75) {
+        const pointsEarned = getRebirthPointsByLv(lv);
+        rebirthBtn = `
                 <div class="mt-6 flex justify-center">
                     <button onclick="executeRebirthNPC()" class="btn py-3 px-6 text-base font-bold bg-emerald-700 hover:bg-emerald-600 border-emerald-500 w-full max-w-sm">
                         進行轉生（獲得 ${pointsEarned} 點額外屬性點）
                     </button>
                 </div>
             `;
-        } else {
-            rebirthBtn = `
+    } else {
+        rebirthBtn = `
                 <div class="mt-6 text-slate-400 text-center">
                     <p>⚠️ 您的等級不足 75 等（目前為 ${lv} 等），還不能進行轉生。</p>
                 </div>
             `;
-        }
+    }
 
-        div.innerHTML = `
+    div.innerHTML = `
             <div class="flex flex-col gap-4 p-4 text-slate-300 text-sm leading-relaxed max-w-xl mx-auto">
                 <div class="bg-slate-900/60 border border-slate-700 rounded-lg p-4 space-y-2 text-left">
                     <div class="text-yellow-400 font-bold text-lg border-b border-slate-700 pb-1 mb-2">📜 轉生規則說明</div>
@@ -1314,101 +1316,101 @@
                 ${rebirthBtn}
             </div>
         `;
+}
+
+window.executeRebirthNPC = function () {
+    if (!player) return;
+    if (player.lv < 75) {
+        alert("您的等級不足 75 等，無法轉生！");
+        return;
     }
 
-    window.executeRebirthNPC = function () {
-        if (!player) return;
-        if (player.lv < 75) {
-            alert("您的等級不足 75 等，無法轉生！");
-            return;
+    const pointsEarned = getRebirthPointsByLv(player.lv);
+    const confirmMsg = `確定要進行轉生嗎？\n\n` +
+        `• 等級重設為 1 等 (經驗值重設為 0)\n` +
+        `• 目前的所有屬性與已分配點數將保留\n` +
+        `• 額外加送 ${pointsEarned} 點屬性點數！`;
+
+    if (confirm(confirmMsg)) {
+        player.rebirthCount = (player.rebirthCount || 0) + 1;
+        player.rebirthPoints = (player.rebirthPoints || 0) + pointsEarned;
+        player.bonus += pointsEarned;
+
+        player.lv = 1;
+        player.exp = 0;
+
+        // 重新計算屬性以更新 HP/MP 最大值
+        calcStats();
+        player.hp = player.mhp;
+        player.mp = player.mmp;
+
+        saveGame();
+
+        // 重新渲染轉生 NPC 介面
+        let contentDiv = document.getElementById('interaction-content');
+        if (contentDiv) {
+            renderRebirthNPC(contentDiv);
         }
 
-        const pointsEarned = getRebirthPointsByLv(player.lv);
-        const confirmMsg = `確定要進行轉生嗎？\n\n` +
-            `• 等級重設為 1 等 (經驗值重設為 0)\n` +
-            `• 目前的所有屬性與已分配點數將保留\n` +
-            `• 額外加送 ${pointsEarned} 點屬性點數！`;
+        updateUI();
 
-        if (confirm(confirmMsg)) {
-            player.rebirthCount = (player.rebirthCount || 0) + 1;
-            player.rebirthPoints = (player.rebirthPoints || 0) + pointsEarned;
-            player.bonus += pointsEarned;
+        if (typeof logSys === 'function') {
+            logSys(`<span class="text-emerald-300 font-bold">★★★ 轉生成功！等級回到 1 等，並額外獲得 ${pointsEarned} 點屬性點！ ★★★</span>`);
+        }
+    }
+};
 
-            player.lv = 1;
-            player.exp = 0;
-
-            // 重新計算屬性以更新 HP/MP 最大值
-            calcStats();
-            player.hp = player.mhp;
-            player.mp = player.mmp;
-
-            saveGame();
-
-            // 重新渲染轉生 NPC 介面
-            let contentDiv = document.getElementById('interaction-content');
-            if (contentDiv) {
-                renderRebirthNPC(contentDiv);
-            }
-
+// 攔截並 Hook resetStatsCandle()，防止轉生屬性點被回憶蠟燭吃掉
+const originalResetStatsCandle = window.resetStatsCandle;
+window.resetStatsCandle = function () {
+    originalResetStatsCandle();
+    if (player && player.rebirthPoints) {
+        player.bonus += player.rebirthPoints;
+        if (typeof updateUI === 'function') {
             updateUI();
-
-            if (typeof logSys === 'function') {
-                logSys(`<span class="text-emerald-300 font-bold">★★★ 轉生成功！等級回到 1 等，並額外獲得 ${pointsEarned} 點屬性點！ ★★★</span>`);
-            }
         }
-    };
-
-    // 攔截並 Hook resetStatsCandle()，防止轉生屬性點被回憶蠟燭吃掉
-    const originalResetStatsCandle = window.resetStatsCandle;
-    window.resetStatsCandle = function () {
-        originalResetStatsCandle();
-        if (player && player.rebirthPoints) {
-            player.bonus += player.rebirthPoints;
-            if (typeof updateUI === 'function') {
-                updateUI();
-            }
-        }
-    };
-
-
-
-    // ==========================================
-    // 15. 廢品記憶清單管理系統
-    // ==========================================
-    function parseItemSig(sig) {
-        const parts = sig.split('|');
-        const itemId = parts[0];
-        const en = parseInt(parts[1], 10) || 0;
-        const blessVal = parts[2];
-        const ancVal = parts[3];
-        const attr = parts[4] || '';
-        const seteff = parts[5] || '';
-
-        let bless = false;
-        if (blessVal === 'B') bless = true;
-        else if (blessVal === 'C') bless = 'C';
-
-        let anc = false;
-        if (ancVal === 'A') anc = true;
-        else if (ancVal && ancVal !== '0') anc = ancVal;
-
-        return {
-            id: itemId,
-            en: en,
-            bless: bless,
-            anc: anc,
-            attr: attr,
-            seteff: seteff
-        };
     }
+};
 
-    window.openJunkListModal = function () {
-        let modal = document.getElementById('klh-junk-modal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'klh-junk-modal';
-            modal.className = 'fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 hidden';
-            modal.innerHTML = `
+
+
+// ==========================================
+// 15. 廢品記憶清單管理系統
+// ==========================================
+function parseItemSig(sig) {
+    const parts = sig.split('|');
+    const itemId = parts[0];
+    const en = parseInt(parts[1], 10) || 0;
+    const blessVal = parts[2];
+    const ancVal = parts[3];
+    const attr = parts[4] || '';
+    const seteff = parts[5] || '';
+
+    let bless = false;
+    if (blessVal === 'B') bless = true;
+    else if (blessVal === 'C') bless = 'C';
+
+    let anc = false;
+    if (ancVal === 'A') anc = true;
+    else if (ancVal && ancVal !== '0') anc = ancVal;
+
+    return {
+        id: itemId,
+        en: en,
+        bless: bless,
+        anc: anc,
+        attr: attr,
+        seteff: seteff
+    };
+}
+
+window.openJunkListModal = function () {
+    let modal = document.getElementById('klh-junk-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'klh-junk-modal';
+        modal.className = 'fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 hidden';
+        modal.innerHTML = `
                 <div class="bg-slate-900 border border-slate-700/80 w-full max-w-md rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden text-slate-200">
                     <!-- Header -->
                     <div class="px-5 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/30">
@@ -1439,57 +1441,57 @@
                     </div>
                 </div>
             `;
-            document.body.appendChild(modal);
-        }
+        document.body.appendChild(modal);
+    }
 
-        // Render content
-        window.renderJunkListContent();
+    // Render content
+    window.renderJunkListContent();
 
-        // Show modal
-        modal.classList.remove('hidden');
-    };
+    // Show modal
+    modal.classList.remove('hidden');
+};
 
-    window.closeJunkListModal = function () {
-        const modal = document.getElementById('klh-junk-modal');
-        if (modal) {
-            modal.classList.add('hidden');
-        }
-    };
+window.closeJunkListModal = function () {
+    const modal = document.getElementById('klh-junk-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+};
 
-    window.renderJunkListContent = function () {
-        const container = document.getElementById('klh-junk-list-content');
-        if (!container) return;
+window.renderJunkListContent = function () {
+    const container = document.getElementById('klh-junk-list-content');
+    if (!container) return;
 
-        if (typeof player === 'undefined' || !player) return;
-        if (!player.junkPrefs) player.junkPrefs = {};
+    if (typeof player === 'undefined' || !player) return;
+    if (!player.junkPrefs) player.junkPrefs = {};
 
-        const sigs = Object.keys(player.junkPrefs).filter(k => player.junkPrefs[k]);
+    const sigs = Object.keys(player.junkPrefs).filter(k => player.junkPrefs[k]);
 
-        if (sigs.length === 0) {
-            container.innerHTML = `
+    if (sigs.length === 0) {
+        container.innerHTML = `
                 <div class="text-center text-slate-400 py-10 flex flex-col items-center justify-center gap-3 my-auto">
                     <span class="text-4xl opacity-50">📁</span>
                     <p class="text-sm font-semibold">尚無任何設定為廢品的道具</p>
                     <p class="text-xs text-slate-500 max-w-[280px]">您可以直接在背包中點選物品，並點選「設為廢品」將其加入記憶清單，下次獲得該品項時便會自動標記為廢品。</p>
                 </div>
             `;
-            return;
-        }
+        return;
+    }
 
-        let html = '';
-        sigs.forEach(sig => {
-            const item = parseItemSig(sig);
-            const d = DB.items[item.id];
-            if (!d) return;
+    let html = '';
+    sigs.forEach(sig => {
+        const item = parseItemSig(sig);
+        const d = DB.items[item.id];
+        if (!d) return;
 
-            const fullName = getItemFullName(item);
-            const imgUrl = getIconUrl(d);
-            const glowClass = getGlowClass(item, d);
+        const fullName = getItemFullName(item);
+        const imgUrl = getIconUrl(d);
+        const glowClass = getGlowClass(item, d);
 
-            let specText = '';
-            if (item.seteff) specText += ` [席琳效果]`;
+        let specText = '';
+        if (item.seteff) specText += ` [席琳效果]`;
 
-            html += `
+        html += `
                 <div class="flex items-center justify-between bg-slate-800/40 border border-slate-800/80 rounded-xl p-2.5 hover:bg-slate-800/80 transition">
                     <div class="flex items-center gap-2">
                         <img src="${imgUrl}" onerror="this.style.opacity='0';" class="w-6 h-6 object-contain pointer-events-none ${glowClass}">
@@ -1503,218 +1505,218 @@
                     </button>
                 </div>
             `;
+    });
+
+    container.innerHTML = html;
+};
+
+window.removeJunkPref = function (sig) {
+    if (player && player.junkPrefs) {
+        delete player.junkPrefs[sig];
+    }
+    if (player && player.inv) {
+        player.inv.forEach(i => {
+            if (itemSig(i) === sig) {
+                i.junk = false;
+            }
         });
+    }
 
-        container.innerHTML = html;
-    };
+    window.renderJunkListContent();
+    if (typeof renderTabs === 'function') renderTabs();
+    if (typeof saveGame === 'function') saveGame();
 
-    window.removeJunkPref = function (sig) {
-        if (player && player.junkPrefs) {
-            delete player.junkPrefs[sig];
-        }
-        if (player && player.inv) {
+    logSys(`已將該品項移出廢品記憶設定。`);
+};
+
+window.clearAllJunkPrefs = function () {
+    if (!confirm('確定要清除所有廢品記憶設定嗎？\n清除後，所有道具將不再自動標記為廢品。')) {
+        return;
+    }
+
+    if (player) {
+        player.junkPrefs = {};
+        if (player.inv) {
             player.inv.forEach(i => {
-                if (itemSig(i) === sig) {
-                    i.junk = false;
-                }
+                i.junk = false;
             });
         }
+    }
 
+    window.renderJunkListContent();
+    if (typeof renderTabs === 'function') renderTabs();
+    if (typeof saveGame === 'function') saveGame();
+
+    logSys(`已清除所有廢品記憶設定。`);
+};
+
+window.sellAllJunkFromModal = function () {
+    if (typeof window.originalSellAllJunk === 'function') {
+        window.originalSellAllJunk();
         window.renderJunkListContent();
-        if (typeof renderTabs === 'function') renderTabs();
-        if (typeof saveGame === 'function') saveGame();
+    }
+};
 
-        logSys(`已將該品項移出廢品記憶設定。`);
-    };
+function startupGM2() {
+    injectGlowStyles();
+    initCustomDB();
+    restoreCustomSettings();
+    registerRebirthNPC();
 
-    window.clearAllJunkPrefs = function () {
-        if (!confirm('確定要清除所有廢品記憶設定嗎？\n清除後，所有道具將不再自動標記為廢品。')) {
+    // 攔截並 Hook interactNPC 以支援時光使者
+    if (typeof window.interactNPC === 'function' && !window.interactNPC.__klhRebirthWrapped) {
+        const originalInteractNPC = window.interactNPC;
+        window.interactNPC = function (npcId, townId) {
+            if (npcId === "npc_rebirth") {
+                window._activePanel = null;
+                document.getElementById('town-npc-container').classList.add('hidden');
+                document.getElementById('town-interaction-container').classList.remove('hidden');
+                document.getElementById('town-interaction-container').classList.add('flex');
+
+                document.getElementById('interaction-npc-name').innerText = "時光使者";
+                document.getElementById('interaction-npc-title').innerText = "[轉生系統]";
+
+                let contentDiv = document.getElementById('interaction-content');
+                renderRebirthNPC(contentDiv);
+                return;
+            }
+            originalInteractNPC(npcId, townId);
+        };
+        window.interactNPC.__klhRebirthWrapped = true;
+    }
+
+    // 攔截並 Hook resetStatsCandle()，防止轉生屬性點被回憶蠟燭吃掉
+    if (typeof window.resetStatsCandle === 'function' && !window.resetStatsCandle.__klhRebirthWrapped) {
+        const originalResetStatsCandle = window.resetStatsCandle;
+        window.resetStatsCandle = function () {
+            originalResetStatsCandle();
+            if (player && player.rebirthPoints) {
+                player.bonus += player.rebirthPoints;
+                if (typeof updateUI === 'function') {
+                    updateUI();
+                }
+            }
+        };
+        window.resetStatsCandle.__klhRebirthWrapped = true;
+    }
+
+
+    // ==========================================
+    // 16. 象牙塔 碧恩（NPC Bian）：新增席琳套裝效果附加功能
+    // ==========================================
+
+    // 檢查部位是否支援席琳套裝效果
+    function isSherineSlot(slotKey, it) {
+        if (!it) return false;
+        let d = DB.items[it.id];
+        if (!d) return false;
+        return (d.type === 'wpn' && !d.isArrow)
+            || (d.type === 'arm' && ['helm', 'armor', 'gloves', 'boots', 'cloak'].includes(d.slot))
+            || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
+    }
+
+    // Hook window.openModal 以便在裝備 Modal 的「強化」按鈕下方加入「席琳注入」按鈕
+    if (typeof window.openModal === 'function') {
+        const originalOpenModal = window.openModal;
+        window.openModal = function (item, isEq, slot) {
+            originalOpenModal(item, isEq, slot);
+
+            let d = DB.items[item.id];
+            if (!d) return;
+
+            // 檢查是否是支援席琳注入的裝備
+            let isSherine = (d.type === 'wpn' && !d.isArrow)
+                || (d.type === 'arm' && ['helm', 'armor', 'gloves', 'boots', 'cloak'].includes(d.slot))
+                || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
+
+            if (isSherine) {
+                let actEl = document.getElementById('modal-actions');
+                if (actEl) {
+                    let sc = player.inv.find(i => i.id === 'sherine_crystal');
+                    let scCount = sc ? sc.cnt : 0;
+
+                    let btn = document.createElement('button');
+                    let _cursed = item.bless === 'cursed';
+
+                    if (_cursed) {
+                        btn.className = `col-span-2 w-full btn border-slate-600 bg-slate-700 text-slate-400 py-3 text-lg font-bold cursor-not-allowed mt-2`;
+                        btn.disabled = true;
+                        btn.innerHTML = `🔒 席琳注入（詛咒中無法施加）`;
+                    } else {
+                        btn.className = `col-span-2 w-full btn border-emerald-700 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 py-3 text-lg font-bold mt-2`;
+                        btn.innerHTML = `💎 席琳注入（消耗 席琳結晶*1，擁有: ${scCount}）`;
+                        btn.onclick = function () {
+                            executeModalSherine(item, isEq, slot);
+                        };
+                    }
+
+                    // 尋找「強化」按鈕並插在它下方，若無則插在「標記為廢品」上方或最底下
+                    let enhanceBtn = Array.from(actEl.querySelectorAll('button')).find(b => b.getAttribute('onclick')?.includes('showEnhanceOptions'));
+                    if (enhanceBtn) {
+                        enhanceBtn.parentNode.insertBefore(btn, enhanceBtn.nextSibling);
+                    } else {
+                        let junkLabel = actEl.querySelector('label');
+                        if (junkLabel) {
+                            junkLabel.parentNode.insertBefore(btn, junkLabel);
+                        } else {
+                            actEl.appendChild(btn);
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    // 執行 Modal 專屬的席琳注入邏輯
+    function executeModalSherine(item, isEq, slot) {
+        let sc = player.inv.find(i => i.id === 'sherine_crystal');
+        if (!sc || sc.cnt < 1) {
+            logSys('<span class="text-red-400 font-bold">缺少 席琳結晶*1。</span>');
             return;
         }
 
-        if (player) {
-            player.junkPrefs = {};
-            if (player.inv) {
-                player.inv.forEach(i => {
-                    i.junk = false;
-                });
-            }
-        }
+        // 扣除結晶
+        sc.cnt -= 1;
+        if (sc.cnt <= 0) player.inv = player.inv.filter(i => i.uid !== sc.uid);
 
-        window.renderJunkListContent();
-        if (typeof renderTabs === 'function') renderTabs();
-        if (typeof saveGame === 'function') saveGame();
+        // 隨機獲取席琳效果
+        let seteff = SHERINE_EFFECTS[Math.floor(Math.random() * SHERINE_EFFECTS.length)];
+        item.seteff = seteff;
 
-        logSys(`已清除所有廢品記憶設定。`);
-    };
+        if (DB.items[item.id] && DB.items[item.id].grantSkills) renderSkillSelects();
+        calcStats();
+        updateUI();
+        renderTabs(true);
+        saveGame();
 
-    window.sellAllJunkFromModal = function () {
-        if (typeof window.originalSellAllJunk === 'function') {
-            window.originalSellAllJunk();
-            window.renderJunkListContent();
-        }
-    };
+        logSys(`成功為你的裝備注入了席琳的恩賜 → ${getItemFullName(item)}（【${seteff}】）。`);
 
-    function startupGM2() {
-        injectGlowStyles();
-        initCustomDB();
-        restoreCustomSettings();
-        registerRebirthNPC();
+        // 重新整理 Modal 顯示以呈現最新狀態
+        openModal(item, isEq, slot);
+    }
 
-        // 攔截並 Hook interactNPC 以支援時光使者
-        if (typeof window.interactNPC === 'function' && !window.interactNPC.__klhRebirthWrapped) {
-            const originalInteractNPC = window.interactNPC;
-            window.interactNPC = function (npcId, townId) {
-                if (npcId === "npc_rebirth") {
-                    window._activePanel = null;
-                    document.getElementById('town-npc-container').classList.add('hidden');
-                    document.getElementById('town-interaction-container').classList.remove('hidden');
-                    document.getElementById('town-interaction-container').classList.add('flex');
+    // 覆寫碧恩介面渲染，加入最下方故事介紹
+    window.renderBianBless = function (el) {
+        let slots = [{ k: 'wpn', n: '武器' }, { k: 'shield', n: '盾牌' }, { k: 'helm', n: '頭盔' }, { k: 'armor', n: '盔甲' }, { k: 'tshirt', n: 'T恤' }, { k: 'cloak', n: '斗篷' }, { k: 'gloves', n: '手套' }, { k: 'boots', n: '長靴' }, { k: 'amulet', n: '項鍊' }, { k: 'ring1', n: '戒指' }, { k: 'ring2', n: '戒指' }, { k: 'ring3', n: '戒指' }, { k: 'ring4', n: '戒指' }, { k: 'belt', n: '腰帶' }];
+        let cnt = id => pledgeCountItem(id);
+        let rows = slots.map(sl => {
+            let it = player.eq[sl.k];
+            let name = it ? getItemFullName(it) : '<span class="text-slate-500">（未裝備）</span>';
+            let _cursed = !!(it && it.bless === 'cursed');
+            let _uncurse = _cursed ? `<button class="btn py-1 px-2 text-sm font-bold shrink-0 bg-cyan-800 border-cyan-500 text-cyan-100" onclick="doBianUncurse('${sl.k}')">解除詛咒</button>` : '';
 
-                    document.getElementById('interaction-npc-name').innerText = "時光使者";
-                    document.getElementById('interaction-npc-title').innerText = "[轉生系統]";
+            // 🔧 詛咒裝備：祝福按鈕變灰禁用
+            let _blessBtn = (it && !_cursed)
+                ? `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-purple-800 border-purple-500 text-purple-100 shrink-0" onclick="doBianBless('${sl.k}')">祝福${sl.n}</button>`
+                : `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-slate-700 border-slate-600 text-slate-400 cursor-not-allowed shrink-0" disabled title="${_cursed ? '被詛咒的裝備需先解除詛咒' : ''}">${_cursed ? '🔒 詛咒中' : '祝福' + sl.n}</button>`;
 
-                    let contentDiv = document.getElementById('interaction-content');
-                    renderRebirthNPC(contentDiv);
-                    return;
-                }
-                originalInteractNPC(npcId, townId);
-            };
-            window.interactNPC.__klhRebirthWrapped = true;
-        }
-
-        // 攔截並 Hook resetStatsCandle()，防止轉生屬性點被回憶蠟燭吃掉
-        if (typeof window.resetStatsCandle === 'function' && !window.resetStatsCandle.__klhRebirthWrapped) {
-            const originalResetStatsCandle = window.resetStatsCandle;
-            window.resetStatsCandle = function () {
-                originalResetStatsCandle();
-                if (player && player.rebirthPoints) {
-                    player.bonus += player.rebirthPoints;
-                    if (typeof updateUI === 'function') {
-                        updateUI();
-                    }
-                }
-            };
-            window.resetStatsCandle.__klhRebirthWrapped = true;
-        }
-
-
-        // ==========================================
-        // 16. 象牙塔 碧恩（NPC Bian）：新增席琳套裝效果附加功能
-        // ==========================================
-
-        // 檢查部位是否支援席琳套裝效果
-        function isSherineSlot(slotKey, it) {
-            if (!it) return false;
-            let d = DB.items[it.id];
-            if (!d) return false;
-            return (d.type === 'wpn' && !d.isArrow)
-                || (d.type === 'arm' && ['helm', 'armor', 'gloves', 'boots', 'cloak'].includes(d.slot))
-                || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
-        }
-
-        // Hook window.openModal 以便在裝備 Modal 的「強化」按鈕下方加入「席琳注入」按鈕
-        if (typeof window.openModal === 'function') {
-            const originalOpenModal = window.openModal;
-            window.openModal = function (item, isEq, slot) {
-                originalOpenModal(item, isEq, slot);
-
-                let d = DB.items[item.id];
-                if (!d) return;
-
-                // 檢查是否是支援席琳注入的裝備
-                let isSherine = (d.type === 'wpn' && !d.isArrow)
-                    || (d.type === 'arm' && ['helm', 'armor', 'gloves', 'boots', 'cloak'].includes(d.slot))
-                    || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
-
-                if (isSherine) {
-                    let actEl = document.getElementById('modal-actions');
-                    if (actEl) {
-                        let sc = player.inv.find(i => i.id === 'sherine_crystal');
-                        let scCount = sc ? sc.cnt : 0;
-
-                        let btn = document.createElement('button');
-                        let _cursed = item.bless === 'cursed';
-
-                        if (_cursed) {
-                            btn.className = `col-span-2 w-full btn border-slate-600 bg-slate-700 text-slate-400 py-3 text-lg font-bold cursor-not-allowed mt-2`;
-                            btn.disabled = true;
-                            btn.innerHTML = `🔒 席琳注入（詛咒中無法施加）`;
-                        } else {
-                            btn.className = `col-span-2 w-full btn border-emerald-700 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 py-3 text-lg font-bold mt-2`;
-                            btn.innerHTML = `💎 席琳注入（消耗 席琳結晶*1，擁有: ${scCount}）`;
-                            btn.onclick = function () {
-                                executeModalSherine(item, isEq, slot);
-                            };
-                        }
-
-                        // 尋找「強化」按鈕並插在它下方，若無則插在「標記為廢品」上方或最底下
-                        let enhanceBtn = Array.from(actEl.querySelectorAll('button')).find(b => b.getAttribute('onclick')?.includes('showEnhanceOptions'));
-                        if (enhanceBtn) {
-                            enhanceBtn.parentNode.insertBefore(btn, enhanceBtn.nextSibling);
-                        } else {
-                            let junkLabel = actEl.querySelector('label');
-                            if (junkLabel) {
-                                junkLabel.parentNode.insertBefore(btn, junkLabel);
-                            } else {
-                                actEl.appendChild(btn);
-                            }
-                        }
-                    }
-                }
-            };
-        }
-
-        // 執行 Modal 專屬的席琳注入邏輯
-        function executeModalSherine(item, isEq, slot) {
-            let sc = player.inv.find(i => i.id === 'sherine_crystal');
-            if (!sc || sc.cnt < 1) {
-                logSys('<span class="text-red-400 font-bold">缺少 席琳結晶*1。</span>');
-                return;
-            }
-
-            // 扣除結晶
-            sc.cnt -= 1;
-            if (sc.cnt <= 0) player.inv = player.inv.filter(i => i.uid !== sc.uid);
-
-            // 隨機獲取席琳效果
-            let seteff = SHERINE_EFFECTS[Math.floor(Math.random() * SHERINE_EFFECTS.length)];
-            item.seteff = seteff;
-
-            if (DB.items[item.id] && DB.items[item.id].grantSkills) renderSkillSelects();
-            calcStats();
-            updateUI();
-            renderTabs(true);
-            saveGame();
-
-            logSys(`成功為你的裝備注入了席琳的恩賜 → ${getItemFullName(item)}（【${seteff}】）。`);
-
-            // 重新整理 Modal 顯示以呈現最新狀態
-            openModal(item, isEq, slot);
-        }
-
-        // 覆寫碧恩介面渲染，加入最下方故事介紹
-        window.renderBianBless = function (el) {
-            let slots = [{ k: 'wpn', n: '武器' }, { k: 'shield', n: '盾牌' }, { k: 'helm', n: '頭盔' }, { k: 'armor', n: '盔甲' }, { k: 'tshirt', n: 'T恤' }, { k: 'cloak', n: '斗篷' }, { k: 'gloves', n: '手套' }, { k: 'boots', n: '長靴' }, { k: 'amulet', n: '項鍊' }, { k: 'ring1', n: '戒指' }, { k: 'ring2', n: '戒指' }, { k: 'ring3', n: '戒指' }, { k: 'ring4', n: '戒指' }, { k: 'belt', n: '腰帶' }];
-            let cnt = id => pledgeCountItem(id);
-            let rows = slots.map(sl => {
-                let it = player.eq[sl.k];
-                let name = it ? getItemFullName(it) : '<span class="text-slate-500">（未裝備）</span>';
-                let _cursed = !!(it && it.bless === 'cursed');
-                let _uncurse = _cursed ? `<button class="btn py-1 px-2 text-sm font-bold shrink-0 bg-cyan-800 border-cyan-500 text-cyan-100" onclick="doBianUncurse('${sl.k}')">解除詛咒</button>` : '';
-
-                // 🔧 詛咒裝備：祝福按鈕變灰禁用
-                let _blessBtn = (it && !_cursed)
-                    ? `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-purple-800 border-purple-500 text-purple-100 shrink-0" onclick="doBianBless('${sl.k}')">祝福${sl.n}</button>`
-                    : `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-slate-700 border-slate-600 text-slate-400 cursor-not-allowed shrink-0" disabled title="${_cursed ? '被詛咒的裝備需先解除詛咒' : ''}">${_cursed ? '🔒 詛咒中' : '祝福' + sl.n}</button>`;
-
-                return `<div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-2 text-sm">
+            return `<div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-2 text-sm">
                     <span class="truncate"><b class="text-amber-300">${sl.n}</b>：${name}</span>
                     <div class="flex items-center gap-1 shrink-0">${_uncurse}${_blessBtn}</div>
                 </div>`;
-            }).join('');
+        }).join('');
 
-            el.innerHTML = `
+        el.innerHTML = `
                 <div class="flex flex-col gap-2 p-1 max-h-[85vh] overflow-y-auto">
                     <div class="text-slate-300 text-sm leading-relaxed">碧恩：我能為你的裝備灌注力量。每次祝福會在「屬性 / 遠古系 / 祝福」三者中平均抽一個詞綴，隨機<b>附加、取代或消除</b>（只影響該詞綴）。</div>
                     <div class="text-xs text-slate-400">武器用 賦予武器祝福卷軸(持有 ${cnt('new_item_bless_wpn')})；防具用 賦予盔甲祝福卷軸(持有 ${cnt('new_item_bless_arm')})；飾品用 賦予飾品祝福卷軸(持有 ${cnt('new_item_bless_acc')})。<br>含詛咒的裝備可用 解除詛咒的卷軸(持有 ${cnt('new_item_uncurse')}) 移除詛咒。</div>
@@ -1811,42 +1813,42 @@
                         </div>
                     </div>
                 </div>`;
+    };
+
+    // ==========================================
+    // 17. 廢品記憶清單管理與 UI 攔截
+    // ==========================================
+    if (typeof window.sellAllJunk === 'function' && !window.sellAllJunk.__klhJunkWrapped) {
+        const originalSellAllJunk = window.sellAllJunk;
+        window.originalSellAllJunk = originalSellAllJunk;
+        window.sellAllJunk = function () {
+            window.openJunkListModal();
         };
-
-        // ==========================================
-        // 17. 廢品記憶清單管理與 UI 攔截
-        // ==========================================
-        if (typeof window.sellAllJunk === 'function' && !window.sellAllJunk.__klhJunkWrapped) {
-            const originalSellAllJunk = window.sellAllJunk;
-            window.originalSellAllJunk = originalSellAllJunk;
-            window.sellAllJunk = function () {
-                window.openJunkListModal();
-            };
-            window.sellAllJunk.__klhJunkWrapped = true;
-        }
-
-        function initJunkButton() {
-            const btn = document.getElementById('btn-sell-junk');
-            if (btn) {
-                btn.innerText = "廢品清單";
-            }
-        }
-        initJunkButton();
-
-        // 由於可能存在延遲載入或重繪，Hook updateUI 同步更新按鈕文字
-        if (typeof window.updateUI === 'function' && !window.updateUI.__klhJunkBtnWrapped) {
-            const originalUpdateUI = window.updateUI;
-            window.updateUI = function () {
-                originalUpdateUI();
-                initJunkButton();
-            };
-            window.updateUI.__klhJunkBtnWrapped = true;
-        }
+        window.sellAllJunk.__klhJunkWrapped = true;
     }
 
-    // 註冊 DOM 載入與即時啟動
-    document.addEventListener('DOMContentLoaded', startupGM2);
-    if (document.readyState === 'interactive' || document.readyState === 'complete') {
-        startupGM2();
+    function initJunkButton() {
+        const btn = document.getElementById('btn-sell-junk');
+        if (btn) {
+            btn.innerText = "廢品清單";
+        }
     }
-})();
+    initJunkButton();
+
+    // 由於可能存在延遲載入或重繪，Hook updateUI 同步更新按鈕文字
+    if (typeof window.updateUI === 'function' && !window.updateUI.__klhJunkBtnWrapped) {
+        const originalUpdateUI = window.updateUI;
+        window.updateUI = function () {
+            originalUpdateUI();
+            initJunkButton();
+        };
+        window.updateUI.__klhJunkBtnWrapped = true;
+    }
+}
+
+// 註冊 DOM 載入與即時啟動
+document.addEventListener('DOMContentLoaded', startupGM2);
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    startupGM2();
+}
+}) ();
