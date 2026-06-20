@@ -503,9 +503,15 @@
                     if (subCat === 'knight' && !isKnight) return false;
                     if (subCat === 'general' && !isGeneral) return false;
                 } else if (mainCat === 'etc') {
-                    let isPotion = item.type === 'pot' || item.id.startsWith('potion_');
+                    let isPotion = item.type === 'pot' || item.id.startsWith('potion_') || (item.n && item.n.includes('藥水'));
+                    let isPet = item.id.includes('pet') || (item.n && (item.n.includes('果實') || item.n.includes('寵物') || item.n.includes('進化')));
+                    let isMaterial = item.type === 'material' || item.id.startsWith('mat_') || item.id.includes('crystal') || (item.n && (item.n.includes('材料') || item.n.includes('結晶') || item.n.includes('礦石') || item.n.includes('皮革') || item.n.includes('骨頭') || item.n.includes('布料')));
+                    let isOther = !isPotion && !isPet && !isMaterial;
+
                     if (subCat === 'potion' && !isPotion) return false;
-                    if (subCat === 'material' && isPotion) return false;
+                    if (subCat === 'pet' && !isPet) return false;
+                    if (subCat === 'material' && !isMaterial) return false;
+                    if (subCat === 'other' && !isOther) return false;
                 } else {
                     if (item.slot !== subCat) return false;
                 }
@@ -696,6 +702,53 @@
         if (typeof saveGame === 'function') saveGame();
     };
 
+    window.modifyGMGold = function () {
+        let goldInput = document.getElementById('gm-gold-input');
+        if (!goldInput) return;
+        let val = parseInt(goldInput.value);
+        if (isNaN(val) || val < 0) {
+            alert("請輸入大於或等於 0 的金幣數量！");
+            return;
+        }
+        if (val > 999999999999) {
+            val = 999999999999;
+        }
+        player.gold = val;
+        
+        // 更新 GM 商店金幣顯示
+        document.getElementById('gm-shop-player-gold').innerText = player.gold.toLocaleString();
+        
+        // 觸發遊戲原生界面重繪與存檔
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof renderTabs === 'function') renderTabs(true);
+        if (typeof saveGame === 'function') saveGame();
+        
+        if (typeof showToast === 'function') {
+            showToast(`金幣已成功修改為 ${val.toLocaleString()}`, 'success');
+        }
+    };
+
+    window.modifyGMLevel = function () {
+        let lvlInput = document.getElementById('gm-lvl-input');
+        if (!lvlInput) return;
+        let val = parseInt(lvlInput.value);
+        if (isNaN(val) || val < 1 || val > 999) {
+            alert("請輸入 1 到 999 之間的有效等級！");
+            return;
+        }
+        player.lv = val;
+        player.exp = 0; // 重置經驗值為 0
+        
+        // 重新計算屬性與 UI 刷新
+        if (typeof calcStats === 'function') calcStats();
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof saveGame === 'function') saveGame();
+        
+        if (typeof showToast === 'function') {
+            showToast(`等級已成功修改為 Lv.${val}`, 'success');
+        }
+    };
+
     // 5. 創建大視窗 DOM
     function createGMShopModal() {
         // 抓取所有商品 (只執行一次)
@@ -710,15 +763,15 @@
                     equipments.push({ id: id, ...item });
                 }
                 // 2. 卷軸類
-                else if (item.type === 'scroll' || id.startsWith('scroll_') || id.includes('bless') || id.includes('uncurse')) {
+                else if (item.type === 'scroll' || id.startsWith('scroll_') || id.includes('bless') || id.includes('uncurse') || (item.n && item.n.includes('卷軸'))) {
                     equipments.push({ id: id, ...item, type: 'scroll' });
                 }
                 // 3. 魔法書類
-                else if (item.type === 'skillbk' || id.startsWith('bk_')) {
+                else if (item.type === 'skillbk' || id.startsWith('bk_') || (item.n && (item.n.includes('技術書') || item.n.includes('魔法書') || item.n.includes('精靈水晶')))) {
                     equipments.push({ id: id, ...item, type: 'skillbk' });
                 }
-                // 4. 材料與其他
-                else if (id === 'sherine_crystal' || item.type === 'etc' || item.type === 'material' || id.startsWith('potion_')) {
+                // 4. 其他所有物品（包含藥水、材料、果實、結晶等等雜項）一律歸入 etc
+                else {
                     equipments.push({ id: id, ...item, type: 'etc' });
                 }
             }
@@ -845,8 +898,21 @@
                             </select>
                         </div>
                         
+                        <!-- GM 數值修改區 -->
+                        <div class="border-t border-slate-800 pt-3 flex flex-col gap-2 mt-auto">
+                            <span class="gm-shop-control-label">GM 快捷修改</span>
+                            <div class="flex gap-1.5">
+                                <input type="number" id="gm-gold-input" class="gm-shop-search-input" style="height: 30px !important; padding: 2px 6px !important; font-size: 13px !important; flex: 1; min-width: 50px;" placeholder="設定金幣">
+                                <button class="gm-shop-buy-btn" style="padding: 2px 8px !important; font-size: 11px !important; white-space: nowrap;" onclick="modifyGMGold()">改金幣</button>
+                            </div>
+                            <div class="flex gap-1.5">
+                                <input type="number" id="gm-lvl-input" class="gm-shop-search-input" style="height: 30px !important; padding: 2px 6px !important; font-size: 13px !important; flex: 1; min-width: 50px;" placeholder="設定等級">
+                                <button class="gm-shop-buy-btn" style="padding: 2px 8px !important; font-size: 11px !important; white-space: nowrap;" onclick="modifyGMLevel()">改等級</button>
+                            </div>
+                        </div>
+                        
                         <!-- 玩家資產與負重 -->
-                        <div class="border-t border-slate-800 pt-4 flex flex-col gap-2 mt-auto" id="gm-ctrl-assets">
+                        <div class="border-t border-slate-800 pt-3 flex flex-col gap-2" id="gm-ctrl-assets">
                             <div class="flex justify-between text-sm">
                                 <span class="text-slate-400">當前金幣</span>
                                 <span class="text-yellow-400 font-bold" id="gm-shop-player-gold">0</span>
@@ -1016,9 +1082,11 @@
             } else if (cat === 'etc') {
                 subSel.style.display = 'block';
                 subSel.innerHTML = `
-                    <option value="all">全部材料</option>
-                    <option value="potion">藥水</option>
+                    <option value="all">全部材料與雜項</option>
+                    <option value="potion">藥水類</option>
+                    <option value="pet">寵物/果實類</option>
                     <option value="material">核心材料/結晶</option>
+                    <option value="other">其他雜項</option>
                 `;
             } else {
                 subSel.style.display = 'none';
