@@ -8,7 +8,7 @@
  * 功能一覽:
  *   1. 抽獎權重初始化 —— 依物品售價自動分配加權機率 (傳說 1 / 稀有 10 / 一般 50~100)。
  *   2. 加權隨機抽取   —— 從全物品資料庫池中進行一次加權抽獎。
- *   3. 抽獎費用計算   —— 單抽固定 9,999 金幣，10 連抽 10 倍，100 連抽因物流與查稅加收 10 倍手續費。
+ *   3. 抽獎費用計算   —— 單抽固定 9,999 金幣，10 連抽 10 倍，100 連抽 100 倍。
  *   4. 抽獎 UI 渲染   —— 「潘朵拉的妹妹」NPC 對話視窗，含抽獎轉盤動畫、傳說大獎金光特效與全螢幕閃光。
  *   5. 單抽邏輯       —— 帶有圖示輪播動畫、傳說大獎廣播提示。
  *   6. 十連抽邏輯     —— 批次抽取、批次 DOM 更新，傳說大獎框線金色高光。
@@ -23,11 +23,11 @@
         if (typeof DB === 'undefined' || !DB.items) return;
 
         // 調整係數 (方便未來微調，附上各稀有度平均基礎 W 值與平均最終權重)
-        const multExtreme  = 1;  // 極度稀有 (價格 > 100,000)：平均 W = 1.00，平均最終權重 = 1.00 * 0.5 = 0.5
-        const multRare     = 1;  // 稀有 (價格 > 30,000)：平均 W = 9.88，平均最終權重 = 9.88 * 0.5 = 4.94
+        const multExtreme = 1;  // 極度稀有 (價格 > 100,000)：平均 W = 1.00，平均最終權重 = 1.00 * 0.5 = 0.5
+        const multRare = 1;  // 稀有 (價格 > 30,000)：平均 W = 9.88，平均最終權重 = 9.88 * 0.5 = 4.94
         const multUncommon = 1;    // 罕見 (價格 > 10,000)：平均 W = 13.41，平均最終權重 = 13.41 * 2 = 26.82
-        const multCommon   = 1;    // 一般 (價格 > 1,000)：平均 W = 46.13，平均最終權重 = 46.13 * 3 = 138.39
-        const multJunk     = 1;   // 便宜貨 (價格 <= 1,000)：平均 W = 73.12，平均最終權重 = 73.12 * 10 = 731.2
+        const multCommon = 1;    // 一般 (價格 > 1,000)：平均 W = 46.13，平均最終權重 = 46.13 * 3 = 138.39
+        const multJunk = 1;   // 便宜貨 (價格 <= 1,000)：平均 W = 73.12，平均最終權重 = 73.12 * 10 = 731.2
 
         for (let id in DB.items) {
             let item = DB.items[id];
@@ -91,12 +91,12 @@
         return pool[pool.length - 1].id;
     }
 
-    // 取得動態抽獎價格（單抽固定 9999 金幣，百抽因大宗物流及逃避查稅需加收 10 倍疏通費用）
+    // 取得動態抽獎價格（單抽固定 9999 金幣，十抽 10 倍，百抽 100 倍）
     function getSisterGachaCost(mode) {
         let base = 9999;
         if (mode === 'single') return base;
         if (mode === 'ten') return base * 10;
-        if (mode === 'hundred') return base * 100 * 10; // 百抽收 10 倍特別手續費
+        if (mode === 'hundred') return base * 100;
         return base;
     }
 
@@ -121,7 +121,7 @@
         let costTen = getSisterGachaCost('ten');
         let costHundred = getSisterGachaCost('hundred');
 
-        let warningHtml = `<p class="text-amber-300 text-[10.5px] leading-tight mb-1 text-center max-w-xs font-medium" style="white-space: nowrap;">⚠️ 百連抽加收 10 倍物流費，建議單抽或 10 連更划算！</p>`;
+        let warningHtml = ``;
 
         let html = `
         <div class="flex flex-col items-center justify-start h-full p-2 w-full">

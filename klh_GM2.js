@@ -1,4 +1,4 @@
-/* ============================================================================
+﻿/* ============================================================================
  * klh_GM2.js — 高級藥水、神之祝福與掉寶藥水機制 & 克里斯特兌換 & 快速批量賣出 & 轉生系統 & 碧恩席琳附魔說明 & 超強短劍覆寫
  *
  * 設計原則: 完全不改原作者程式碼，只從外面「包住」全域函式 (monkey-patch)。
@@ -21,7 +21,7 @@
  *  12. 自動互斥處理   —— 批量賣出與快速強化模式相互排他。
  *  13. renderTabs 覆蓋  —— 完整重寫背包標籤渲染邏輯，支援快速強化和批量賣出 UI 整合。
  *  14. 轉生系統       —— 「時光使者」 NPC ，75 等以上可轉生重置等級，
- *                          保留擁有屬性點數並額外獲得 (Lv-50) 點數。
+ *                          保留擁有屬性點數並額外獲得 (Lv-50)/2 點數。
  *  15. 回憶蠟燭保護   —— Hook resetStatsCandle ，防止轉生點數被回憶蠟燭消耗。
  *  16. 席琳裝備注入   —— Hook openModal 於裝備介面新增「席琳注入」按鈕（消耗 1 顆席琳結晶），為特定部位裝備隨機注入強力的席琳混沌套裝效果。
  *  17. 象牙塔 NPC 碧恩 —— 覆寫 renderBianBless，僅保留祝福與解詛咒，並在最下方附屬性/遠古/席琳套裝效果卡片對照。
@@ -671,7 +671,7 @@
     // ============================================================================
     // ⚡ 14. 快速批量賣出系統 (Quick Sell System)
     // ============================================================================
-    
+
     window.quickSell = {
         wpn: { active: false, sel: {} },
         arm: { active: false, sel: {} },
@@ -729,7 +729,7 @@
                 <input type="checkbox" ${allSel ? 'checked' : ''} onchange="quickSellSelectAll('${type}', this.checked)"> 全選
             </label>
         </div>`;
-        
+
         let cb = hdr.querySelector('label input');
         if (cb) cb.indeterminate = someSel && !allSel;
         return hdr;
@@ -965,7 +965,7 @@
 
     if (typeof window.renderTabs === 'function') {
         const str = window.renderTabs.toString();
-        
+
         // 1. 提取 slots 陣列
         const slotsMatch = str.match(/(?:const|let)?\s*slots\s*=\s*(\[[\s\S]*?\])\s*;/);
         if (slotsMatch) {
@@ -999,18 +999,18 @@
     }
 
     const fallbackSlots = [
-        { k: 'wpn', n: '武器' }, { k: 'shield', n: '盾牌' }, { k: 'helm', n: '頭盔' }, 
-        { k: 'armor', n: '盔甲' }, { k: 'tshirt', n: 'T恤' }, { k: 'cloak', n: '斗篷' }, 
-        { k: 'gloves', n: '手套' }, { k: 'boots', n: '長靴' }, { k: 'amulet', n: '項鍊' }, 
-        { k: 'ring1', n: '戒指' }, { k: 'ring2', n: '戒指' }, { k: 'ring3', n: '戒指' }, 
-        { k: 'ring4', n: '戒指' }, { k: 'belt', n: '腰帶' }, { k: 'pet', n: '寵物裝備' }, 
+        { k: 'wpn', n: '武器' }, { k: 'shield', n: '盾牌' }, { k: 'helm', n: '頭盔' },
+        { k: 'armor', n: '盔甲' }, { k: 'tshirt', n: 'T恤' }, { k: 'cloak', n: '斗篷' },
+        { k: 'gloves', n: '手套' }, { k: 'boots', n: '長靴' }, { k: 'amulet', n: '項鍊' },
+        { k: 'ring1', n: '戒指' }, { k: 'ring2', n: '戒指' }, { k: 'ring3', n: '戒指' },
+        { k: 'ring4', n: '戒指' }, { k: 'belt', n: '腰帶' }, { k: 'pet', n: '寵物裝備' },
         { k: 'arrow', n: '箭矢' }
     ];
 
     const slots = originalSlots || fallbackSlots;
 
     if (!getOriginalSig) {
-        getOriginalSig = function() {
+        getOriginalSig = function () {
             let inv = player.inv.map(i => itemSig(i) + '.' + (i.cnt || 1) + '.' + (i.lock ? 1 : 0) + '.' + (i.junk ? 1 : 0)).join(';');
             let eq = Object.keys(player.eq).map(k => { let e = player.eq[k]; return e ? `${k}:${itemSig(e)}.${e.cnt || 0}` : k + ':'; }).join(',');
             let dd = player.d;
@@ -1145,7 +1145,7 @@
                 el.innerHTML = `<div class="flex items-center justify-between gap-2">${_rowInner}<input type="checkbox" class="pointer-events-none w-4 h-4 mr-1 flex-shrink-0" ${_checked ? 'checked' : ''}></div>`;
                 if (_checked) el.className += ' ring-2 ring-blue-500/70';
                 el.onclick = () => toggleQuickItem(_qeType, i.uid);
-            } 
+            }
             else if (_qsType && window.quickSell[_qsType].active && !i.lock) {
                 let _checked = !!window.quickSell[_qsType].sel[i.uid];
                 el.innerHTML = `<div class="flex items-center justify-between gap-2">${_rowInner}<input type="checkbox" class="pointer-events-none w-4 h-4 mr-1 flex-shrink-0" ${_checked ? 'checked' : ''}></div>`;
@@ -1211,7 +1211,7 @@
     };
 
     // 15. GM 模組初始化與注入
-    
+
     // ==========================================
     // 5. 轉生系統實作 (Rebirth System) - Moved from klh_jsonblob
     // ==========================================
@@ -1257,9 +1257,11 @@
     };
 
     function getRebirthPointsByLv(lv) {
-        const mult = (typeof getExpGainMult === 'function') ? getExpGainMult(lv) : (1/8);
-        const difficulty = mult > 0 ? (1 / mult) : 1024;
-        return Math.floor(Math.sqrt(difficulty)) + 1;
+        // 原公式：Math.floor(Math.sqrt(difficulty)) + 1
+        // const mult = (typeof getExpGainMult === 'function') ? getExpGainMult(lv) : (1 / 8);
+        // const difficulty = mult > 0 ? (1 / mult) : 1024;
+        // return Math.floor(Math.sqrt(difficulty)) + 1;
+        return Math.floor((lv - 50) / 2);
     }
 
     function renderRebirthNPC(div) {
@@ -1293,7 +1295,7 @@
                     <div>1. **等級限制**：等級達到 <b class="text-orange-400">75 等</b> 以上方可進行轉生。</div>
                     <div>2. **轉生後狀態**：等級重置為 <b class="text-yellow-400">1 等</b>，經驗值歸零。</div>
                     <div>3. **屬性保留**：您之前分配的屬性點數、基礎屬性、以及萬能藥加成將**完全保留**。</div>
-                    <div>4. **額外屬性點**：每次轉生時，您將額外獲得依當前等級難度衰減率計算的自由分配點數 <b>[√難度倒數] + 1</b> 點（例如：75~78等送 3 點，80~81等送 6 點，90等以上送 33 點）。</div>
+                    <div>4. **額外屬性點**：每次轉生時，您將額外獲得依當前等級計算的自由分配點數 <b>(等級 - 50) / 2</b> 點（例如：75等送 12 點，80等送 15 點，90等送 20 點）。</div>
                     <div>5. **回憶蠟燭保護**：轉生獲得的點數將受到系統保護，使用「回憶蠟燭」重置時不會遺失。</div>
                 </div>
                 
@@ -1381,15 +1383,15 @@
         const ancVal = parts[3];
         const attr = parts[4] || '';
         const seteff = parts[5] || '';
-        
+
         let bless = false;
         if (blessVal === 'B') bless = true;
         else if (blessVal === 'C') bless = 'C';
-        
+
         let anc = false;
         if (ancVal === 'A') anc = true;
         else if (ancVal && ancVal !== '0') anc = ancVal;
-        
+
         return {
             id: itemId,
             en: en,
@@ -1439,10 +1441,10 @@
             `;
             document.body.appendChild(modal);
         }
-        
+
         // Render content
         window.renderJunkListContent();
-        
+
         // Show modal
         modal.classList.remove('hidden');
     };
@@ -1457,12 +1459,12 @@
     window.renderJunkListContent = function () {
         const container = document.getElementById('klh-junk-list-content');
         if (!container) return;
-        
+
         if (typeof player === 'undefined' || !player) return;
         if (!player.junkPrefs) player.junkPrefs = {};
-        
+
         const sigs = Object.keys(player.junkPrefs).filter(k => player.junkPrefs[k]);
-        
+
         if (sigs.length === 0) {
             container.innerHTML = `
                 <div class="text-center text-slate-400 py-10 flex flex-col items-center justify-center gap-3 my-auto">
@@ -1473,20 +1475,20 @@
             `;
             return;
         }
-        
+
         let html = '';
         sigs.forEach(sig => {
             const item = parseItemSig(sig);
             const d = DB.items[item.id];
             if (!d) return;
-            
+
             const fullName = getItemFullName(item);
             const imgUrl = getIconUrl(d);
             const glowClass = getGlowClass(item, d);
-            
+
             let specText = '';
             if (item.seteff) specText += ` [席琳效果]`;
-            
+
             html += `
                 <div class="flex items-center justify-between bg-slate-800/40 border border-slate-800/80 rounded-xl p-2.5 hover:bg-slate-800/80 transition">
                     <div class="flex items-center gap-2">
@@ -1502,7 +1504,7 @@
                 </div>
             `;
         });
-        
+
         container.innerHTML = html;
     };
 
@@ -1517,11 +1519,11 @@
                 }
             });
         }
-        
+
         window.renderJunkListContent();
         if (typeof renderTabs === 'function') renderTabs();
         if (typeof saveGame === 'function') saveGame();
-        
+
         logSys(`已將該品項移出廢品記憶設定。`);
     };
 
@@ -1529,7 +1531,7 @@
         if (!confirm('確定要清除所有廢品記憶設定嗎？\n清除後，所有道具將不再自動標記為廢品。')) {
             return;
         }
-        
+
         if (player) {
             player.junkPrefs = {};
             if (player.inv) {
@@ -1538,11 +1540,11 @@
                 });
             }
         }
-        
+
         window.renderJunkListContent();
         if (typeof renderTabs === 'function') renderTabs();
         if (typeof saveGame === 'function') saveGame();
-        
+
         logSys(`已清除所有廢品記憶設定。`);
     };
 
@@ -1600,14 +1602,14 @@
         // ==========================================
         // 16. 象牙塔 碧恩（NPC Bian）：新增席琳套裝效果附加功能
         // ==========================================
-        
+
         // 檢查部位是否支援席琳套裝效果
         function isSherineSlot(slotKey, it) {
             if (!it) return false;
             let d = DB.items[it.id];
             if (!d) return false;
             return (d.type === 'wpn' && !d.isArrow)
-                || (d.type === 'arm' && ['helm','armor','gloves','boots','cloak'].includes(d.slot))
+                || (d.type === 'arm' && ['helm', 'armor', 'gloves', 'boots', 'cloak'].includes(d.slot))
                 || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
         }
 
@@ -1616,24 +1618,24 @@
             const originalOpenModal = window.openModal;
             window.openModal = function (item, isEq, slot) {
                 originalOpenModal(item, isEq, slot);
-                
+
                 let d = DB.items[item.id];
                 if (!d) return;
-                
+
                 // 檢查是否是支援席琳注入的裝備
                 let isSherine = (d.type === 'wpn' && !d.isArrow)
-                    || (d.type === 'arm' && ['helm','armor','gloves','boots','cloak'].includes(d.slot))
+                    || (d.type === 'arm' && ['helm', 'armor', 'gloves', 'boots', 'cloak'].includes(d.slot))
                     || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
-                    
+
                 if (isSherine) {
                     let actEl = document.getElementById('modal-actions');
                     if (actEl) {
                         let sc = player.inv.find(i => i.id === 'sherine_crystal');
                         let scCount = sc ? sc.cnt : 0;
-                        
+
                         let btn = document.createElement('button');
                         let _cursed = item.bless === 'cursed';
-                        
+
                         if (_cursed) {
                             btn.className = `col-span-2 w-full btn border-slate-600 bg-slate-700 text-slate-400 py-3 text-lg font-bold cursor-not-allowed mt-2`;
                             btn.disabled = true;
@@ -1641,11 +1643,11 @@
                         } else {
                             btn.className = `col-span-2 w-full btn border-emerald-700 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 py-3 text-lg font-bold mt-2`;
                             btn.innerHTML = `💎 席琳注入（消耗 席琳結晶*1，擁有: ${scCount}）`;
-                            btn.onclick = function() {
+                            btn.onclick = function () {
                                 executeModalSherine(item, isEq, slot);
                             };
                         }
-                        
+
                         // 尋找「強化」按鈕並插在它下方，若無則插在「標記為廢品」上方或最底下
                         let enhanceBtn = Array.from(actEl.querySelectorAll('button')).find(b => b.getAttribute('onclick')?.includes('showEnhanceOptions'));
                         if (enhanceBtn) {
@@ -1666,9 +1668,9 @@
         // 執行 Modal 專屬的席琳注入邏輯
         function executeModalSherine(item, isEq, slot) {
             let sc = player.inv.find(i => i.id === 'sherine_crystal');
-            if (!sc || sc.cnt < 1) { 
-                logSys('<span class="text-red-400 font-bold">缺少 席琳結晶*1。</span>'); 
-                return; 
+            if (!sc || sc.cnt < 1) {
+                logSys('<span class="text-red-400 font-bold">缺少 席琳結晶*1。</span>');
+                return;
             }
 
             // 扣除結晶
@@ -1693,18 +1695,18 @@
 
         // 覆寫碧恩介面渲染，加入最下方故事介紹
         window.renderBianBless = function (el) {
-            let slots = [{k:'wpn',n:'武器'},{k:'shield',n:'盾牌'},{k:'helm',n:'頭盔'},{k:'armor',n:'盔甲'},{k:'tshirt',n:'T恤'},{k:'cloak',n:'斗篷'},{k:'gloves',n:'手套'},{k:'boots',n:'長靴'},{k:'amulet',n:'項鍊'},{k:'ring1',n:'戒指'},{k:'ring2',n:'戒指'},{k:'ring3',n:'戒指'},{k:'ring4',n:'戒指'},{k:'belt',n:'腰帶'}];
+            let slots = [{ k: 'wpn', n: '武器' }, { k: 'shield', n: '盾牌' }, { k: 'helm', n: '頭盔' }, { k: 'armor', n: '盔甲' }, { k: 'tshirt', n: 'T恤' }, { k: 'cloak', n: '斗篷' }, { k: 'gloves', n: '手套' }, { k: 'boots', n: '長靴' }, { k: 'amulet', n: '項鍊' }, { k: 'ring1', n: '戒指' }, { k: 'ring2', n: '戒指' }, { k: 'ring3', n: '戒指' }, { k: 'ring4', n: '戒指' }, { k: 'belt', n: '腰帶' }];
             let cnt = id => pledgeCountItem(id);
             let rows = slots.map(sl => {
                 let it = player.eq[sl.k];
                 let name = it ? getItemFullName(it) : '<span class="text-slate-500">（未裝備）</span>';
                 let _cursed = !!(it && it.bless === 'cursed');
                 let _uncurse = _cursed ? `<button class="btn py-1 px-2 text-sm font-bold shrink-0 bg-cyan-800 border-cyan-500 text-cyan-100" onclick="doBianUncurse('${sl.k}')">解除詛咒</button>` : '';
-                
+
                 // 🔧 詛咒裝備：祝福按鈕變灰禁用
                 let _blessBtn = (it && !_cursed)
                     ? `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-purple-800 border-purple-500 text-purple-100 shrink-0" onclick="doBianBless('${sl.k}')">祝福${sl.n}</button>`
-                    : `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-slate-700 border-slate-600 text-slate-400 cursor-not-allowed shrink-0" disabled title="${_cursed ? '被詛咒的裝備需先解除詛咒' : ''}">${_cursed ? '🔒 詛咒中' : '祝福'+sl.n}</button>`;
+                    : `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-slate-700 border-slate-600 text-slate-400 cursor-not-allowed shrink-0" disabled title="${_cursed ? '被詛咒的裝備需先解除詛咒' : ''}">${_cursed ? '🔒 詛咒中' : '祝福' + sl.n}</button>`;
 
                 return `<div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-2 text-sm">
                     <span class="truncate"><b class="text-amber-300">${sl.n}</b>：${name}</span>
