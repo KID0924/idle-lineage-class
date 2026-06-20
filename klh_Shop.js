@@ -423,6 +423,18 @@
                 ${claimSection}
             `;
             listDiv.appendChild(adminPanel);
+        } else {
+            // 針對沒有ID的本地模式，以天堂口吻顯示提示訊息
+            const noKeyPanel = document.createElement('div');
+            noKeyPanel.className = 'w-full bg-slate-900/60 border border-slate-700 rounded-lg p-4 mb-4 text-center leading-relaxed';
+            noKeyPanel.innerHTML = `
+                <div class="text-amber-400 font-bold text-xs mb-2">✨ 裂縫使者的神聖啟示 ✨</div>
+                <div class="text-slate-300 text-[11px] leading-normal">
+                    「旅人啊... 汝之靈魂正處於孤立的塵世（本地模式），身上並未攜帶連通諸界虛空的 <span class="text-yellow-400 font-bold">雲端金鑰</span>。<br>
+                    若無古老的時光金鑰作為引導，吾等無法將此世之物送入不穩定的雲端裂縫。若想在此上架物品，請先取得金鑰並回歸世界之流。」
+                </div>
+            `;
+            listDiv.appendChild(noKeyPanel);
         }
 
         const ids = Object.keys(wealthReaperStock || {});
@@ -752,7 +764,7 @@
         const mySellerName = isGM ? "線上GM" : ((typeof player !== 'undefined' && player.name) ? player.name : '未知');
 
         if (!mySellerId) {
-            showToast("您未透過金鑰登入，無權上架商品！", "error");
+            showToast("「旅人啊... 汝身上並未攜帶雲端金鑰，吾等無法替汝將物品送入裂縫之中！」", "error");
             return;
         }
 
