@@ -385,6 +385,10 @@
         body.m-keyboard-open #m-nav {
             display: none !important;
         }
+        /* 解決主選單在鍵盤開啟時元素過多被擠飛的 bug */
+        body.m-keyboard-open #main-menu > *:not(#cloud-save-container) {
+            display: none !important;
+        }
     `;
     document.head.appendChild(styleEl);
 
@@ -2355,19 +2359,30 @@
     }
 
     // 解決 iOS 虛擬鍵盤彈起導致網頁滾動、錯位且收起時不回彈的 bug
+    let isKeyboardOpened = false;
     document.addEventListener('focusin', function (e) {
         if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
             document.body.classList.add('m-keyboard-open');
+            isKeyboardOpened = true;
         }
     });
 
     document.addEventListener('focusout', function (e) {
         if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
             document.body.classList.remove('m-keyboard-open');
+            isKeyboardOpened = false;
             setTimeout(() => {
                 window.scrollTo(0, 0);
                 document.body.scrollTop = 0;
             }, 50);
+        }
+    });
+
+    // 解決 iOS 鍵盤彈出時強行滾動視窗 (window scroll) 導致 fixed 佈局整體偏移飛走的 bug
+    window.addEventListener('scroll', function () {
+        if (isKeyboardOpened && (window.scrollY > 0 || document.body.scrollTop > 0)) {
+            window.scrollTo(0, 0);
+            document.body.scrollTop = 0;
         }
     });
 
