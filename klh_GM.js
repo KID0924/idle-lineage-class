@@ -91,9 +91,9 @@
         return pool[pool.length - 1].id;
     }
 
-    // 取得動態抽獎價格（單抽固定 3 萬金幣，百抽因大宗物流及逃避查稅需加收 10 倍疏通費用）
+    // 取得動態抽獎價格（單抽固定 9999 金幣，百抽因大宗物流及逃避查稅需加收 10 倍疏通費用）
     function getSisterGachaCost(mode) {
-        let base = 30000;
+        let base = 9999;
         if (mode === 'single') return base;
         if (mode === 'ten') return base * 10;
         if (mode === 'hundred') return base * 100 * 10; // 百抽收 10 倍特別手續費
@@ -121,48 +121,48 @@
         let costTen = getSisterGachaCost('ten');
         let costHundred = getSisterGachaCost('hundred');
 
-        let warningHtml = `<p class="text-amber-300 text-sm mb-2 text-center max-w-lg font-medium">⚠️ 慘了…私自一次搬運 100 件商品會觸發潘朵拉姊姊的稅務查核警報！<br>因此百連抽需額外加收 10 倍「物流疏通費」喔！建議分批單抽或 10 連抽更划算！</p>`;
+        let warningHtml = `<p class="text-amber-300 text-[10.5px] leading-tight mb-1 text-center max-w-xs font-medium" style="white-space: nowrap;">⚠️ 百連抽加收 10 倍物流費，建議單抽或 10 連更划算！</p>`;
 
         let html = `
-        <div class="flex flex-col items-center justify-start h-full p-4 w-full">
-            <h3 class="text-3xl font-bold text-purple-400 mb-1 drop-shadow-md">潘朵拉的妹妹</h3>
+        <div class="flex flex-col items-center justify-start h-full p-2 w-full">
+            <h3 class="text-2xl font-bold text-purple-400 mb-0.5 drop-shadow-md">潘朵拉的妹妹</h3>
             ${warningHtml}
-            <p class="text-slate-300 text-xs mb-1 text-center">金幣抽獎：單抽 <span class="text-yellow-400 font-bold">${costSingle.toLocaleString()}</span> 金幣 / 十連抽 <span class="text-yellow-400 font-bold">${costTen.toLocaleString()}</span> 金幣 / 百連抽 <span class="text-yellow-400 font-bold">${costHundred.toLocaleString()}</span> 金幣</p>
-            <p class="text-slate-400 text-xs mb-3 text-center">抽中的武器 / 防具 / 飾品有 1% 機率帶有 祝福 詞綴！</p>
+            <p class="text-slate-300 text-[11px] mb-0.5 text-center">金幣抽獎：單抽 <span class="text-yellow-400 font-bold">${costSingle.toLocaleString()}</span> / 十連 <span class="text-yellow-400 font-bold">${costTen.toLocaleString()}</span> / 百連 <span class="text-yellow-400 font-bold">${costHundred.toLocaleString()}</span></p>
+            <p class="text-slate-400 text-[10px] mb-2 text-center">抽中裝備有 1% 機率帶有 祝福 詞綴！</p>
 
-            <div class="flex gap-2 mb-4">
-                <button id="gacha-tab-single" class="btn py-1.5 px-4 text-sm rounded-full ${mode === 'single' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}" onclick="setGachaMode('single')">單抽</button>
-                <button id="gacha-tab-ten" class="btn py-1.5 px-4 text-sm rounded-full ${mode === 'ten' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}" onclick="setGachaMode('ten')">10 連抽</button>
-                <button id="gacha-tab-hundred" class="btn py-1.5 px-4 text-sm rounded-full ${mode === 'hundred' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}" onclick="setGachaMode('hundred')">100 連抽</button>
+            <div class="flex gap-2 mb-2">
+                <button id="gacha-tab-single" class="btn py-1 px-3 text-xs rounded-full ${mode === 'single' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}" onclick="setGachaMode('single')">單抽</button>
+                <button id="gacha-tab-ten" class="btn py-1 px-3 text-xs rounded-full ${mode === 'ten' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}" onclick="setGachaMode('ten')">10 連抽</button>
+                <button id="gacha-tab-hundred" class="btn py-1 px-3 text-xs rounded-full ${mode === 'hundred' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}" onclick="setGachaMode('hundred')">100 連抽</button>
             </div>
 
             <div id="gacha-single" class="${mode === 'single' ? '' : 'hidden'} flex flex-col items-center w-full">
-                <div id="gacha-display" class="w-44 h-44 bg-slate-900 border-4 border-purple-700 rounded-xl shadow-[0_0_30px_rgba(126,34,206,0.6)] flex flex-col items-center justify-center mb-4 relative overflow-hidden">
-                    <span class="text-6xl" id="gacha-icon">❓</span>
-                    <div id="gacha-name" class="absolute bottom-0 w-full text-center text-sm font-bold text-white bg-black/80 px-2 py-1.5 hidden"></div>
+                <div id="gacha-display" class="w-36 h-36 bg-slate-900 border-4 border-purple-700 rounded-xl shadow-[0_0_20px_rgba(126,34,206,0.6)] flex flex-col items-center justify-center mb-3 relative overflow-hidden">
+                    <span class="text-5xl" id="gacha-icon">❓</span>
+                    <div id="gacha-name" class="absolute bottom-0 w-full text-center text-xs font-bold text-white bg-black/80 px-1 py-1 hidden"></div>
                 </div>
-                <button id="btn-gacha" class="btn bg-purple-700 hover:bg-purple-600 border-purple-500 py-3 px-8 text-lg font-bold rounded-full shadow-[0_0_15px_rgba(126,34,206,0.5)] transition-all transform hover:scale-105" onclick="doSisterGacha()">
+                <button id="btn-gacha" class="btn bg-purple-700 hover:bg-purple-600 border-purple-500 py-2 px-6 text-sm font-bold rounded-full shadow-[0_0_10px_rgba(126,34,206,0.5)] transition-all transform hover:scale-105" onclick="doSisterGacha()">
                     🎰 進行抽獎（${costSingle.toLocaleString()} 金幣）
                 </button>
             </div>
 
             <div id="gacha-ten" class="${mode === 'ten' ? '' : 'hidden'} flex flex-col items-center w-full">
-                <div class="grid grid-cols-5 gap-1.5 w-full max-w-sm mb-3">${cells}</div>
-                <button id="btn-gacha10" class="btn bg-purple-700 hover:bg-purple-600 border-purple-500 py-3 px-8 text-lg font-bold rounded-full shadow-[0_0_15px_rgba(126,34,206,0.5)] transition-all transform hover:scale-105" onclick="doSisterGacha10()">
+                <div class="grid grid-cols-5 gap-1 w-full max-w-[260px] mb-2">${cells}</div>
+                <button id="btn-gacha10" class="btn bg-purple-700 hover:bg-purple-600 border-purple-500 py-2 px-6 text-sm font-bold rounded-full shadow-[0_0_10px_rgba(126,34,206,0.5)] transition-all transform hover:scale-105" onclick="doSisterGacha10()">
                     🎰 10 連抽（${costTen.toLocaleString()} 金幣）
                 </button>
-                <div id="gacha10-results" class="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-3 text-sm"></div>
+                <div id="gacha10-results" class="flex flex-wrap justify-center gap-x-2 gap-y-0.5 mt-2 text-xs"></div>
             </div>
 
             <div id="gacha-hundred" class="${mode === 'hundred' ? '' : 'hidden'} flex flex-col items-center w-full">
-                <div class="grid grid-cols-10 gap-0.5 w-full max-w-sm mb-3">${cells100}</div>
-                <button id="btn-gacha100" class="btn bg-purple-700 hover:bg-purple-600 border-purple-500 py-3 px-8 text-lg font-bold rounded-full shadow-[0_0_15px_rgba(126,34,206,0.5)] transition-all transform hover:scale-105" onclick="doSisterGacha100()">
+                <div class="grid grid-cols-10 gap-0.5 w-full max-w-[260px] mb-2">${cells100}</div>
+                <button id="btn-gacha100" class="btn bg-purple-700 hover:bg-purple-600 border-purple-500 py-2 px-6 text-sm font-bold rounded-full shadow-[0_0_10px_rgba(126,34,206,0.5)] transition-all transform hover:scale-105" onclick="doSisterGacha100()">
                     🎰 100 連抽（${costHundred.toLocaleString()} 金幣）
                 </button>
-                <div id="gacha100-results" class="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-3 text-sm max-h-24 overflow-y-auto"></div>
+                <div id="gacha100-results" class="flex flex-wrap justify-center gap-x-2 gap-y-0.5 mt-2 text-xs max-h-20 overflow-y-auto"></div>
             </div>
 
-            <p id="gacha-msg" class="text-yellow-300 mt-3 font-bold text-base min-h-8 text-center"></p>
+            <p id="gacha-msg" class="text-yellow-300 mt-2 font-bold text-sm min-h-6 text-center"></p>
         </div>
         `;
 
@@ -184,9 +184,9 @@
         if (sEl) sEl.classList.toggle('hidden', m !== 'single');
         if (tEl) tEl.classList.toggle('hidden', m !== 'ten');
         if (hEl) hEl.classList.toggle('hidden', m !== 'hundred');
-        if (bS) bS.className = `btn py-1.5 px-4 text-sm rounded-full ${m === 'single' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}`;
-        if (bT) bT.className = `btn py-1.5 px-4 text-sm rounded-full ${m === 'ten' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}`;
-        if (bH) bH.className = `btn py-1.5 px-4 text-sm rounded-full ${m === 'hundred' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}`;
+        if (bS) bS.className = `btn py-1 px-3 text-xs rounded-full ${m === 'single' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}`;
+        if (bT) bT.className = `btn py-1 px-3 text-xs rounded-full ${m === 'ten' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}`;
+        if (bH) bH.className = `btn py-1 px-3 text-xs rounded-full ${m === 'hundred' ? 'bg-purple-700 border-purple-500' : 'bg-slate-700 border-slate-600'}`;
         if (msg) msg.innerHTML = '';
     };
 
