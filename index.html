@@ -2173,7 +2173,7 @@ const DB = {
         "sk_elf_seal": { n: "封印禁地", type: "atk", tier: 5, reqE: 50, mp: 40, dmgType: "magic", reqEleAny: true, status: { kind: "magicseal", pbase: 100, dur: 8 } },
         "sk_elf_blazewpn": { n: "烈炎武器", type: "buff", tier: 5, reqE: 50, mp: 30, dur: 1200, reqEle: "fire", d: { meleeDmg: 5, meleeHit: 5 } },
         "sk_elf_flamesoul": { n: "烈焰之魂", type: "buff", tier: 5, reqE: 50, mp: 30, dur: 1280, reqEle: "fire", noRefresh: true },   // 🔧 持續內近距離一般攻擊武器擲骰必定最大值（見 getPhysicalDmg）；noRefresh：效果結束才可再施放
-        "sk_elf_stormshot": { n: "暴風神射", type: "buff", tier: 5, reqE: 50, mp: 30, dur: 1200, reqEle: "wind", d: { rangedDmg: 4, rangedHit: 2 } },
+        "sk_elf_stormshot": { n: "暴風神射", type: "buff", tier: 5, reqE: 50, mp: 30, dur: 1200, reqEle: "wind", d: { rangedDmg: 6, rangedHit: 3 } },
         "sk_elf_steelguard": { n: "鋼鐵防護", type: "buff", tier: 5, reqE: 50, mp: 30, dur: 1200, reqEle: "earth", d: { ac: 7 } },
         "sk_elf_attrfire": { n: "屬性之火", type: "buff", tier: 5, reqE: 50, mp: 20, dur: 320, reqEle: "fire", noRefresh: true, attrFireBuff: true, msg: "屬性之火在你的攻擊中燃燒。" },   // 🔧 一般攻擊30%機率傷害×1.5（見 playerAttack，與燃燒鬥志同效）；noRefresh：效果結束才可再施放
         "sk_elf_physboost": { n: "體能激發", type: "buff", tier: 5, reqE: 50, mp: 30, dur: 960, reqEle: "earth", noRefresh: true, loadFreeRegen: true, msg: "體能激發，負重之下仍能調息。" },   // 🔧 負重狀態仍可自然恢復HP/MP（見 regenTick / hasLoadFreeRegen）；noRefresh：效果結束才可再施放
@@ -4322,6 +4322,7 @@ function tick() {
         if(player._waterVitalCd > 0) player._waterVitalCd--;   // 🔧 水之元氣：觸發後 7 秒冷卻（每秒遞減）
         if(_buffEnded) calcStats();   // 到期重算（變身還原、技能加成移除等）
         if(canAct) autoActions();
+        else tryEmergencyDispel();   // 🔧 石化/冰凍/暈眩/麻痺/沉睡（行動不能）中：仍允許自動施放「魔法相消術／聖潔之光」自救（沉默/魔法封印中除外）
     }
 
     // === 出怪判定：以邏輯 tick (state.ticks) 為準，與主迴圈時間補跑同步 ===
@@ -6394,7 +6395,9 @@ function killMob(idx) {
     let _kbNoReward = _kbRoom && !mob.boss;                     // 除頭目外（地獄束縛犬）：不給金錢/掉落
     _sherineLootCtx = mob._sherine ? { boss: !!mob.boss, grace: !!mob._grace } : null;   // 🔮 席琳的世界：本次擊殺掉落套用 詞綴×3／套裝效果判定（恩賜怪套裝機率×5）
     if(typeof auditTrackKill === 'function') auditTrackKill(mob);   // 統計：累計經驗/擊殺
-    logCombat(`擊敗了 <span class="${getMobColor(mob.lv)}">${mob.n}</span>！`, 'player-heavy');  // 👈 新增
+    // 🔧 轉場建築（往上層的樓梯 / 遺忘之島傳送門）：擊敗即進入下一層/島，不顯示「擊敗了…」戰鬥訊息（race 建築且 noAutoTeleport，排除攻城塔/城門）
+    let _hideKillMsg = (mob.race === '建築' && mob.noAutoTeleport);
+    if(!_hideKillMsg) logCombat(`擊敗了 <span class="${getMobColor(mob.lv)}">${mob.n}</span>！`, 'player-heavy');  // 👈 新增
     player.exp += Math.floor(mob.exp * getExpGainMult(player.lv));
     checkLvUp();
     // 精神(WIS)：擊殺敵人時立即額外恢復 MP
@@ -8011,11 +8014,11 @@ function castSkill(skId) {
     if(skId === 'sk_sunlight' && KING_ROOMS[mapState.current]) { logSys('<span class="text-red-400">軍王之室中，日光術無法生效。</span>'); return false; }   // 🔧 軍王之室：日光術無效
     if(skId === 'sk_magic_shield' && (player.magicShieldCd || 0) > 0) return false;   // 魔法屏障抵擋技能後冷卻中，無法施放
     
-    if(player.statuses.silence > 0 && skId !== 'sk_cancel') {
+    if(player.statuses.silence > 0) {   // 🔧 沉默：所有魔法皆無法施放（含魔法相消術——只有沉默/魔法封印能擋下相消術）
         logSys(`沉默狀態中，無法施展魔法。`);
         return false;
     }
-    if(player.statuses.magicseal > 0 && skId !== 'sk_cancel') {
+    if(player.statuses.magicseal > 0) {   // 🔧 魔法封印（怪物技能「沉默」所施加）：同上，魔法相消術亦遭封印
         logSys(`魔法封印狀態中，無法施展技能。`);
         return false;
     }
@@ -8453,6 +8456,20 @@ function autoActions() {
             if(hpPct > th && player.mp < player.mmp * 0.9) castSkill(convId);
         }
     }
+}
+
+// 🔧 行動不能（石化/冰凍/暈眩/麻痺/沉睡）期間的自救：仍嘗試自動施放「魔法相消術／聖潔之光」解除負面狀態。
+//    沉默/魔法封印中無法施展魔法（靜默跳過、不洗版）；其餘條件（勾選/負重/MP/冷卻/有可解狀態）由 castSkill 內部把關。
+//    相消術涵蓋石化/麻痺/冰凍等，啟用時優先且足夠（與 autoActions「相消已涵蓋解毒/聖潔之光則跳過」一致）；
+//    未啟用相消術時，聖潔之光（解石化/麻痺）亦走此自救路徑。解毒術不納入：中毒不會行動不能、平時即可自動施放。
+function tryEmergencyDispel() {
+    if(!state.running || player.dead) return;
+    if((player.d.loadTier||0) >= 2) return;                                          // 負重 82%+：暫停所有技能自動施放（與 autoCastSpells/autoActions 一致）
+    if(player.statuses.silence > 0 || player.statuses.magicseal > 0) return;         // 沉默/魔法封印：無法施展魔法（靜默跳過，避免洗版）
+    let cancelChk = document.getElementById('auto-sk-sk_cancel');
+    if(cancelChk && cancelChk.checked && player.skills.includes('sk_cancel')) { castSkill('sk_cancel'); return; }   // 魔法相消術已涵蓋石化/麻痺/冰凍等
+    let holyChk = document.getElementById('auto-sk-sk_holy_light');
+    if(holyChk && holyChk.checked && player.skills.includes('sk_holy_light')) castSkill('sk_holy_light');           // 聖潔之光：解石化/麻痺；castSkill 內 _purifyOk 守衛僅在有可解狀態時施放
 }
 
 // 自動施放攻擊/治癒法術的基礎間隔：2 秒(20 tick)，並受攻速倍率(加速/勇敢藥水/精靈餅乾/變身)影響
@@ -15301,33 +15318,33 @@ window.onload = () => {
 
 <!-- pp771007 -->
 <!-- 離線掛機外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606201731"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606201903"></script>
 <!-- 手機版介面外掛(可獨立維護;原作者更新後重新加回此行即可) -->      
-<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606201731"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606201903"></script>
 <!-- 怪物/掉落查詢外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606201731"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606201903"></script>
 <!-- 小百科外掛(專精/武器特性/職業魔法;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606201731"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606201903"></script>
 <!-- 通用修正外掛(補原作者坑,桌機/手機通用;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606201731"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606201903"></script>
 <!-- 背景大圖快取 Service Worker 註冊(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606201731"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606201903"></script>
 <!-- 手機 toast 提示(點按鈕的系統日誌訊息浮現;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606201731"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606201903"></script>
 <!-- 能力值面板補點數分解 始/升/藥/總(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v=202606201731"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v=202606201903"></script>
 
 <!-- KID0924 -->
 <!-- Json雲端模組 -->
-<script src="klh_jsonblob.js?v=202606201731"></script>
+<script src="klh_jsonblob.js?v=202606201903"></script>
 <!-- 潘朵拉抽獎模組 -->
-<script src="klh_GM.js?v=202606201731"></script>
+<script src="klh_GM.js?v=202606201903"></script>
 <!-- 自定義藥水與兌換模組 -->
-<script src="klh_GM2.js?v=202606201731"></script>
+<script src="klh_GM2.js?v=202606201903"></script>
 <!-- 黃金交易所/雲端資源商店模組 -->
-<script src="klh_Shop.js?v=202606201731"></script>
+<script src="klh_Shop.js?v=202606201903"></script>
 <!-- 傭兵生存戰鬥血魔擴充模組 -->
-<!--script src="klh_team.js?v=202606201731"></script-->
+<!--script src="klh_team.js?v=202606201903"></script-->
 
 <script>
   document.addEventListener("DOMContentLoaded", function() {
@@ -15341,7 +15358,7 @@ window.onload = () => {
       footer.style.marginTop = '10px';
       footer.style.lineHeight = '1.6';
       
-      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/21 01:31';
+      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/21 03:03';
       menu.appendChild(footer);
     } else {
       console.warn("找不到 #main-menu，時間戳記外掛潛水去啦~");
