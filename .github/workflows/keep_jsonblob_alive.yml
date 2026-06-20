@@ -2,8 +2,8 @@ name: Keep JSONBlobs Alive
 
 on:
   schedule:
-    # 每天晚上 12:00 (台北時間 CST / UTC+8)，即為 UTC 時間前一天下午 16:00
-    - cron: '0 16 * * *'
+    # 每天凌晨 01:00 (台北時間 CST / UTC+8)，即為 UTC 時間前一天下午 17:00
+    - cron: '0 17 * * *'
   workflow_dispatch: # 支援在 GitHub 上點擊按鈕手動執行測試
 
 jobs:
