@@ -375,6 +375,16 @@
         #creation-screen::-webkit-scrollbar-thumb:hover {
             background: rgba(156, 163, 175, 0.55);
         }
+
+        /* 解決 iOS 鍵盤彈起時的自動縮放與 fixed 元素錯位 */
+        body.m-mobile input, 
+        body.m-mobile select, 
+        body.m-mobile textarea {
+            font-size: 16px !important;
+        }
+        body.m-keyboard-open #m-nav {
+            display: none !important;
+        }
     `;
     document.head.appendChild(styleEl);
 
@@ -2249,15 +2259,20 @@
 
                 const msgEl = document.getElementById('m-logout-msg');
                 const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
+                const loadMsg = storageMode === 'cloud'
+                    ? "正在儲存並同步至雲端，請稍候..."
+                    : "正在儲存進度，請稍候...";
+
                 if (msgEl) {
-                    if (storageMode === 'cloud') {
-                        msgEl.innerHTML = "正在儲存並同步至雲端，請稍候...";
-                    } else {
-                        msgEl.innerHTML = "正在儲存進度，請稍候...";
-                    }
+                    msgEl.innerHTML = loadMsg;
                 }
                 const btnsEl = document.getElementById('m-logout-btns');
                 if (btnsEl) btnsEl.style.display = 'none';
+
+                // 🚀 使用全螢幕遮罩擋住整個畫面，並顯示進度條，防止玩家點擊旁邊取消
+                if (typeof window.showLoadingOverlay === 'function') {
+                    window.showLoadingOverlay(loadMsg);
+                }
 
                 try {
                     if (typeof window.saveGame === 'function') {
@@ -2273,9 +2288,17 @@
                     }
                 } catch (err) { }
 
-                try {
-                    location.reload();
-                } catch (err) { }
+                // 🚀 隱藏遮罩（這會將進度條衝到 100% 並延遲 300ms 關閉）
+                if (typeof window.hideLoadingOverlay === 'function') {
+                    window.hideLoadingOverlay();
+                }
+
+                // 🚀 額外延遲 350ms，讓 100% 的進度條動畫播放完畢，再重新整理網頁
+                setTimeout(() => {
+                    try {
+                        location.reload();
+                    } catch (err) { }
+                }, 350);
             }
         }, true); // 注意：必須設為 true 以啟用捕獲階段攔截！
 
@@ -2330,6 +2353,23 @@
             }
         }, 100);
     }
+
+    // 解決 iOS 虛擬鍵盤彈起導致網頁滾動、錯位且收起時不回彈的 bug
+    document.addEventListener('focusin', function (e) {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
+            document.body.classList.add('m-keyboard-open');
+        }
+    });
+
+    document.addEventListener('focusout', function (e) {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
+            document.body.classList.remove('m-keyboard-open');
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+                document.body.scrollTop = 0;
+            }, 50);
+        }
+    });
 
     document.addEventListener('DOMContentLoaded', startup);
     if (document.readyState === 'interactive' || document.readyState === 'complete') {
