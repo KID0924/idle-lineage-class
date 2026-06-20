@@ -1,0 +1,48 @@
+name: Keep JSONBlobs Alive
+
+on:
+  schedule:
+    # 每天晚上 12:00 (台北時間 CST / UTC+8)，即為 UTC 時間前一天下午 16:00
+    - cron: '0 16 * * *'
+  workflow_dispatch: # 支援在 GitHub 上點擊按鈕手動執行測試
+
+jobs:
+  ping-blobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping JSONBlobs to extend expiration (75 days)
+        run: |
+          # 檢查是否有設定 Secrets
+          if [ -z "${{ secrets.JSONBLOB_KEYS }}" ]; then
+            echo "❌ 錯誤: 請先在 GitHub 專案設定名為 'JSONBLOB_KEYS' 的 Secret！"
+            exit 1
+          fi
+
+          # 讀取換行或逗號分隔的金鑰清單
+          IFS=$',\n' read -rd '' -a KEYS <<< "${{ secrets.JSONBLOB_KEYS }}" || true
+
+          echo "開始戳 JSONBlob，總共偵測到 ${#KEYS[@]} 個金鑰..."
+          
+          for KEY in "${KEYS[@]}"; do
+            # 去除首尾空白
+            KEY=$(echo "$KEY" | xargs)
+            if [ -z "$KEY" ]; then
+              continue
+            fi
+            
+            # 遮罩處理：日誌中僅顯示前 8 碼以策安全
+            MASKED_KEY="${KEY:0:8}..."
+            echo "------------------------------------"
+            echo "👉 正在讀取金鑰 $MASKED_KEY"
+            
+            # 使用 GET 請求重置 jsonblob.com 的 75 天過期計時器
+            RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://api.jsonblob.com/api/jsonBlob/$KEY")
+            
+            if [ "$RESPONSE_CODE" -eq 200 ]; then
+              echo "✅ 成功觸發！(HTTP 狀態碼 $RESPONSE_CODE) 計時器已重置。"
+            else
+              echo "❌ 觸發失敗！(HTTP 狀態碼 $RESPONSE_CODE) 請確認金鑰 UUID 是否正確或已被刪除。"
+            fi
+          done
+          echo "------------------------------------"
+          echo "🎉 所有金鑰的 Ping 任務已執行完成！"
