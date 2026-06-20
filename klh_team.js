@@ -1,7 +1,37 @@
 (function () {
     'use strict';
 
+    // === 平衡調整配置區 ===
+    const CONFIG = {
+        // 傭兵輸出傷害倍率 (1.0 = 100% 原版傷害)
+        MERC_DAMAGE_SCALE: 1.0,
+        
+        // 傭兵承受傷害倍率 (1.0 = 100% 原版傷害)
+        MERC_DAMAGE_TAKEN_SCALE: 1.0,
+        
+        // 受療恢復量調整設定 (1人存活 = 100% / 2人存活 = 75% / 3人存活 = 50%)
+        HEAL_SCALE_BY_COUNT: {
+            1: 1.0,
+            2: 0.75,
+            3: 0.50
+        }
+    };
+
+    // 計算當前受療恢復倍率
+    function getMercHealScale() {
+        if (!player.allies) return 1.0;
+        const aliveCount = player.allies.filter(a => a && (a.hp !== undefined ? a.hp : (a.curHp !== undefined ? a.curHp : a.mhp)) > 0).length;
+        if (aliveCount <= 1) return CONFIG.HEAL_SCALE_BY_COUNT[1] || 1.0;
+        if (aliveCount === 2) return CONFIG.HEAL_SCALE_BY_COUNT[2] || 0.75;
+        return CONFIG.HEAL_SCALE_BY_COUNT[3] || 0.50; // 3人或以上
+    }
+
     let lastRegenTime = 0;
+    let targetAlly = null;
+    let targetPotionAlly = null;
+    let isRedirectingLog = false;
+    let isUiInitialized = false;
+    let isAllyAttacking = false;
 
     // 注入隱藏原版 MP 顯示的 CSS 樣式，避免重複
     function injectTeamCSS() {
@@ -126,6 +156,9 @@
         totalDmg -= dr;
         totalDmg = Math.max(1, totalDmg);
 
+        // 平衡調整：傭兵承受傷害倍率
+        totalDmg = Math.max(1, Math.floor(totalDmg * CONFIG.MERC_DAMAGE_TAKEN_SCALE));
+
         ally.hp -= totalDmg;
         ally.curHp = ally.hp;
 
@@ -171,6 +204,9 @@
         if (mob._grace) dmg = Math.floor(dmg * 2);
         dmg = Math.max(1, dmg);
 
+        // 平衡調整：傭兵承受傷害倍率
+        dmg = Math.max(1, Math.floor(dmg * CONFIG.MERC_DAMAGE_TAKEN_SCALE));
+
         ally.hp -= dmg;
         ally.curHp = ally.hp;
 
@@ -186,10 +222,27 @@
         if (typeof updateUI === 'function') updateUI();
     }
 
-    // 6. 傭兵自然回血回魔以及玩家治療連動
+    // 6. 傭兵自然回血回魔、全體持續回復魔法聯動以及玩家治療聯動
     if (typeof window.tick === 'function' && !window.tick.isHooked) {
         const originalTick = window.tick;
         window.tick = function () {
+            let hotTicked = false;
+            let hotHealAmount = 0;
+            let hotSkName = '';
+            
+            // 預判原版 tick 內是否會觸發 HoT 恢復
+            if (player && player.hot && !player.dead) {
+                if (player.hot.cd - 1 <= 0) {
+                    hotTicked = true;
+                    hotSkName = player.hot.skName;
+                    
+                    let _spCoefHot = (1 + (3 * (player.d.magicDmg || 0) / 16));
+                    hotHealAmount = player.hot.healDice
+                        ? Math.max(1, Math.floor((rollDice(player.hot.healDice[0], player.hot.healDice[1]) + (player.hot.healBase || 0)) * _spCoefHot))
+                        : Math.max(1, roll(player.hot.valDice[0], player.hot.valDice[1]) + (player.d.magicDmg || 0));
+                }
+            }
+
             originalTick.apply(this, arguments);
             
             const now = Date.now();
@@ -202,12 +255,28 @@
                     }
                 });
 
-                // 2. 如果回城 (地圖以 town_ 開頭)，自動解散已陣亡的協力傭兵
+                // 2. 如果回城 (地圖以 town_ 開頭)，自動解散已陣亡的協力傭兵，並補滿存活傭兵的血魔
                 if (typeof mapState !== 'undefined' && mapState && mapState.current && mapState.current.startsWith('town_')) {
                     let hasDead = player.allies.some(ally => ally && (ally.hp !== undefined ? ally.hp : ally.curHp) <= 0);
                     if (hasDead) {
                         player.allies = player.allies.filter(ally => ally && (ally.hp !== undefined ? ally.hp : ally.curHp) > 0);
                         logSys(`<span class="text-slate-400 font-bold">「陣亡的協力傭兵已於回城後自動解散。」</span>`);
+                    }
+                    
+                    // 補滿存活傭兵的血魔
+                    let healedAny = false;
+                    player.allies.forEach(ally => {
+                        if (ally && (ally.hp !== undefined ? ally.hp : ally.curHp) > 0) {
+                            if (ally.hp !== ally.mhp || ally.mp !== ally.mmp) {
+                                ally.hp = ally.mhp;
+                                ally.curHp = ally.mhp;
+                                ally.mp = ally.mmp;
+                                healedAny = true;
+                            }
+                        }
+                    });
+                    
+                    if (hasDead || healedAny) {
                         if (typeof updateUI === 'function') updateUI();
                     }
                 }
@@ -228,21 +297,57 @@
                         }
                     });
                 }
+
+                // 4. 生命的祝福 (HoT) 全體 25% 聯動 (平衡調整)
+                if (hotTicked && hotSkName === DB.skills.sk_elf_lifebless.n) {
+                    player.allies.forEach(ally => {
+                        if (ally && (ally.hp !== undefined ? ally.hp : ally.curHp) > 0) {
+                            if (ally.hp === undefined) ally.hp = ally.curHp || ally.mhp;
+                            let reducedHot = Math.max(1, Math.floor(hotHealAmount * getMercHealScale()));
+                            ally.hp = Math.min(ally.mhp, ally.hp + reducedHot);
+                            ally.curHp = ally.hp;
+                            logCombat(`[團隊] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 受到生命的祝福持續回復了 ${reducedHot} HP。`, 'heal');
+                        }
+                    });
+                    if (typeof updateUI === 'function') updateUI();
+                }
             }
         };
         window.tick.isHooked = true;
     }
 
-    // 玩家治癒術連動 (單體治療補自己，傭兵得分得 10%)
+    // 7. 覆寫 window.castSkill 實現治療重定向與全體治療
     if (typeof window.castSkill === 'function' && !window.castSkill.isHooked) {
         const originalCastSkill = window.castSkill;
         window.castSkill = function (skId) {
-            let isWaterVitalActive = !!(player && player.buffs && player.buffs.sk_elf_watervital > 0 && (player._waterVitalCd || 0) <= 0);
-            let res = originalCastSkill.apply(this, arguments);
-            
             const sk = DB.skills[skId];
-            const healSkillIds = ['sk_heal1', 'sk_heal_mid', 'sk_heal2', 'sk_full_heal', 'sk_elf_lifespring', 'sk_helm_heal1', 'sk_helm_heal2'];
-            if (res !== false && sk && healSkillIds.includes(skId)) {
+            if (!sk) return originalCastSkill.apply(this, arguments);
+
+            const isHealSkill = sk.type === 'heal';
+            if (!isHealSkill) return originalCastSkill.apply(this, arguments);
+
+            // 排除解毒術、聖潔之光、魔法相消術等淨化技能
+            const isPurify = ['sk_antidote', 'sk_holy_light', 'sk_cancel'].includes(skId);
+            if (isPurify) return originalCastSkill.apply(this, arguments);
+
+            // 判斷是否為全體治療技能
+            const isPartyHeal = skId === 'sk_full_heal';
+
+            let isWaterVitalActive = !!(player && player.buffs && player.buffs.sk_elf_watervital > 0 && (player._waterVitalCd || 0) <= 0);
+            let oldPlayerHp = player.hp;
+
+            if (targetAlly && !isPartyHeal) {
+                isRedirectingLog = true;
+            }
+
+            let res;
+            try {
+                res = originalCastSkill.apply(this, arguments);
+            } finally {
+                isRedirectingLog = false;
+            }
+
+            if (res !== false) {
                 let _spCoefHeal = (1 + (3 * (player.d.magicDmg || 0) / 16));
                 let heal = sk.healDice
                     ? Math.max(1, Math.floor((rollDice(sk.healDice[0], sk.healDice[1]) + (sk.healBase || 0)) * _spCoefHeal))
@@ -252,25 +357,354 @@
                     heal = heal * 2;
                 }
 
-                if (player.allies && player.allies.length > 0) {
-                    player.allies.forEach(ally => {
-                        if (ally && (ally.hp !== undefined ? ally.hp : ally.curHp) > 0) {
-                            if (ally.hp === undefined) ally.hp = ally.curHp || ally.mhp;
-                            let portion = Math.max(1, Math.floor(heal * 0.10));
-                            ally.hp = Math.min(ally.mhp, ally.hp + portion);
-                            ally.curHp = ally.hp;
-                            logCombat(`[傭兵] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 受治療連動恢復了 ${portion} HP。`, 'magic');
-                        }
-                    });
-                    if (typeof updateUI === 'function') updateUI();
+                if (isPartyHeal) {
+                    // 全體治療：所有存活夥伴獲得 25% 恢復量 (平衡調整)
+                    if (player.allies && player.allies.length > 0) {
+                        player.allies.forEach(ally => {
+                            if (ally && (ally.hp !== undefined ? ally.hp : ally.curHp) > 0) {
+                                if (ally.hp === undefined) ally.hp = ally.curHp || ally.mhp;
+                                let reducedHeal = Math.max(1, Math.floor(heal * getMercHealScale()));
+                                ally.hp = Math.min(ally.mhp, ally.hp + reducedHeal);
+                                ally.curHp = ally.hp;
+                                logCombat(`[團隊] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 受到全部治癒術恢復了 ${reducedHeal} HP。`, 'heal');
+                            }
+                        });
+                    }
+                } else if (targetAlly) {
+                    // 單體治療：重定向至特定傭兵 (受療恢復量) (平衡調整)
+                    player.hp = oldPlayerHp; // 還原玩家 HP
+
+                    if (targetAlly.hp === undefined) targetAlly.hp = targetAlly.curHp || targetAlly.mhp;
+                    let reducedHeal = Math.max(1, Math.floor(heal * getMercHealScale()));
+                    targetAlly.hp = Math.min(targetAlly.mhp, targetAlly.hp + reducedHeal);
+                    targetAlly.curHp = targetAlly.hp;
+
+                    logCombat(`施放 ${sk.n} 治療 [傭兵] <span class="text-emerald-300 font-bold">${targetAlly._allyName}</span>，恢復了 ${reducedHeal} 點 HP。`, 'heal');
+                } else {
+                    // 玩家自身單體治療：不再進行 10% 分水聯動
                 }
+
+                if (typeof updateUI === 'function') updateUI();
             }
             return res;
         };
         window.castSkill.isHooked = true;
     }
 
-    // 7. 高效無效能損耗渲染 (Hook window.allyName)
+    // 8. Hook window.useItem 實現藥水重定向
+    if (typeof window.useItem === 'function' && !window.useItem.isHooked) {
+        const originalUseItem = window.useItem;
+        window.useItem = function (u, silent = false) {
+            let item = player.inv.find(i => i.uid === u);
+            if (!item) return originalUseItem.apply(this, arguments);
+
+            let isHealPotion = item.id.includes('potion_heal') || item.id === 'potion_strong' || item.id === 'potion_ult';
+            let oldPlayerHp = player.hp;
+
+            let res = originalUseItem.apply(this, arguments);
+
+            if (res !== false && isHealPotion && targetPotionAlly) {
+                player.hp = oldPlayerHp; // 還原玩家 HP
+
+                let d = DB.items[item.id];
+                let h = Math.floor(d.val * (1 + getConPotionPct(player.d.con) / 100));
+                if (hasMastery('k_survive')) h = Math.floor(h * 1.25);
+
+                // 藥水給傭兵使用時受療恢復量 (平衡調整)
+                let reducedH = Math.max(1, Math.floor(h * getMercHealScale()));
+                if (targetPotionAlly.hp === undefined) targetPotionAlly.hp = targetPotionAlly.curHp || targetPotionAlly.mhp;
+                targetPotionAlly.hp = Math.min(targetPotionAlly.mhp, targetPotionAlly.hp + reducedH);
+                targetPotionAlly.curHp = targetPotionAlly.hp;
+
+                logSys(`給予 [傭兵] ${targetPotionAlly._allyName} 飲用 ${d.n}，恢復 ${reducedH} HP。`);
+                if (typeof updateUI === 'function') updateUI();
+            }
+            return res;
+        };
+        window.useItem.isHooked = true;
+    }
+
+    // 9. Hook window.logCombat 用以過濾與重算戰鬥日誌
+    if (typeof window.logCombat === 'function' && !window.logCombat.isHooked) {
+        const originalLogCombat = window.logCombat;
+        window.logCombat = function (msg, type) {
+            if (isRedirectingLog && type === 'heal' && msg.includes('恢復了')) {
+                return; // 過濾重定向玩家補血 log
+            }
+            
+            // 如果是傭兵攻擊，將輸出的傷害數值進行倍率調整顯示
+            if (isAllyAttacking) {
+                msg = msg.replace(/(造成\s*(?:<span[^>]*>)?\s*)(\d+)(\s*(?:<\/span>)?\s*點傷害)/g, function (match, prefix, numStr, suffix) {
+                    let num = parseInt(numStr);
+                    let reducedNum = Math.max(1, Math.floor(num * CONFIG.MERC_DAMAGE_SCALE));
+                    return prefix + reducedNum + suffix;
+                });
+            }
+            return originalLogCombat.apply(this, arguments);
+        };
+        window.logCombat.isHooked = true;
+    }
+
+    // 10. Hook window.autoActions 增加傭兵自動吃藥水邏輯
+    if (typeof window.autoActions === 'function' && !window.autoActions.isHooked) {
+        const originalAutoActions = window.autoActions;
+        window.autoActions = function () {
+            // 優先執行玩家自身自動吃藥/BUFF邏輯
+            originalAutoActions.apply(this, arguments);
+
+            // 傭兵自動吃藥
+            if (!state.running || player.dead) return;
+            
+            const mercHealTypeEl = document.getElementById('set-merc-heal-type');
+            const mercHealType = mercHealTypeEl ? mercHealTypeEl.value : '';
+            if (mercHealType !== 'potion') return; // 只有選擇使用藥水才執行
+            
+            if (player.cds.pot > 0) return; // 與玩家共用吃藥冷卻
+
+            const mercHpThrEl = document.getElementById('set-merc-hp-thr');
+            const mercHpThr = mercHpThrEl ? (parseInt(mercHpThrEl.value) || 0) : 0;
+            if (mercHpThr <= 0) return;
+
+            if (player.allies && player.allies.length > 0) {
+                // 尋找第一隻需要補血的存活傭兵
+                let target = player.allies.find(ally => {
+                    if (!ally) return false;
+                    let hp = ally.hp !== undefined ? ally.hp : (ally.curHp !== undefined ? ally.curHp : ally.mhp);
+                    if (hp <= 0) return false;
+                    let pct = (hp / ally.mhp) * 100;
+                    return pct <= mercHpThr;
+                });
+
+                if (target) {
+                    const potEl = document.getElementById('set-pot');
+                    const potId = potEl ? potEl.value : 'potion_heal';
+                    const item = player.inv.find(i => i.id === potId);
+                    if (item) {
+                        targetPotionAlly = target;
+                        try {
+                            useItem(item.uid, true);
+                        } finally {
+                            targetPotionAlly = null;
+                        }
+                    } else if (document.getElementById('set-auto-buy-pot')?.checked) {
+                        // 自動買藥水補貨
+                        let needed = 100;
+                        let unitPrice = shopPrice(DB.items[potId].p);
+                        if (player.gold >= needed * unitPrice) {
+                            player.gold -= needed * unitPrice;
+                            gainItem(potId, needed, true, true);
+                            logSys(`自動消耗 ${needed * unitPrice} 金幣購買了 ${needed} 瓶${DB.items[potId].n}。`);
+                            let fresh = player.inv.find(i => i.id === potId);
+                            if (fresh) {
+                                targetPotionAlly = target;
+                                try {
+                                    useItem(fresh.uid, true);
+                                } finally {
+                                    targetPotionAlly = null;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        window.autoActions.isHooked = true;
+    }
+
+    // 11. Hook window.autoCastSpells 增加傭兵自動補血魔法邏輯
+    if (typeof window.autoCastSpells === 'function' && !window.autoCastSpells.isHooked) {
+        const originalAutoCastSpells = window.autoCastSpells;
+        window.autoCastSpells = function () {
+            // 優先執行玩家自身自動施法（給予玩家補血最高優先權）
+            originalAutoCastSpells.apply(this, arguments);
+
+            // 傭兵自動補血
+            if (!state.running || player.dead) return;
+            
+            const mercHealTypeEl = document.getElementById('set-merc-heal-type');
+            const mercHealType = mercHealTypeEl ? mercHealTypeEl.value : '';
+            if (mercHealType !== 'magic') return; // 只有選擇使用治癒魔法才執行
+            
+            if ((player.d.loadTier || 0) >= 2) return; // 負重 82%+ 暫停施法
+            if (player.cds.healSk > 0) return; // 與玩家共用治癒 CD
+
+            const healSkEl = document.getElementById('sel-heal-skill');
+            const healSk = healSkEl ? healSkEl.value : '';
+            if (!healSk) return;
+
+            const mercHpThrEl = document.getElementById('set-merc-hp-thr');
+            const mercHpThr = mercHpThrEl ? (parseInt(mercHpThrEl.value) || 0) : 0;
+            if (mercHpThr <= 0) return;
+
+            if (player.allies && player.allies.length > 0) {
+                // 尋找第一隻需要補血的存活傭兵
+                let target = player.allies.find(ally => {
+                    if (!ally) return false;
+                    let hp = ally.hp !== undefined ? ally.hp : (ally.curHp !== undefined ? ally.curHp : ally.mhp);
+                    if (hp <= 0) return false;
+                    let pct = (hp / ally.mhp) * 100;
+                    return pct <= mercHpThr;
+                });
+
+                if (target) {
+                    targetAlly = target;
+                    try {
+                        castSkill(healSk);
+                    } finally {
+                        targetAlly = null;
+                    }
+                }
+            }
+        };
+        window.autoCastSpells.isHooked = true;
+    }
+
+    // Hook window.alliesTick 實現傭兵輸出調降 40% (利用 getter/setter 阻截 HP 扣減)
+    if (typeof window.alliesTick === 'function' && !window.alliesTick.isHooked) {
+        const originalAlliesTick = window.alliesTick;
+        window.alliesTick = function () {
+            let cleanupList = [];
+            
+            // 攔截場上所有存活怪物的 HP 扣減
+            if (typeof mapState !== 'undefined' && mapState && mapState.mobs) {
+                mapState.mobs.forEach(m => {
+                    if (m && m.curHp !== undefined) {
+                        let originalCurHp = m.curHp;
+                        Object.defineProperty(m, 'curHp', {
+                            get() { return originalCurHp; },
+                            set(val) {
+                                let diff = originalCurHp - val;
+                                if (diff > 0 && isAllyAttacking) {
+                                    // 傭兵造成之傷害調整倍率
+                                    let reducedDmg = Math.max(1, Math.floor(diff * CONFIG.MERC_DAMAGE_SCALE));
+                                    originalCurHp = originalCurHp - reducedDmg;
+                                } else {
+                                    originalCurHp = val;
+                                }
+                            },
+                            configurable: true
+                        });
+                        cleanupList.push({
+                            mob: m,
+                            orig: originalCurHp
+                        });
+                    }
+                });
+            }
+
+            isAllyAttacking = true;
+            try {
+                originalAlliesTick.apply(this, arguments);
+            } finally {
+                isAllyAttacking = false;
+                // 恢復原版 curHp 屬性描述，防止內建模擬機制或保存數據異常
+                cleanupList.forEach(item => {
+                    delete item.mob.curHp;
+                    item.mob.curHp = item.orig;
+                });
+            }
+        };
+        window.alliesTick.isHooked = true;
+    }
+
+    // UI 動態注入與自定義設定儲存/載入
+    function injectMercenaryUI() {
+        const healSkillSelect = document.getElementById('sel-heal-skill');
+        if (healSkillSelect && !document.getElementById('set-merc-hp-thr')) {
+            const mercHealContainer = document.createElement('div');
+            mercHealContainer.id = 'klh-merc-heal-container';
+            mercHealContainer.innerHTML = `
+                <div class="flex justify-between items-center mb-2 mt-3 text-sm">
+                    <span class="text-emerald-400 font-bold">傭兵補助 HP &lt;</span>
+                    <span><input type="number" id="set-merc-hp-thr" value="40"
+                            class="w-12 bg-slate-900 border border-slate-600 text-center text-white rounded">%</span>
+                </div>
+                <select id="set-merc-heal-type"
+                    class="w-full bg-slate-900 border border-slate-600 text-emerald-300 px-2 py-2 mb-3 rounded text-sm outline-none">
+                    <option value="" class="text-slate-400">無</option>
+                    <option value="magic" class="text-emerald-300">使用治癒魔法</option>
+                    <option value="potion" class="text-emerald-300">使用生命藥水</option>
+                </select>
+            `;
+            // 插入至治癒魔法選擇框下方
+            healSkillSelect.parentNode.insertBefore(mercHealContainer, healSkillSelect.nextSibling);
+            
+            document.getElementById('set-merc-hp-thr').addEventListener('change', () => {
+                if (typeof saveGame === 'function') saveGame();
+            });
+            document.getElementById('set-merc-heal-type').addEventListener('change', () => {
+                if (typeof saveGame === 'function') saveGame();
+            });
+        }
+    }
+
+    function restoreMercenarySettings() {
+        injectMercenaryUI();
+        if (player && player.config) {
+            const mercHpThrEl = document.getElementById('set-merc-hp-thr');
+            const mercHealTypeEl = document.getElementById('set-merc-heal-type');
+            if (mercHpThrEl) {
+                if (player.config.mercHpThr !== undefined) {
+                    mercHpThrEl.value = player.config.mercHpThr;
+                } else {
+                    mercHpThrEl.value = "40";
+                    player.config.mercHpThr = "40";
+                }
+            }
+            if (mercHealTypeEl) {
+                if (player.config.mercHealType !== undefined) {
+                    mercHealTypeEl.value = player.config.mercHealType;
+                } else {
+                    mercHealTypeEl.value = "";
+                    player.config.mercHealType = "";
+                }
+            }
+        }
+    }
+
+    function ensureMercenaryUiAndSettings() {
+        if (isUiInitialized) return;
+        if (document.getElementById('automation-panel')) {
+            injectMercenaryUI();
+            restoreMercenarySettings();
+            isUiInitialized = true;
+        }
+    }
+
+    if (typeof window.saveGame === 'function' && !window.saveGame.isHookedMerc) {
+        const originalSaveGame = window.saveGame;
+        window.saveGame = function () {
+            if (player && player.config) {
+                const mercHpThrEl = document.getElementById('set-merc-hp-thr');
+                const mercHealTypeEl = document.getElementById('set-merc-heal-type');
+                if (mercHpThrEl) player.config.mercHpThr = mercHpThrEl.value;
+                if (mercHealTypeEl) player.config.mercHealType = mercHealTypeEl.value;
+            }
+            return originalSaveGame.apply(this, arguments);
+        };
+        window.saveGame.isHookedMerc = true;
+    }
+
+    if (typeof window.loadGame === 'function' && !window.loadGame.isHookedMerc) {
+        const originalLoadGame = window.loadGame;
+        window.loadGame = function () {
+            let res = originalLoadGame.apply(this, arguments);
+            restoreMercenarySettings();
+            return res;
+        };
+        window.loadGame.isHookedMerc = true;
+    }
+
+    if (typeof window.updateUI === 'function' && !window.updateUI.isHookedMerc) {
+        const originalUpdateUI = window.updateUI;
+        window.updateUI = function () {
+            ensureMercenaryUiAndSettings();
+            return originalUpdateUI.apply(this, arguments);
+        };
+        window.updateUI.isHookedMerc = true;
+    }
+
+    // 12. 高效無效能損耗渲染 (Hook window.allyName)
     if (typeof window.allyName === 'function' && !window.allyName.isHooked) {
         const originalAllyName = window.allyName;
         window.allyName = function (a) {
