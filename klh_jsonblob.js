@@ -2180,32 +2180,32 @@
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">3. 初始福利大放送</span>
-                        <p class="pl-4 text-slate-200 font-semibold">初始能力直接翻倍（2倍），可分配點數更暴增至 3 倍！</p>
+                        <p class="pl-4 text-slate-200 font-semibold">初始屬性點數翻倍，可分配屬性點數更是大放送 3 倍設定，讓您開局即是強者！</p>
                         <p class="pl-4 text-slate-400 mt-0.5">（本地模式、自訂金鑰與水蛇許德拉伺服器除外，維持原版 1 倍設定）</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">4. 全新抽獎系統</span>
-                        <p class="pl-4 text-slate-400">實裝「潘朵拉的妹妹」專屬轉蛋/抽獎系統，測試歐氣的時刻到了。(機率微降)</p>
+                        <span class="font-bold text-amber-300">4. 全新金幣抽獎系統</span>
+                        <p class="pl-4 text-slate-400">「潘朵拉的妹妹」神秘降臨！她偷偷帶走了姐姐藏寶庫中的稀世神裝，讓冒險者能用閃亮的金幣進行轉蛋。不過，為了維護亞丁大陸的物價平衡，諸神稍微對她的魔法機率動了點手腳，以免神裝氾濫成災！</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">5. 新增強力藥水道具</span>
-                        <p class="pl-4 text-slate-400">戰力補給再升級！新增：濃縮白水、超級濃縮白水、掉寶藥水、神之祝福藥水。</p>
+                        <span class="font-bold text-amber-300">5. 煉金術的究極補給</span>
+                        <p class="pl-4 text-slate-400">象牙塔研究室的瘋狂煉金術士們終於爆肝研發出突破性成果！現在可在商店購得「濃縮白水」與「超級濃縮白水」，更有能獲得幸運女神微笑的「掉寶藥水」與「神之祝福藥水」，讓你的獵殺之旅效率倍增！</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">6. 「時光使者」轉生系統</span>
-                        <p class="pl-4 text-slate-400">角色達 75 等以上即可解鎖轉生功能，突破極限、重獲新生。</p>
+                        <span class="font-bold text-amber-300">6. 時光裂縫與重獲新生</span>
+                        <p class="pl-4 text-slate-400">古魯丁小鎮的「時光使者」開啟了禁忌的轉生法陣！當你的實力達到 75 級的凡人極限，即可選擇打破肉身重獲新生，不僅能保留你強大的天賦，還能獲得神明額外賜予的屬性點數，重登巔峰！</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">7. 交易便利性優化</span>
-                        <p class="pl-4 text-slate-400">新增批量賣出與模糊搜尋賣出功能，清理背包不再點到手軟。</p>
+                        <span class="font-bold text-amber-300">7. 赫爾溫的背包整理術</span>
+                        <p class="pl-4 text-slate-400">總是為雜亂的背包頭痛嗎？赫爾溫大師為你解鎖了強大的次元背包整理術！新增「批量賣出」與「模糊搜尋」功能，彈指間就能清除海量垃圾廢品，讓你的行囊如施展了極道防護般清爽！</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">8. 奇岩「黃金交易所」</span>
-                        <p class="pl-4 text-slate-400">新增限量商店 NPC「財富收割者」，支援動態雲端商品上架、提領與自由交易機制。</p>
+                        <span class="font-bold text-amber-300">8. 奇岩「財富收割者」黑市</span>
+                        <p class="pl-4 text-slate-400">奇岩城鎮的陰暗角落出現了神祕的黑市商人「財富收割者」！他串聯了無形的次元雲端市場，讓全亞丁的行者都能在此自由上架寄售神兵利器、隨時提領金幣，享受一夜暴富的快感！</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">9. 席琳結晶與套裝注入</span>
-                        <p class="pl-4 text-slate-400">新增「席琳結晶」道具，可直接在裝備介面消耗 1 顆結晶，為特定部位裝備注入隨機強力的席琳九大混沌套裝效果。</p>
+                        <span class="font-bold text-amber-300">9. 死神席琳的禁忌共鳴</span>
+                        <p class="pl-4 text-slate-400">死神席琳的眼淚落入凡間，化為了蘊含無盡黑暗力量的「席琳結晶」！只要在裝備介面輕輕捏碎一顆結晶，就能為你手中的特定神兵防具注入禁忌的靈魂共鳴，強行激活傳說中的九大混沌套裝效果！</p>
                     </div>
                 </div>
             `;

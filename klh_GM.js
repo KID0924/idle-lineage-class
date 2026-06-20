@@ -22,12 +22,12 @@
     function initGachaWeights() {
         if (typeof DB === 'undefined' || !DB.items) return;
 
-        // 調整係數 (方便未來微調)
-        const multExtreme  = 0.5;  // 極度稀有砍半
-        const multRare     = 0.5;  // 稀有砍半
-        const multUncommon = 2;    // 罕見 * 2
-        const multCommon   = 3;    // 一般 * 3
-        const multJunk     = 10;   // 便宜貨 * 10
+        // 調整係數 (方便未來微調，附上各稀有度平均基礎 W 值與平均最終權重)
+        const multExtreme  = 0.5;  // 極度稀有 (價格 > 100,000)：平均 W = 1.00，平均最終權重 = 1.00 * 0.5 = 0.5
+        const multRare     = 0.5;  // 稀有 (價格 > 30,000)：平均 W = 9.88，平均最終權重 = 9.88 * 0.5 = 4.94
+        const multUncommon = 2;    // 罕見 (價格 > 10,000)：平均 W = 13.41，平均最終權重 = 13.41 * 2 = 26.82
+        const multCommon   = 3;    // 一般 (價格 > 1,000)：平均 W = 46.13，平均最終權重 = 46.13 * 3 = 138.39
+        const multJunk     = 10;   // 便宜貨 (價格 <= 1,000)：平均 W = 73.12，平均最終權重 = 73.12 * 10 = 731.2
 
         for (let id in DB.items) {
             let item = DB.items[id];
