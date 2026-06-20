@@ -907,19 +907,81 @@
         };
     }
 
+    // 試圖動態提取原版 renderTabs 的配置，以防止未來原版更新 slots、_sig 或等級鎖定時失效
+    let originalSlots = null;
+    let getOriginalSig = null;
+    let getRlvLimit = function (slotKey, player) {
+        if (slotKey === 'ring3') return 55;
+        if (slotKey === 'ring4') return 65;
+        return 0;
+    };
+
+    if (typeof window.renderTabs === 'function') {
+        const str = window.renderTabs.toString();
+        
+        // 1. 提取 slots 陣列
+        const slotsMatch = str.match(/(?:const|let)?\s*slots\s*=\s*(\[[\s\S]*?\])\s*;/);
+        if (slotsMatch) {
+            try {
+                originalSlots = new Function("return " + slotsMatch[1])();
+            } catch (e) {
+                console.error("Failed to parse slots from original renderTabs", e);
+            }
+        }
+
+        // 2. 提取 _sig 函數內部邏輯
+        const sigMatch = str.match(/_sig\s*=\s*\(function\s*\(\)\s*\{([\s\S]*?)\}\)\(\);/);
+        if (sigMatch) {
+            try {
+                getOriginalSig = new Function(sigMatch[1]);
+            } catch (e) {
+                console.error("Failed to parse _sig from original renderTabs", e);
+            }
+        }
+
+        // 3. 提取 _rlv 運算式，轉為等級限制函數
+        const rlvMatch = str.match(/_rlv\s*=\s*(.*?)\s*;/);
+        if (rlvMatch) {
+            try {
+                const expr = rlvMatch[1].replace(/s\.k/g, 'slotKey').replace(/player\.lv/g, 'player.lv');
+                getRlvLimit = new Function('slotKey', 'player', `return ${expr}`);
+            } catch (e) {
+                console.error("Failed to parse _rlv limit from original renderTabs", e);
+            }
+        }
+    }
+
+    const fallbackSlots = [
+        { k: 'wpn', n: '武器' }, { k: 'shield', n: '盾牌' }, { k: 'helm', n: '頭盔' }, 
+        { k: 'armor', n: '盔甲' }, { k: 'tshirt', n: 'T恤' }, { k: 'cloak', n: '斗篷' }, 
+        { k: 'gloves', n: '手套' }, { k: 'boots', n: '長靴' }, { k: 'amulet', n: '項鍊' }, 
+        { k: 'ring1', n: '戒指' }, { k: 'ring2', n: '戒指' }, { k: 'ring3', n: '戒指' }, 
+        { k: 'ring4', n: '戒指' }, { k: 'belt', n: '腰帶' }, { k: 'pet', n: '寵物裝備' }, 
+        { k: 'arrow', n: '箭矢' }
+    ];
+
+    const slots = originalSlots || fallbackSlots;
+
+    if (!getOriginalSig) {
+        getOriginalSig = function() {
+            let inv = player.inv.map(i => itemSig(i) + '.' + (i.cnt || 1) + '.' + (i.lock ? 1 : 0) + '.' + (i.junk ? 1 : 0)).join(';');
+            let eq = Object.keys(player.eq).map(k => { let e = player.eq[k]; return e ? `${k}:${itemSig(e)}.${e.cnt || 0}` : k + ':'; }).join(',');
+            let dd = player.d;
+            return `${inv}#${eq}#${(player.skills || []).join(',')}#${(player.grantedSkills || []).join(',')}#${player.cls}#${player.lv}#${player.elfEle || ''}#${dd.str + dd.dex + dd.con + dd.int + dd.wis}`;
+        };
+    }
+
     // 覆寫 window.renderTabs 整合快速強化與批量賣出
     window.renderTabs = function (force) {
         if (state.ff) return; // 補跑期間不刷新畫面
         // ===== 內容簽章：背包/裝備/技能等實際內容沒變時直接跳過重建 =====
         let _sig = (function () {
-            let inv = player.inv.map(i => itemSig(i) + '.' + (i.cnt || 1) + '.' + (i.lock ? 1 : 0) + '.' + (i.junk ? 1 : 0)).join(';');
-            let eq = Object.keys(player.eq).map(k => { let e = player.eq[k]; return e ? `${k}:${itemSig(e)}.${e.cnt || 0}` : k + ':'; }).join(',');
-            let dd = player.d;
+            let baseSig = getOriginalSig();
             let qsActive = window.quickSell ? (window.quickSell.wpn.active + '.' + window.quickSell.arm.active + '.' + window.quickSell.item.active) : '';
             let qsSel = window.quickSell ? (Object.keys(window.quickSell.wpn.sel).join(',') + ';' + Object.keys(window.quickSell.arm.sel).join(',') + ';' + Object.keys(window.quickSell.item.sel).join(',')) : '';
             let qeActive = typeof quickEnh !== 'undefined' ? (quickEnh.wpn.active + '.' + quickEnh.arm.active) : '';
             let qeSel = typeof quickEnh !== 'undefined' ? (Object.keys(quickEnh.wpn.sel).join(',') + ';' + Object.keys(quickEnh.arm.sel).join(',')) : '';
-            return `${inv}#${eq}#${(player.skills || []).join(',')}#${(player.grantedSkills || []).join(',')}#${player.cls}#${player.lv}#${player.elfEle || ''}#${dd.str + dd.dex + dd.con + dd.int + dd.wis}#${qsActive}#${qsSel}#${qeActive}#${qeSel}`;
+            return `${baseSig}#${qsActive}#${qsSel}#${qeActive}#${qeSel}`;
         })();
         if (!force && _sig === window.renderTabs._sig) return;
         window.renderTabs._sig = _sig;
@@ -930,7 +992,6 @@
 
         let eDiv = document.getElementById('tab-equip'); eDiv.innerHTML = '';
         { let _wd = player.d || {}; let _t = _wd.loadTier || 0; let _hdr = document.createElement('div'); _hdr.className = 'text-center py-0.5 mb-1 rounded bg-slate-900/60 border border-slate-700 text-sm font-bold leading-tight' + (_t >= 1 ? ' cursor-help' : ''); if (_t >= 1) { _hdr.title = _t === 1 ? '負重50%↑：HP/MP不自然恢復' : (_t === 2 ? '負重82%↑：HP/MP不自然恢復、停自動施法、攻速變慢' : '負重100%↑：HP/MP不自然恢復、停自動施法、攻速大幅變慢'); } _hdr.innerHTML = `<span class="text-slate-400">負重 </span><span class="${getLoadColor(_t)}">${_wd.weightPct || 0}%</span>`; eDiv.appendChild(_hdr); }
-        const slots = [{ k: 'wpn', n: '武器' }, { k: 'shield', n: '盾牌' }, { k: 'helm', n: '頭盔' }, { k: 'armor', n: '盔甲' }, { k: 'tshirt', n: 'T恤' }, { k: 'cloak', n: '斗篷' }, { k: 'gloves', n: '手套' }, { k: 'boots', n: '長靴' }, { k: 'amulet', n: '項鍊' }, { k: 'ring1', n: '戒指' }, { k: 'ring2', n: '戒指' }, { k: 'belt', n: '腰帶' }, { k: 'arrow', n: '箭矢' }];
 
         let setCheck = {}, _setSeen = {};
         for (let k in player.eq) {
@@ -972,7 +1033,9 @@
                 el.innerHTML = `<span class="text-slate-400 w-12">${s.n}</span><div class="flex items-center justify-end flex-1"><span class="${getItemColor(eq)} text-right font-bold">${getItemFullName(eq)}</span>${imgHtml}</div>`;
                 el.onclick = () => openModal(eq, true, s.k);
             } else {
-                el.innerHTML = `<span class="text-slate-400 w-12">${s.n}</span><span class="text-slate-600">- 空 -</span>`;
+                let _rlv = getRlvLimit(s.k, player);
+                let _locked = _rlv && player.lv < _rlv;
+                el.innerHTML = `<span class="text-slate-400 w-12">${s.n}</span><span class="${_locked ? 'text-red-400' : 'text-slate-600'}">${_locked ? '需 Lv' + _rlv : '- 空 -'}</span>`;
             }
             eDiv.appendChild(el);
         });
@@ -1552,18 +1615,71 @@
                 || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
         }
 
-        // 碧恩：隨機附加席琳效果
-        window.doBianSherine = function (slotKey) {
-            let item = player.eq[slotKey];
-            if (!item) { logSys('該欄位沒有裝備。'); return; }
-            if (item.bless === 'cursed') { logSys('<span class="text-red-400 font-bold">被詛咒的裝備無法施加席琳力量，請先解除詛咒。</span>'); return; }
-            
-            let sc = player.inv.find(i => i.id === 'sherine_crystal');
-            if (!sc || sc.cnt < 2) { logSys('<span class="text-red-400">缺少 席琳結晶*2。</span>'); return; }
+        // Hook window.openModal 以便在裝備 Modal 的「強化」按鈕下方加入「席琳注入」按鈕
+        if (typeof window.openModal === 'function') {
+            const originalOpenModal = window.openModal;
+            window.openModal = function (item, isEq, slot) {
+                originalOpenModal(item, isEq, slot);
+                
+                let d = DB.items[item.id];
+                if (!d) return;
+                
+                // 檢查是否是支援席琳注入的裝備
+                let isSherine = (d.type === 'wpn' && !d.isArrow)
+                    || (d.type === 'arm' && ['helm','armor','gloves','boots','cloak'].includes(d.slot))
+                    || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
+                    
+                if (isSherine) {
+                    let actEl = document.getElementById('modal-actions');
+                    if (actEl) {
+                        let sc = player.inv.find(i => i.id === 'sherine_crystal');
+                        let scCount = sc ? sc.cnt : 0;
+                        
+                        let btn = document.createElement('button');
+                        let _cursed = item.bless === 'cursed';
+                        
+                        if (_cursed) {
+                            btn.className = `col-span-2 w-full btn border-slate-600 bg-slate-700 text-slate-400 py-3 text-lg font-bold cursor-not-allowed mt-2`;
+                            btn.disabled = true;
+                            btn.innerHTML = `🔒 席琳注入（詛咒中無法施加）`;
+                        } else {
+                            btn.className = `col-span-2 w-full btn border-emerald-700 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 py-3 text-lg font-bold mt-2`;
+                            btn.innerHTML = `💎 席琳注入（消耗 席琳結晶*1，擁有: ${scCount}）`;
+                            btn.onclick = function() {
+                                executeModalSherine(item, isEq, slot);
+                            };
+                        }
+                        
+                        // 尋找「強化」按鈕並插在它下方，若無則插在「標記為廢品」上方或最底下
+                        let enhanceBtn = Array.from(actEl.querySelectorAll('button')).find(b => b.getAttribute('onclick')?.includes('showEnhanceOptions'));
+                        if (enhanceBtn) {
+                            enhanceBtn.parentNode.insertBefore(btn, enhanceBtn.nextSibling);
+                        } else {
+                            let junkLabel = actEl.querySelector('label');
+                            if (junkLabel) {
+                                junkLabel.parentNode.insertBefore(btn, junkLabel);
+                            } else {
+                                actEl.appendChild(btn);
+                            }
+                        }
+                    }
+                }
+            };
+        }
 
-            sc.cnt -= 2;
+        // 執行 Modal 專屬的席琳注入邏輯
+        function executeModalSherine(item, isEq, slot) {
+            let sc = player.inv.find(i => i.id === 'sherine_crystal');
+            if (!sc || sc.cnt < 1) { 
+                logSys('<span class="text-red-400 font-bold">缺少 席琳結晶*1。</span>'); 
+                return; 
+            }
+
+            // 扣除結晶
+            sc.cnt -= 1;
             if (sc.cnt <= 0) player.inv = player.inv.filter(i => i.uid !== sc.uid);
 
+            // 隨機獲取席琳效果
             let seteff = SHERINE_EFFECTS[Math.floor(Math.random() * SHERINE_EFFECTS.length)];
             item.seteff = seteff;
 
@@ -1573,12 +1689,13 @@
             renderTabs(true);
             saveGame();
 
-            logSys(`碧恩為你的裝備注入了席琳的恩賜 → ${getItemFullName(item)}（【${seteff}】）。`);
-            let _e = document.getElementById('interaction-content');
-            if (_e) renderBianBless(_e);
-        };
+            logSys(`成功為你的裝備注入了席琳的恩賜 → ${getItemFullName(item)}（【${seteff}】）。`);
 
-        // 覆寫碧恩介面渲染，加入「席琳」按鈕與最下方故事介紹
+            // 重新整理 Modal 顯示以呈現最新狀態
+            openModal(item, isEq, slot);
+        }
+
+        // 覆寫碧恩介面渲染，加入最下方故事介紹
         window.renderBianBless = function (el) {
             let slots = [{k:'wpn',n:'武器'},{k:'shield',n:'盾牌'},{k:'helm',n:'頭盔'},{k:'armor',n:'盔甲'},{k:'tshirt',n:'T恤'},{k:'cloak',n:'斗篷'},{k:'gloves',n:'手套'},{k:'boots',n:'長靴'},{k:'amulet',n:'項鍊'},{k:'ring1',n:'戒指'},{k:'ring2',n:'戒指'},{k:'ring3',n:'戒指'},{k:'ring4',n:'戒指'},{k:'belt',n:'腰帶'}];
             let cnt = id => pledgeCountItem(id);
@@ -1588,28 +1705,21 @@
                 let _cursed = !!(it && it.bless === 'cursed');
                 let _uncurse = _cursed ? `<button class="btn py-1 px-2 text-sm font-bold shrink-0 bg-cyan-800 border-cyan-500 text-cyan-100" onclick="doBianUncurse('${sl.k}')">解除詛咒</button>` : '';
                 
-                // 🔧 詛咒裝備：祝福與席琳按鈕變灰禁用
+                // 🔧 詛咒裝備：祝福按鈕變灰禁用
                 let _blessBtn = (it && !_cursed)
                     ? `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-purple-800 border-purple-500 text-purple-100 shrink-0" onclick="doBianBless('${sl.k}')">祝福${sl.n}</button>`
                     : `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-slate-700 border-slate-600 text-slate-400 cursor-not-allowed shrink-0" disabled title="${_cursed ? '被詛咒的裝備需先解除詛咒' : ''}">${_cursed ? '🔒 詛咒中' : '祝福'+sl.n}</button>`;
-                
-                let _sherineBtn = '';
-                if (it && isSherineSlot(sl.k, it)) {
-                    _sherineBtn = (!_cursed)
-                        ? `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-emerald-800 border-emerald-500 text-emerald-100 shrink-0" onclick="doBianSherine('${sl.k}')">席琳${sl.n}</button>`
-                        : `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-slate-700 border-slate-600 text-slate-400 cursor-not-allowed shrink-0" disabled>🔒 席琳</button>`;
-                }
 
                 return `<div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-2 text-sm">
                     <span class="truncate"><b class="text-amber-300">${sl.n}</b>：${name}</span>
-                    <div class="flex items-center gap-1 shrink-0">${_uncurse}${_sherineBtn}${_blessBtn}</div>
+                    <div class="flex items-center gap-1 shrink-0">${_uncurse}${_blessBtn}</div>
                 </div>`;
             }).join('');
 
             el.innerHTML = `
                 <div class="flex flex-col gap-2 p-1 max-h-[85vh] overflow-y-auto">
                     <div class="text-slate-300 text-sm leading-relaxed">碧恩：我能為你的裝備灌注力量。每次祝福會在「屬性 / 遠古系 / 祝福」三者中平均抽一個詞綴，隨機<b>附加、取代或消除</b>（只影響該詞綴）。</div>
-                    <div class="text-xs text-slate-400">武器用 賦予武器祝福卷軸(持有 ${cnt('new_item_bless_wpn')})；防具用 賦予盔甲祝福卷軸(持有 ${cnt('new_item_bless_arm')})；飾品用 賦予飾品祝福卷軸(持有 ${cnt('new_item_bless_acc')})。<br>使用 席琳結晶(持有 ${cnt('sherine_crystal')}) 可對符合條件的裝備進行席琳附魔，每次需要 2 個。含詛咒的裝備可用 解除詛咒的卷軸(持有 ${cnt('new_item_uncurse')}) 移除詛咒。</div>
+                    <div class="text-xs text-slate-400">武器用 賦予武器祝福卷軸(持有 ${cnt('new_item_bless_wpn')})；防具用 賦予盔甲祝福卷軸(持有 ${cnt('new_item_bless_arm')})；飾品用 賦予飾品祝福卷軸(持有 ${cnt('new_item_bless_acc')})。<br>含詛咒的裝備可用 解除詛咒的卷軸(持有 ${cnt('new_item_uncurse')}) 移除詛咒。</div>
                     <div class="flex flex-col gap-1.5">${rows}</div>
                     
                     <!-- 天堂口吻之祝福與席琳介紹區塊 -->

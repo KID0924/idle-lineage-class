@@ -397,7 +397,7 @@
                     <span>🛠&nbsp;交易所商品上架面版</span>
                     <span class="text-slate-500 text-[10px] font-normal">您的 ID: ${mySellerId || '未知(本地模式)'} ${limitText}</span>
                 </div>
-                <div class="flex flex-wrap gap-2 items-center text-xs">
+                <div class="flex flex-wrap gap-2 items-center text-xs reaper-upload-row">
                     <input type="text" id="gm-reaper-item-id" value="${defaultId}" placeholder="物品 ID (例如: wpn_shortsword)" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
                     <input type="number" id="gm-reaper-stock" value="${defaultStock}" placeholder="上架數量" min="1" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-20 focus:outline-none">
                     <input type="number" id="gm-reaper-price" placeholder="自訂單價 (留空使用原版價)" min="0" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
@@ -1298,7 +1298,7 @@
                     <span>🛠&nbsp;交易所商品上架面版</span>
                     <span class="text-slate-500 text-[10px] font-normal">您的 ID: ${mySellerId || '未知(本地模式)'} ${limitText}</span>
                 </div>
-                <div class="flex flex-wrap gap-2 items-center text-xs">
+                <div class="flex flex-wrap gap-2 items-center text-xs reaper-upload-row">
                     <input type="text" id="gm-reaper-item-id" value="${defaultId}" placeholder="物品 ID (例如: wpn_shortsword)" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
                     <input type="number" id="gm-reaper-stock" value="${defaultStock}" placeholder="上架數量" min="1" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-20 focus:outline-none">
                     <input type="number" id="gm-reaper-price" placeholder="自訂單價 (留空使用原版價)" min="0" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
@@ -1452,6 +1452,24 @@
                 #interaction-content input[type="text"], 
                 #interaction-content input[type="number"] {
                     font-size: 16px !important;
+                }
+                
+                /* 📱 解決 iOS WebKit 的 Flexbox 折行與寬度擠壓錯位 Bug */
+                @media (max-width: 768px) {
+                    #interaction-content .reaper-upload-row {
+                        display: flex !important;
+                        flex-direction: column !important;
+                        align-items: stretch !important;
+                        width: 100% !important;
+                        gap: 6px !important;
+                    }
+                    #interaction-content .reaper-upload-row > * {
+                        width: 100% !important;
+                        max-width: none !important;
+                        box-sizing: border-box !important;
+                        margin-left: 0 !important;
+                        margin-right: 0 !important;
+                    }
                 }
             `;
             document.head.appendChild(style);
