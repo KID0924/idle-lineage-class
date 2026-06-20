@@ -1484,11 +1484,87 @@
     }
 
     // ==========================================
+    // 雲端交易所售出進帳自動通知機制
+    // ==========================================
+    async function checkReaperSalesPeriodically() {
+        if (typeof player === 'undefined' || !player) return;
+        const isGM = typeof window.openGMShop === 'function';
+        const mySellerId = isGM ? "F123456789" : getSavePlayerId();
+        if (!mySellerId) return;
+
+        try {
+            const res = await fetchWithProxy(WEALTH_REAPER_BLOB_URL);
+            if (res.ok) {
+                const latestStock = await res.json();
+                if (latestStock) {
+                    wealthReaperStock = latestStock;
+                    
+                    let claimableGold = 0;
+                    for (let lid in latestStock) {
+                        const info = latestStock[lid];
+                        if (info && info.sellerId === mySellerId) {
+                            if (info.earned > 0) {
+                                claimableGold += parseInt(info.earned, 10) || 0;
+                            }
+                        }
+                    }
+
+                    if (claimableGold > 0) {
+                        if (typeof logSys === 'function') {
+                            logSys(`<span class="text-emerald-400 font-bold">💰【交易所通知】</span>您有寄售的商品已成功售出，金幣已存入交易所！請抽空前往奇岩尋找「財富收割者」進行提領。`);
+                        }
+                        if (typeof showToast === 'function') {
+                            showToast(`💰 寄售商品已售出，有金幣可提領！`, "success");
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn("[klh_Shop] 定時檢查交易所進帳失敗:", err);
+        }
+    }
+
+    // ==========================================
     // 初始化啟動
     // ==========================================
+    let reaperCheckTimeout = null;
+
+    function triggerReaperSalesCheck() {
+        if (reaperCheckTimeout) clearTimeout(reaperCheckTimeout);
+
+        // 登入後 10 秒檢查一次
+        reaperCheckTimeout = setTimeout(() => {
+            checkReaperSalesPeriodically();
+        }, 10000);
+    }
+
     function startup() {
         registerWealthReaperNPC();
         injectMobileInputStyle();
+        
+        // 註冊登入/創角勾子
+        if (typeof window.loadGame === 'function' && !window.loadGame._reaperHooked) {
+            const originalLoadGame = window.loadGame;
+            window.loadGame = function () {
+                originalLoadGame.apply(this, arguments);
+                triggerReaperSalesCheck();
+            };
+            window.loadGame._reaperHooked = true;
+        }
+        
+        if (typeof window.startGame === 'function' && !window.startGame._reaperHooked) {
+            const originalStartGame = window.startGame;
+            window.startGame = function () {
+                originalStartGame.apply(this, arguments);
+                triggerReaperSalesCheck();
+            };
+            window.startGame._reaperHooked = true;
+        }
+
+        // 若啟動時已載入存檔，直接執行
+        if (typeof player !== 'undefined' && player && !reaperCheckTimeout) {
+            triggerReaperSalesCheck();
+        }
     }
 
     // 1. 立即嘗試註冊與注入樣式
