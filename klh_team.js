@@ -343,4 +343,35 @@
         return 'text-red-400 font-bold';
     }
 
+    // 預防 iOS 雙擊或事件雙重觸發導致重複招募同一個傭兵
+    if (typeof window.toggleAlly === 'function') {
+        const originalToggleAlly = window.toggleAlly;
+        let lastToggleTime = 0;
+        
+        window.toggleAlly = function (slotN) {
+            const now = Date.now();
+            // 500ms 內防抖
+            if (now - lastToggleTime < 500) {
+                console.warn("[klh_team] 偵測到快速重複點擊，已攔截。");
+                return;
+            }
+            lastToggleTime = now;
+            
+            // 安全防線：如果欲招募的傭兵已經在隊伍中，禁止重複招募
+            slotN = String(slotN);
+            if (!player.allies) player.allies = [];
+            
+            const isAllyActiveFunc = (typeof isAllyActive === 'function') ? isAllyActive : (slot => player.allies.some(a => a && a._slot === String(slot)));
+            if (!isAllyActiveFunc(slotN)) {
+                // 如果已經存在該槽位的傭兵，就不執行招募，防止重複引用
+                if (player.allies.some(a => a && a._slot === slotN)) {
+                    console.warn("[klh_team] 傭兵隊伍中已存在該槽位的角色，拒絕重複加入。");
+                    return;
+                }
+            }
+            
+            originalToggleAlly.apply(this, arguments);
+        };
+    }
+
 })();
