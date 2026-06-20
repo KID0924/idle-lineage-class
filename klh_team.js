@@ -62,7 +62,7 @@
     }
 
     // 2. Hook window.enemyPhysicalAttack (物理攻擊)
-    if (typeof window.enemyPhysicalAttack === 'function') {
+    if (typeof window.enemyPhysicalAttack === 'function' && !window.enemyPhysicalAttack.isHooked) {
         const originalEnemyPhysicalAttack = window.enemyPhysicalAttack;
         window.enemyPhysicalAttack = function (mob, idx, stunChance = 0, atkDmg = null, atkDb = null) {
             const target = selectAttackTarget();
@@ -72,10 +72,11 @@
             }
             originalEnemyPhysicalAttack.apply(this, arguments);
         };
+        window.enemyPhysicalAttack.isHooked = true;
     }
 
     // 3. Hook window.applyMobMagic (魔法攻擊)
-    if (typeof window.applyMobMagic === 'function') {
+    if (typeof window.applyMobMagic === 'function' && !window.applyMobMagic.isHooked) {
         const originalApplyMobMagic = window.applyMobMagic;
         window.applyMobMagic = function (mob, sk) {
             if (!sk) return;
@@ -86,6 +87,7 @@
             }
             originalApplyMobMagic.apply(this, arguments);
         };
+        window.applyMobMagic.isHooked = true;
     }
 
     // 4. 傭兵受傷物理傷害計算
@@ -185,8 +187,8 @@
     }
 
     // 6. 傭兵自然回血回魔以及玩家治療連動
-    const originalTick = window.tick;
-    if (typeof window.tick === 'function') {
+    if (typeof window.tick === 'function' && !window.tick.isHooked) {
+        const originalTick = window.tick;
         window.tick = function () {
             originalTick.apply(this, arguments);
             
@@ -228,10 +230,11 @@
                 }
             }
         };
+        window.tick.isHooked = true;
     }
 
     // 玩家治癒術連動 (單體治療補自己，傭兵得分得 10%)
-    if (typeof window.castSkill === 'function') {
+    if (typeof window.castSkill === 'function' && !window.castSkill.isHooked) {
         const originalCastSkill = window.castSkill;
         window.castSkill = function (skId) {
             let isWaterVitalActive = !!(player && player.buffs && player.buffs.sk_elf_watervital > 0 && (player._waterVitalCd || 0) <= 0);
@@ -264,10 +267,11 @@
             }
             return res;
         };
+        window.castSkill.isHooked = true;
     }
 
     // 7. 高效無效能損耗渲染 (Hook window.allyName)
-    if (typeof window.allyName === 'function') {
+    if (typeof window.allyName === 'function' && !window.allyName.isHooked) {
         const originalAllyName = window.allyName;
         window.allyName = function (a) {
             let name = originalAllyName(a);
@@ -308,6 +312,7 @@
             // 利用 span 閉合，無縫嵌入原版 renderStatusEffects 流程中，完全免除 DOM 查詢，效能極佳且完全防覆蓋
             return `${displayName}</span>${barHtml}${hpValHtml}${mpValHtml}<span>`;
         };
+        window.allyName.isHooked = true;
     }
 
     function roll(n, s) {
@@ -344,7 +349,7 @@
     }
 
     // 預防 iOS 雙擊或事件雙重觸發導致重複招募同一個傭兵
-    if (typeof window.toggleAlly === 'function') {
+    if (typeof window.toggleAlly === 'function' && !window.toggleAlly.isHooked) {
         const originalToggleAlly = window.toggleAlly;
         let lastToggleTime = 0;
         
@@ -357,7 +362,7 @@
             }
             lastToggleTime = now;
             
-            // 安全防線：如果欲招募的傭兵已經在隊伍中，禁止重複招募
+            // 安全防線：如果欲招募 the 傭兵已經在隊伍中，禁止重複招募
             slotN = String(slotN);
             if (!player.allies) player.allies = [];
             
@@ -372,6 +377,7 @@
             
             originalToggleAlly.apply(this, arguments);
         };
+        window.toggleAlly.isHooked = true;
     }
 
 })();
