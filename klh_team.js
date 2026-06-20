@@ -9,11 +9,11 @@
         // 傭兵承受傷害倍率 (1.0 = 100% 原版傷害)
         MERC_DAMAGE_TAKEN_SCALE: 1.0,
         
-        // 受療恢復量調整設定 (1人存活 = 100% / 2人存活 = 75% / 3人存活 = 50%)
+        // 受療恢復量調整設定 (1人存活 = 75% / 2人存活 = 50% / 3人存活 = 25%)
         HEAL_SCALE_BY_COUNT: {
-            1: 1.0,
-            2: 0.75,
-            3: 0.50
+            1: 0.75,
+            2: 0.50,
+            3: 0.25
         }
     };
 
@@ -127,7 +127,7 @@
         }
 
         let st = mob.st || { blindVal: 0, weaken: 0, disease: 0 };
-        let mobHitBonus = (mob.hit || 0) - (st.blindVal || 0) - (st.weaken > 0 ? 2 : 0) - (st.disease > 0 ? 4 : 0);
+        let mobHitBonus = (mob.hit || 0) - (st.blindVal || 0) - (st.weaken > 0 ? 2 : 0) - (st.disease > 0 ? 4 : 0) + ((mob._siegeHitEnd > state.ticks) ? 2 : 0);
         let allyAc = (ally.d && ally.d.ac !== undefined) ? ally.d.ac : 10;
         let rawHitValue = mob.lv + mobHitBonus - ally.lv + allyAc;
         let hitValue = stretchHitValue(rawHitValue);
@@ -146,14 +146,57 @@
         let diceCount = (atkDmg ? atkDmg[0] : mob.dmg[0]) || 1;
         let diceSides = (atkDmg ? atkDmg[1] : mob.dmg[1]) || 1;
         let baseWeaponDmg = heavy ? (diceCount * diceSides) : roll(diceCount, diceSides);
-        let dmgBonus = (atkDb != null ? atkDb : (mob.db || 0)) - (st.weaken > 0 ? 4 : 0) - (st.broken > 0 ? 2 : 0);
+        let dmgBonus = (atkDb != null ? atkDb : (mob.db || 0)) - (st.weaken > 0 ? 4 : 0) - (st.broken > 0 ? 2 : 0) + ((mob._siegeDmgEnd > state.ticks) ? 4 : 0);
         let totalDmg = baseWeaponDmg + dmgBonus;
         
         if (mob._sherine) totalDmg = Math.floor(totalDmg * 2);
         if (mob._grace) totalDmg = Math.floor(totalDmg * 1.5);
 
+        // 屬性抗性
+        let resFactor = 1.0;
+        if (mob.e === 'fire' && ally.d && ally.d.resFire) resFactor -= effResistPct(ally.d.resFire) / 100;
+        if (mob.e === 'water' && ally.d && ally.d.resWater) resFactor -= effResistPct(ally.d.resWater) / 100;
+        if (mob.e === 'earth' && ally.d && ally.d.resEarth) resFactor -= effResistPct(ally.d.resEarth) / 100;
+        if (mob.e === 'wind' && ally.d && ally.d.resWind) resFactor -= effResistPct(ally.d.resWind) / 100;
+        resFactor = Math.max(0, Math.min(1, resFactor));
+        totalDmg = Math.floor(totalDmg * resFactor);
+
+        // 隨機減免：騎士 (10-AC)/2、妖精/黑暗妖精 (10-AC)/3、法師 (10-AC)/5
+        let rndDrMax = 0;
+        let acGap = Math.max(0, 10 - allyAc);
+        if (ally.cls === 'knight') rndDrMax = Math.floor(acGap / 2);
+        else if (ally.cls === 'elf' || ally.cls === 'dark') rndDrMax = Math.floor(acGap / 3);
+        else rndDrMax = Math.floor(acGap / 5);
+        rndDrMax = Math.max(0, rndDrMax);
+        let randomDr = Math.floor(Math.random() * (rndDrMax + 1));
+
         let dr = (ally.d && ally.d.dr !== undefined) ? ally.d.dr : 0;
         totalDmg -= dr;
+        totalDmg -= randomDr;
+        
+        if (ally.buffs && ally.buffs.sk_holy_barrier > 0) totalDmg = Math.floor(totalDmg * 0.7);
+
+        // 盾牌格檔
+        if (heavy && ally.eq && ally.eq.shield) {
+            let _sh = DB.items[ally.eq.shield.id];
+            if (_sh && _sh.block && Math.random() * 100 < _sh.block) {
+                totalDmg = Math.floor(totalDmg * 0.5);
+            }
+        }
+
+        // 看破 / 雙重破壞 / 雙刀暴擊
+        if (mob.seeInsight || mob.siegeInsight) {
+            let insightRate = Math.min(15, 5 + Math.floor((mob.lv || 1) / 10));
+            if (Math.random() * 100 < insightRate) totalDmg *= 2;
+        }
+        if (mob.doubleDestroy) {
+            let ddRate = (mob.lv >= 50) ? (6 + Math.floor((mob.lv - 50) / 5)) : 5;
+            if (Math.random() * 100 < ddRate) totalDmg *= 2;
+        }
+        if (mob.atkDoubleChance && Math.random() < mob.atkDoubleChance) {
+            totalDmg *= 2;
+        }
+
         totalDmg = Math.max(1, totalDmg);
 
         // 平衡調整：傭兵承受傷害倍率
@@ -182,27 +225,60 @@
             ally.hp = ally.curHp !== undefined ? ally.curHp : ally.mhp;
         }
 
-        const directDamageTypes = ['stone', 'paralyze', 'silence', 'magicseal', 'freeze', 'slowatk', 'poison', 'burn', 'scald', 'stun'];
-        if (!directDamageTypes.includes(sk.type) && sk.d === undefined) {
-            logCombat(`[傭兵] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 抵抗了 <span class="${getMobColor(mob.lv)}">${mob.n}</span> 的 ${sk.skn || '魔法'}。`, 'magic');
-            return;
+        let baseMagicDmg = 0;
+        let extraMagicDmg = 0;
+        let isDamageSkill = false;
+
+        if (sk.dmg) {
+            baseMagicDmg = roll(sk.dmg[0], sk.dmg[1]);
+            extraMagicDmg = (sk.db || 0) + (sk.dbLv ? (mob.lv || 0) * (sk.dbLvMult || 1) : 0);
+            isDamageSkill = true;
+        } else if (sk.d) {
+            if (Array.isArray(sk.d)) {
+                baseMagicDmg = roll(sk.d[0], sk.d[1]);
+            } else {
+                baseMagicDmg = Number(sk.d) || 0;
+            }
+            extraMagicDmg = sk.db || 0;
+            isDamageSkill = true;
         }
 
+        // 判定是否為純狀態類技能（若不是傷害技能，且沒在 directDamageTypes 裡，就判定為抵抗）
+        if (!isDamageSkill) {
+            const directDamageTypes = ['stone', 'paralyze', 'silence', 'magicseal', 'freeze', 'slowatk', 'poison', 'burn', 'scald', 'stun'];
+            if (!directDamageTypes.includes(sk.type)) {
+                logCombat(`[傭兵] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 抵抗了 <span class="${getMobColor(mob.lv)}">${mob.n}</span> 的 ${sk.skn || '魔法'}。`, 'magic');
+                return;
+            }
+        }
+
+        let resFactor = 1.0;
+        if (sk.ele === 'fire' && ally.d && ally.d.resFire) resFactor -= effResistPct(ally.d.resFire) / 100;
+        if (sk.ele === 'water' && ally.d && ally.d.resWater) resFactor -= effResistPct(ally.d.resWater) / 100;
+        if (sk.ele === 'earth' && ally.d && ally.d.resEarth) resFactor -= effResistPct(ally.d.resEarth) / 100;
+        if (sk.ele === 'wind' && ally.d && ally.d.resWind) resFactor -= effResistPct(ally.d.resWind) / 100;
+        resFactor = Math.max(0, Math.min(1, resFactor));
+
+        let allyMr = (ally.d && ally.d.mr !== undefined) ? ally.d.mr : 10;
+        let mrFactor = mrMult(allyMr);
+        let allyDr = (ally.d && ally.d.dr !== undefined) ? ally.d.dr : 0;
+
         let dmg = 0;
-        if (sk.d) {
-            let baseMagicDmg = roll(sk.d[0], sk.d[1]);
-            let extraMagicDmg = sk.db || 0;
-            let allyMr = (ally.d && ally.d.mr !== undefined) ? ally.d.mr : 10;
-            let mrFactor = mrMult(allyMr);
-            let allyDr = (ally.d && ally.d.dr !== undefined) ? ally.d.dr : 0;
-            dmg = Math.max(1, Math.floor((baseMagicDmg + extraMagicDmg) * mrFactor) - allyDr);
+        if (isDamageSkill) {
+            if (sk.fixedDmg) {
+                dmg = baseMagicDmg + extraMagicDmg;
+            } else {
+                dmg = Math.floor(Math.floor((baseMagicDmg + extraMagicDmg) * resFactor) * mrFactor) - allyDr;
+            }
         } else {
-            dmg = sk.d ? roll(sk.d[0], sk.d[1]) : Math.max(5, Math.floor(mob.lv / 2));
+            dmg = Math.max(5, Math.floor(mob.lv / 2));
         }
 
         if (mob._sherine) dmg = Math.floor(dmg * 2);
         if (mob._grace) dmg = Math.floor(dmg * 2);
         dmg = Math.max(1, dmg);
+
+        if (ally.buffs && ally.buffs.sk_holy_barrier > 0) dmg = Math.floor(dmg * 0.7);
 
         // 平衡調整：傭兵承受傷害倍率
         dmg = Math.max(1, Math.floor(dmg * CONFIG.MERC_DAMAGE_TAKEN_SCALE));
@@ -674,13 +750,39 @@
     if (typeof window.saveGame === 'function' && !window.saveGame.isHookedMerc) {
         const originalSaveGame = window.saveGame;
         window.saveGame = function () {
+            // 1. 呼叫原始存檔 (這會建立全新的 player.config 並儲存到 localStorage)
+            let res = originalSaveGame.apply(this, arguments);
+
+            // 2. 存檔後，在記憶體與 LocalStorage 中補回傭兵自定義設定
             if (player && player.config) {
                 const mercHpThrEl = document.getElementById('set-merc-hp-thr');
                 const mercHealTypeEl = document.getElementById('set-merc-heal-type');
-                if (mercHpThrEl) player.config.mercHpThr = mercHpThrEl.value;
-                if (mercHealTypeEl) player.config.mercHealType = mercHealTypeEl.value;
+                
+                let valHpThr = mercHpThrEl ? mercHpThrEl.value : "40";
+                let valHealType = mercHealTypeEl ? mercHealTypeEl.value : "";
+                
+                player.config.mercHpThr = valHpThr;
+                player.config.mercHealType = valHealType;
+                
+                // 3. 同步寫入 LocalStorage，以防被原版 saveGame() 覆寫擦除
+                if (typeof currentSlot !== 'undefined') {
+                    let s = localStorage.getItem('lineage_idle_save_' + currentSlot);
+                    if (s) {
+                        try {
+                            let d = JSON.parse(s);
+                            if (d.p) {
+                                if (!d.p.config) d.p.config = {};
+                                d.p.config.mercHpThr = valHpThr;
+                                d.p.config.mercHealType = valHealType;
+                                localStorage.setItem('lineage_idle_save_' + currentSlot, JSON.stringify(d));
+                            }
+                        } catch (e) {
+                            console.error("[klh_team] 寫入 LocalStorage 自定義存檔失敗:", e);
+                        }
+                    }
+                }
             }
-            return originalSaveGame.apply(this, arguments);
+            return res;
         };
         window.saveGame.isHookedMerc = true;
     }
