@@ -346,14 +346,147 @@
                 background: rgba(124, 58, 237, 0.6) !important;
             }
 
+            /* 分頁內容與角色修改樣式 */
+            .gm-shop-tab-content {
+                display: none !important;
+                width: 100% !important;
+                height: 100% !important;
+                overflow: hidden !important;
+            }
+            .gm-shop-tab-content.active {
+                display: flex !important;
+            }
+            .gm-shop-char-container {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 20px !important;
+                padding: 24px !important;
+                height: 100% !important;
+                overflow-y: auto !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            .gm-shop-char-grid {
+                display: grid !important;
+                grid-template-columns: 1fr 1.2fr !important;
+                gap: 24px !important;
+                width: 100% !important;
+            }
+            .gm-shop-char-section {
+                background: rgba(30, 41, 59, 0.3) !important;
+                border: 1px solid rgba(124, 58, 237, 0.2) !important;
+                border-radius: 16px !important;
+                padding: 20px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 16px !important;
+            }
+            .gm-shop-char-section-title {
+                font-size: 18px !important;
+                font-weight: 700 !important;
+                color: #a78bfa !important;
+                border-bottom: 1px solid rgba(124, 58, 237, 0.3) !important;
+                padding-bottom: 8px !important;
+                margin-bottom: 4px !important;
+                text-align: left !important;
+            }
+            .gm-shop-char-input-group {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 6px !important;
+                text-align: left !important;
+            }
+            .gm-shop-char-input-row {
+                display: flex !important;
+                align-items: center !important;
+                gap: 8px !important;
+            }
+            .gm-shop-char-input {
+                background: rgba(15, 23, 42, 0.6) !important;
+                border: 1px solid rgba(124, 58, 237, 0.3) !important;
+                color: #fff !important;
+                border-radius: 10px !important;
+                padding: 8px 12px !important;
+                outline: none !important;
+                font-size: 15px !important;
+                flex: 1 !important;
+                transition: all 0.2s ease !important;
+                box-sizing: border-box !important;
+            }
+            .gm-shop-char-input:focus {
+                border-color: #a78bfa !important;
+                box-shadow: 0 0 8px rgba(124, 58, 237, 0.3) !important;
+            }
+            .gm-shop-char-btn-adj {
+                background: rgba(124, 58, 237, 0.2) !important;
+                border: 1px solid rgba(124, 58, 237, 0.4) !important;
+                color: #a78bfa !important;
+                padding: 6px 10px !important;
+                border-radius: 8px !important;
+                font-weight: bold !important;
+                cursor: pointer !important;
+                transition: all 0.2s ease !important;
+                font-size: 12px !important;
+                user-select: none !important;
+            }
+            .gm-shop-char-btn-adj:hover {
+                background: rgba(124, 58, 237, 0.4) !important;
+                color: #fff !important;
+            }
+            .gm-shop-char-save-btn {
+                background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%) !important;
+                border: 2px solid #a78bfa !important;
+                color: #fff !important;
+                font-weight: bold !important;
+                font-size: 16px !important;
+                padding: 12px 24px !important;
+                border-radius: 12px !important;
+                cursor: pointer !important;
+                transition: all 0.3s ease !important;
+                box-shadow: 0 0 15px rgba(124, 58, 237, 0.4) !important;
+                align-self: center !important;
+                margin-top: 12px !important;
+                width: 100% !important;
+                max-width: 300px !important;
+                text-align: center !important;
+            }
+            .gm-shop-char-save-btn:hover {
+                transform: translateY(-2px) !important;
+                box-shadow: 0 0 25px rgba(124, 58, 237, 0.7) !important;
+            }
+
             /* 手機適應調整 */
             @media (max-width: 768px) {
                 .gm-shop-container {
                     height: 95vh !important;
                     width: 98vw !important;
                 }
+                .gm-shop-header {
+                    padding: 12px 16px !important;
+                    gap: 8px !important;
+                    flex-wrap: wrap !important;
+                    justify-content: space-between !important;
+                }
+                .gm-shop-tabs {
+                    order: 3 !important;
+                    width: 100% !important;
+                    justify-content: center !important;
+                }
+                .gm-shop-char-grid {
+                    grid-template-columns: 1fr !important;
+                    gap: 16px !important;
+                }
+                .gm-shop-char-container {
+                    padding: 12px !important;
+                }
                 .gm-shop-body {
                     flex-direction: column !important;
+                }
+                #gm-shop-tab-content-shop {
+                    flex-direction: column !important;
+                }
+                .gm-shop-content {
+                    padding: 10px !important;
                 }
                 .gm-shop-sidebar {
                     width: 100% !important;
@@ -812,143 +945,244 @@
             <div class="gm-shop-container">
                 <div class="gm-shop-header">
                     <div class="gm-shop-title">🛍️ GM 裝備批發商店</div>
+                    <div class="gm-shop-tabs">
+                        <button id="gm-shop-tab-btn-shop" class="gm-shop-tab-btn active" onclick="switchGMShopTab('shop')">裝備商品</button>
+                        <button id="gm-shop-tab-btn-char" class="gm-shop-tab-btn" onclick="switchGMShopTab('char')">角色修改</button>
+                    </div>
                     <button class="gm-shop-close-btn" onclick="closeGMShop()">&times;</button>
                 </div>
                 <div class="gm-shop-body">
-                    <!-- 側邊欄控制面版 -->
-                    <div class="gm-shop-sidebar">
-                        <div class="gm-shop-control-group" id="gm-ctrl-free">
-                            <span class="gm-shop-control-label">價格與篩選</span>
-                            <label class="gm-shop-checkbox-container mt-1">
-                                <input type="checkbox" id="gm-free-checkbox" class="gm-shop-checkbox" checked onchange="onGMShopOptionChange()">
-                                <span class="font-bold text-yellow-400">免費獲得 (0金)</span>
-                            </label>
-                            <label class="gm-shop-checkbox-container mt-2">
-                                <input type="checkbox" id="gm-legend-checkbox" class="gm-shop-checkbox" onchange="onGMShopOptionChange()">
-                                <span class="font-bold text-orange-400">僅傳說裝備</span>
-                            </label>
-                        </div>
-                        
-                        <div class="border-t border-slate-800 my-1 gm-ctrl-divider"></div>
-                        
-                        <div class="gm-shop-control-group" id="gm-ctrl-enhance">
-                            <span class="gm-shop-control-label">自訂強化等級</span>
-                            <div class="flex gap-2">
-                                <select id="gm-enhance-select" class="gm-shop-select" onchange="onGMEnhanceSelectChange()">
-                                    ${[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].map(v => `<option value="${v}">+${v}</option>`).join('')}
-                                    <option value="custom">自訂</option>
+                    <!-- 裝備商品分頁 -->
+                    <div id="gm-shop-tab-content-shop" class="gm-shop-tab-content active">
+                        <!-- 側邊欄控制面版 -->
+                        <div class="gm-shop-sidebar">
+                            <div class="gm-shop-control-group" id="gm-ctrl-free">
+                                <span class="gm-shop-control-label">價格與篩選</span>
+                                <label class="gm-shop-checkbox-container mt-1">
+                                    <input type="checkbox" id="gm-free-checkbox" class="gm-shop-checkbox" checked onchange="onGMShopOptionChange()">
+                                    <span class="font-bold text-yellow-400">免費獲得 (0金)</span>
+                                </label>
+                                <label class="gm-shop-checkbox-container mt-2">
+                                    <input type="checkbox" id="gm-legend-checkbox" class="gm-shop-checkbox" onchange="onGMShopOptionChange()">
+                                    <span class="font-bold text-orange-400">僅傳說裝備</span>
+                                </label>
+                            </div>
+                            
+                            <div class="border-t border-slate-800 my-1 gm-ctrl-divider"></div>
+                            
+                            <div class="gm-shop-control-group" id="gm-ctrl-enhance">
+                                <span class="gm-shop-control-label">自訂強化等級</span>
+                                <div class="flex gap-2">
+                                    <select id="gm-enhance-select" class="gm-shop-select" onchange="onGMEnhanceSelectChange()">
+                                        ${[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].map(v => `<option value="${v}">+${v}</option>`).join('')}
+                                        <option value="custom">自訂</option>
+                                    </select>
+                                    <input type="number" id="gm-enhance-custom-input" value="0" min="0" max="999" class="gm-shop-search-input hidden" style="width: 80px;" oninput="onGMShopOptionChange()">
+                                </div>
+                            </div>
+                            
+                            <div class="gm-shop-control-group" id="gm-ctrl-bless">
+                                <span class="gm-shop-control-label">祝福狀態</span>
+                                <select id="gm-bless-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
+                                    <option value="none">無屬性</option>
+                                    <option value="blessed">祝福的</option>
+                                    <option value="cursed">詛咒的</option>
+                                    <option value="random">隨機</option>
                                 </select>
-                                <input type="number" id="gm-enhance-custom-input" value="0" min="0" max="999" class="gm-shop-search-input hidden" style="width: 80px;" oninput="onGMShopOptionChange()">
+                            </div>
+                            
+                            <div class="gm-shop-control-group" id="gm-ctrl-anc">
+                                <span class="gm-shop-control-label">遠古詞綴</span>
+                                <select id="gm-anc-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
+                                    <option value="none">無</option>
+                                    <option value="ancient">遠古 (c-ancient)</option>
+                                    <option value="eternal">永恆 (c-eternal)</option>
+                                    <option value="immortal">不朽 (c-immortal)</option>
+                                    <option value="primordial">太初 (c-primordial)</option>
+                                    <option value="random">隨機</option>
+                                </select>
+                            </div>
+                            
+                            <div class="gm-shop-control-group" id="gm-ctrl-attr">
+                                <span class="gm-shop-control-label">屬性詞綴</span>
+                                <select id="gm-attr-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
+                                    <option value="none">無</option>
+                                    <option value="random">隨機</option>
+                                    <optgroup label="地屬性">
+                                        <option value="earth1">地之 (+1)</option>
+                                        <option value="earth3">崩裂 (+3)</option>
+                                        <option value="earth5">地靈 (+5)</option>
+                                    </optgroup>
+                                    <optgroup label="火屬性">
+                                        <option value="fire1">火之 (+1)</option>
+                                        <option value="fire3">爆炎 (+3)</option>
+                                        <option value="fire5">火靈 (+5)</option>
+                                    </optgroup>
+                                    <optgroup label="水屬性">
+                                        <option value="water1">水之 (+1)</option>
+                                        <option value="water3">海嘯 (+3)</option>
+                                        <option value="water5">水靈 (+5)</option>
+                                    </optgroup>
+                                    <optgroup label="風屬性">
+                                        <option value="wind1">風之 (+1)</option>
+                                        <option value="wind3">暴風 (+3)</option>
+                                        <option value="wind5">風靈 (+5)</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            
+                            <div class="gm-shop-control-group" id="gm-ctrl-seteff">
+                                <span class="gm-shop-control-label">席琳套裝效果</span>
+                                <select id="gm-seteff-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
+                                    ${seteffOptions}
+                                </select>
+                            </div>
+                            
+                            <!-- 玩家資產與負重 -->
+                            <div class="border-t border-slate-800 pt-3 flex flex-col gap-2 mt-auto" id="gm-ctrl-assets">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-400">當前金幣</span>
+                                    <span class="text-yellow-400 font-bold" id="gm-shop-player-gold">0</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-400">當前負重</span>
+                                    <span class="text-slate-200" id="gm-shop-player-inv">0%</span>
+                                </div>
                             </div>
                         </div>
                         
-                        <div class="gm-shop-control-group" id="gm-ctrl-bless">
-                            <span class="gm-shop-control-label">祝福狀態</span>
-                            <select id="gm-bless-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
-                                <option value="none">無屬性</option>
-                                <option value="blessed">祝福的</option>
-                                <option value="cursed">詛咒的</option>
-                                <option value="random">隨機</option>
-                            </select>
-                        </div>
-                        
-                        <div class="gm-shop-control-group" id="gm-ctrl-anc">
-                            <span class="gm-shop-control-label">遠古詞綴</span>
-                            <select id="gm-anc-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
-                                <option value="none">無</option>
-                                <option value="ancient">遠古 (c-ancient)</option>
-                                <option value="eternal">永恆 (c-eternal)</option>
-                                <option value="immortal">不朽 (c-immortal)</option>
-                                <option value="primordial">太初 (c-primordial)</option>
-                                <option value="random">隨機</option>
-                            </select>
-                        </div>
-                        
-                        <div class="gm-shop-control-group" id="gm-ctrl-attr">
-                            <span class="gm-shop-control-label">屬性詞綴</span>
-                            <select id="gm-attr-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
-                                <option value="none">無</option>
-                                <option value="random">隨機</option>
-                                <optgroup label="地屬性">
-                                    <option value="earth1">地之 (+1)</option>
-                                    <option value="earth3">崩裂 (+3)</option>
-                                    <option value="earth5">地靈 (+5)</option>
-                                </optgroup>
-                                <optgroup label="火屬性">
-                                    <option value="fire1">火之 (+1)</option>
-                                    <option value="fire3">爆炎 (+3)</option>
-                                    <option value="fire5">火靈 (+5)</option>
-                                </optgroup>
-                                <optgroup label="水屬性">
-                                    <option value="water1">水之 (+1)</option>
-                                    <option value="water3">海嘯 (+3)</option>
-                                    <option value="water5">水靈 (+5)</option>
-                                </optgroup>
-                                <optgroup label="風屬性">
-                                    <option value="wind1">風之 (+1)</option>
-                                    <option value="wind3">暴風 (+3)</option>
-                                    <option value="wind5">風靈 (+5)</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                        
-                        <div class="gm-shop-control-group" id="gm-ctrl-seteff">
-                            <span class="gm-shop-control-label">席琳套裝效果</span>
-                            <select id="gm-seteff-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
-                                ${seteffOptions}
-                            </select>
-                        </div>
-                        
-                        <!-- GM 數值修改區 -->
-                        <div class="border-t border-slate-800 pt-3 flex flex-col gap-2 mt-auto">
-                            <span class="gm-shop-control-label">GM 快捷修改</span>
-                            <div class="flex gap-1.5">
-                                <input type="number" id="gm-gold-input" class="gm-shop-search-input" style="height: 30px !important; padding: 2px 6px !important; font-size: 13px !important; flex: 1; min-width: 50px;" placeholder="設定金幣">
-                                <button class="gm-shop-buy-btn" style="padding: 2px 8px !important; font-size: 11px !important; white-space: nowrap;" onclick="modifyGMGold()">改金幣</button>
+                        <!-- 裝備展示面板 -->
+                        <div class="gm-shop-content">
+                            <div class="gm-shop-filter-bar" style="gap: 8px !important; margin-bottom: 12px !important;">
+                                <input type="text" id="gm-shop-search" placeholder="🔍 搜尋裝備名稱..." class="gm-shop-search-input" style="height: 38px !important; padding: 8px 12px !important;" oninput="onGMShopSearchInput(this.value)">
+                                
+                                <!-- 主分類選擇 -->
+                                <select id="gm-main-cat-select" class="gm-shop-select" style="width: 105px !important; flex-shrink: 0 !important; padding: 6px 8px !important; height: 38px !important; line-height: 1.2 !important;" onchange="setGMShopMainCategory(this.value)">
+                                    <option value="all">全部</option>
+                                    <option value="wpn">武器</option>
+                                    <option value="arm">防具</option>
+                                    <option value="acc">飾品</option>
+                                    <option value="scroll">卷軸</option>
+                                    <option value="skillbk">魔法書</option>
+                                    <option value="etc">材料其他</option>
+                                </select>
+                                
+                                <!-- 子分類選擇 (預設隱藏) -->
+                                <select id="gm-sub-cat-select" class="gm-shop-select" style="width: 105px !important; flex-shrink: 0 !important; padding: 6px 8px !important; height: 38px !important; line-height: 1.2 !important; display: none;" onchange="setGMShopSubCategory(this.value)">
+                                    <option value="all">全部部位</option>
+                                </select>
                             </div>
-                            <div class="flex gap-1.5">
-                                <input type="number" id="gm-lvl-input" class="gm-shop-search-input" style="height: 30px !important; padding: 2px 6px !important; font-size: 13px !important; flex: 1; min-width: 50px;" placeholder="設定等級">
-                                <button class="gm-shop-buy-btn" style="padding: 2px 8px !important; font-size: 11px !important; white-space: nowrap;" onclick="modifyGMLevel()">改等級</button>
-                            </div>
-                        </div>
-                        
-                        <!-- 玩家資產與負重 -->
-                        <div class="border-t border-slate-800 pt-3 flex flex-col gap-2" id="gm-ctrl-assets">
-                            <div class="flex justify-between text-sm">
-                                <span class="text-slate-400">當前金幣</span>
-                                <span class="text-yellow-400 font-bold" id="gm-shop-player-gold">0</span>
-                            </div>
-                            <div class="flex justify-between text-sm">
-                                <span class="text-slate-400">當前負重</span>
-                                <span class="text-slate-200" id="gm-shop-player-inv">0%</span>
-                            </div>
+                            
+                            <!-- 裝備網格 -->
+                            <div class="gm-shop-grid" id="gm-shop-grid-container"></div>
                         </div>
                     </div>
-                    
-                    <!-- 裝備展示面板 -->
-                    <div class="gm-shop-content">
-                        <div class="gm-shop-filter-bar" style="gap: 8px !important; margin-bottom: 12px !important;">
-                            <input type="text" id="gm-shop-search" placeholder="🔍 搜尋裝備名稱..." class="gm-shop-search-input" style="height: 38px !important; padding: 8px 12px !important;" oninput="onGMShopSearchInput(this.value)">
+
+                    <!-- 角色修改分頁 -->
+                    <div id="gm-shop-tab-content-char" class="gm-shop-tab-content">
+                        <div class="gm-shop-char-container">
+                            <div class="gm-shop-char-grid">
+                                <!-- 左側：資產與等級 -->
+                                <div class="gm-shop-char-section">
+                                    <div class="gm-shop-char-section-title">🪙 資產與等級修改</div>
+                                    
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">角色等級 (Lv. 1 ~ 999)</span>
+                                        <div class="gm-shop-char-input-row">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-lvl-input', -10)">-10</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-lvl-input', -1)">-1</button>
+                                            <input type="number" id="gm-char-lvl-input" class="gm-shop-char-input text-center" min="1" max="999" style="max-width: 100px;">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-lvl-input', 1)">+1</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-lvl-input', 10)">+10</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">角色金幣 (Gold, 上限 9999 億)</span>
+                                        <input type="number" id="gm-char-gold-input" class="gm-shop-char-input" min="0" max="999999999999">
+                                    </div>
+                                </div>
+                                
+                                <!-- 右側：六大核心屬性 -->
+                                <div class="gm-shop-char-section">
+                                    <div class="gm-shop-char-section-title">📊 基礎六大屬性修改</div>
+                                    
+                                    <!-- 力量 -->
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">力量 (STR, 基礎屬性)</span>
+                                        <div class="gm-shop-char-input-row">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-input', -5)">-5</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-input', -1)">-1</button>
+                                            <input type="number" id="gm-char-str-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 80px;">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-input', 1)">+1</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-input', 5)">+5</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 敏捷 -->
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">敏捷 (DEX, 基礎屬性)</span>
+                                        <div class="gm-shop-char-input-row">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-input', -5)">-5</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-input', -1)">-1</button>
+                                            <input type="number" id="gm-char-dex-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 80px;">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-input', 1)">+1</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-input', 5)">+5</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 體質 -->
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">體質 (CON, 基礎屬性)</span>
+                                        <div class="gm-shop-char-input-row">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-input', -5)">-5</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-input', -1)">-1</button>
+                                            <input type="number" id="gm-char-con-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 80px;">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-input', 1)">+1</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-input', 5)">+5</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 智力 -->
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">智力 (INT, 基礎屬性)</span>
+                                        <div class="gm-shop-char-input-row">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-input', -5)">-5</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-input', -1)">-1</button>
+                                            <input type="number" id="gm-char-int-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 80px;">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-input', 1)">+1</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-input', 5)">+5</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 精神 -->
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">精神 (WIS, 基礎屬性)</span>
+                                        <div class="gm-shop-char-input-row">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-input', -5)">-5</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-input', -1)">-1</button>
+                                            <input type="number" id="gm-char-wis-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 80px;">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-input', 1)">+1</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-input', 5)">+5</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 魅力 -->
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">魅力 (CHA, 基礎屬性)</span>
+                                        <div class="gm-shop-char-input-row">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-input', -5)">-5</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-input', -1)">-1</button>
+                                            <input type="number" id="gm-char-cha-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 80px;">
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-input', 1)">+1</button>
+                                            <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-input', 5)">+5</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             
-                            <!-- 主分類選擇 -->
-                            <select id="gm-main-cat-select" class="gm-shop-select" style="width: 105px !important; flex-shrink: 0 !important; padding: 6px 8px !important; height: 38px !important; line-height: 1.2 !important;" onchange="setGMShopMainCategory(this.value)">
-                                <option value="all">全部</option>
-                                <option value="wpn">武器</option>
-                                <option value="arm">防具</option>
-                                <option value="acc">飾品</option>
-                                <option value="scroll">卷軸</option>
-                                <option value="skillbk">魔法書</option>
-                                <option value="etc">材料其他</option>
-                            </select>
-                            
-                            <!-- 子分類選擇 (預設隱藏) -->
-                            <select id="gm-sub-cat-select" class="gm-shop-select" style="width: 105px !important; flex-shrink: 0 !important; padding: 6px 8px !important; height: 38px !important; line-height: 1.2 !important; display: none;" onchange="setGMShopSubCategory(this.value)">
-                                <option value="all">全部部位</option>
-                            </select>
+                            <button class="gm-shop-char-save-btn" onclick="saveGMShopCharChanges()">💾 儲存並套用修改</button>
                         </div>
-                        
-                        <!-- 裝備網格 -->
-                        <div class="gm-shop-grid" id="gm-shop-grid-container"></div>
                     </div>
                 </div>
             </div>
@@ -958,7 +1192,123 @@
         return modal;
     }
 
-    // 6. UI 控制響應函數
+    // 6. UI 控制與修改處理函數
+    window.switchGMShopTab = function (tab) {
+        let shopTabBtn = document.getElementById('gm-shop-tab-btn-shop');
+        let charTabBtn = document.getElementById('gm-shop-tab-btn-char');
+        let shopContent = document.getElementById('gm-shop-tab-content-shop');
+        let charContent = document.getElementById('gm-shop-tab-content-char');
+
+        if (tab === 'shop') {
+            if (shopTabBtn) shopTabBtn.classList.add('active');
+            if (charTabBtn) charTabBtn.classList.remove('active');
+            if (shopContent) shopContent.style.setProperty('display', 'flex', 'important');
+            if (charContent) charContent.style.setProperty('display', 'none', 'important');
+        } else if (tab === 'char') {
+            if (shopTabBtn) shopTabBtn.classList.remove('active');
+            if (charTabBtn) charTabBtn.classList.add('active');
+            if (shopContent) shopContent.style.setProperty('display', 'none', 'important');
+            if (charContent) charContent.style.setProperty('display', 'block', 'important');
+
+            window.loadGMShopCharValues();
+        }
+    };
+
+    window.loadGMShopCharValues = function () {
+        if (typeof player === 'undefined' || !player) return;
+
+        let goldInput = document.getElementById('gm-char-gold-input');
+        let lvlInput = document.getElementById('gm-char-lvl-input');
+        let strInput = document.getElementById('gm-char-str-input');
+        let dexInput = document.getElementById('gm-char-dex-input');
+        let conInput = document.getElementById('gm-char-con-input');
+        let intInput = document.getElementById('gm-char-int-input');
+        let wisInput = document.getElementById('gm-char-wis-input');
+        let chaInput = document.getElementById('gm-char-cha-input');
+
+        if (goldInput) goldInput.value = player.gold || 0;
+        if (lvlInput) lvlInput.value = player.lv || 1;
+
+        if (player.base) {
+            if (strInput) strInput.value = player.base.str || 0;
+            if (dexInput) dexInput.value = player.base.dex || 0;
+            if (conInput) conInput.value = player.base.con || 0;
+            if (intInput) intInput.value = player.base.int || 0;
+            if (wisInput) wisInput.value = player.base.wis || 0;
+            if (chaInput) chaInput.value = player.base.cha || 0;
+        }
+    };
+
+    window.adjustGMCharAttr = function (id, amount) {
+        let input = document.getElementById(id);
+        if (!input) return;
+        let val = parseInt(input.value) || 0;
+        val += amount;
+        let min = (id === 'gm-char-lvl-input' || id.includes('str') || id.includes('dex') || id.includes('con') || id.includes('int') || id.includes('wis') || id.includes('cha')) ? 1 : 0;
+        let max = (id === 'gm-char-lvl-input') ? 999 : (id === 'gm-char-gold-input' ? 999999999999 : 9999);
+
+        if (val < min) val = min;
+        if (val > max) val = max;
+        input.value = val;
+    };
+
+    window.saveGMShopCharChanges = function () {
+        if (typeof player === 'undefined' || !player) return;
+
+        let goldVal = parseInt(document.getElementById('gm-char-gold-input').value);
+        let lvlVal = parseInt(document.getElementById('gm-char-lvl-input').value);
+        let strVal = parseInt(document.getElementById('gm-char-str-input').value);
+        let dexVal = parseInt(document.getElementById('gm-char-dex-input').value);
+        let conVal = parseInt(document.getElementById('gm-char-con-input').value);
+        let intVal = parseInt(document.getElementById('gm-char-int-input').value);
+        let wisVal = parseInt(document.getElementById('gm-char-wis-input').value);
+        let chaVal = parseInt(document.getElementById('gm-char-cha-input').value);
+
+        if (isNaN(goldVal) || goldVal < 0 || goldVal > 999999999999) {
+            alert("請輸入有效的金幣數量 (0 ~ 999,999,999,999)！");
+            return;
+        }
+        if (isNaN(lvlVal) || lvlVal < 1 || lvlVal > 999) {
+            alert("請輸入有效的等級 (1 ~ 999)！");
+            return;
+        }
+        if ([strVal, dexVal, conVal, intVal, wisVal, chaVal].some(v => isNaN(v) || v < 1 || v > 9999)) {
+            alert("屬性數值必須在 1 到 9999 之間！");
+            return;
+        }
+
+        // 套用修改
+        player.gold = goldVal;
+        player.lv = lvlVal;
+        player.exp = 0; // 重置經驗值為 0
+
+        if (!player.base) player.base = {};
+        player.base.str = strVal;
+        player.base.dex = dexVal;
+        player.base.con = conVal;
+        player.base.int = intVal;
+        player.base.wis = wisVal;
+        player.base.cha = chaVal;
+
+        // 重新計算屬性與 UI 刷新
+        if (typeof calcStats === 'function') calcStats();
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof saveGame === 'function') saveGame();
+
+        // 更新 GM 商店金幣顯示
+        let goldDisplay = document.getElementById('gm-shop-player-gold');
+        if (goldDisplay) goldDisplay.innerText = player.gold.toLocaleString();
+
+        if (typeof showToast === 'function') {
+            showToast("角色數值與資產已成功修改並儲存！", 'success');
+        } else {
+            alert("角色數值與資產修改成功！");
+        }
+
+        // 重新載入一次數據
+        window.loadGMShopCharValues();
+    };
+
     window.openGMShop = function () {
         if (typeof player === 'undefined' || !player || !player.cls) {
             if (typeof logSys === 'function') {
@@ -980,6 +1330,9 @@
                 }
             });
         }
+
+        // 每次開啟時預設切換回裝備商店分頁
+        window.switchGMShopTab('shop');
 
         // 更新資訊
         document.getElementById('gm-shop-player-gold').innerText = (player.gold || 0).toLocaleString();
@@ -1012,7 +1365,7 @@
                 customInput.classList.add('hidden');
             }
         }
-        onGMShopOptionChange();
+        window.onGMShopOptionChange();
     };
 
     window.onGMShopOptionChange = function () {
