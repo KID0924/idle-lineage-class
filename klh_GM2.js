@@ -43,6 +43,11 @@
             }
             .earth5-glow { animation: earth5Glow 2s infinite ease-in-out !important; }
 
+            body {
+                -webkit-text-size-adjust: 100% !important;
+                text-size-adjust: 100% !important;
+            }
+
             /* 防止 iOS 瀏覽器在聚焦輸入框時自動縮放 */
             @media (max-width: 768px) {
                 input[id^="fuzzy-sell-input-"] {
@@ -1319,36 +1324,7 @@
         }
     };
 
-    // ==========================================
 
-    // 時光使者發光控制：玩家達 75 等以上才會發光，以下不會
-    function updateRebirthNpcGlow() {
-        const npcContainer = document.getElementById('town-npc-container');
-        if (npcContainer) {
-            const cards = npcContainer.children;
-            for (let card of cards) {
-                if (card.textContent.includes('時光使者')) {
-                    if (typeof player !== 'undefined' && player && player.lv >= 75) {
-                        card.style.border = '2px solid #10b981';
-                        card.style.boxShadow = '0 0 15px rgba(16,185,129,0.8)';
-                        const iconSpan = card.querySelector('.text-2xl');
-                        if (iconSpan) {
-                            iconSpan.classList.add('animate-pulse');
-                            iconSpan.style.textShadow = '0 0 10px #10b981';
-                        }
-                    } else {
-                        card.style.border = '';
-                        card.style.boxShadow = '';
-                        const iconSpan = card.querySelector('.text-2xl');
-                        if (iconSpan) {
-                            iconSpan.classList.remove('animate-pulse');
-                            iconSpan.style.textShadow = '';
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     // ==========================================
     // 15. 廢品記憶清單管理系統
@@ -1576,28 +1552,6 @@
             window.resetStatsCandle.__klhRebirthWrapped = true;
         }
 
-        // 監聽 town-npc-container 以動態控制時光使者發光
-        if (typeof MutationObserver !== 'undefined') {
-            const observer = new MutationObserver(updateRebirthNpcGlow);
-            const checkExist = setInterval(() => {
-                const element = document.getElementById('town-npc-container');
-                if (element) {
-                    observer.observe(element, { childList: true });
-                    updateRebirthNpcGlow(); // 初始檢查一次
-                    clearInterval(checkExist);
-                }
-            }, 100);
-        }
-
-        // Hook updateUI 以在等級變更或屬性重算時即時更新發光狀態
-        if (typeof window.updateUI === 'function' && !window.updateUI.__klhRebirthGlowWrapped) {
-            const originalUpdateUI = window.updateUI;
-            window.updateUI = function () {
-                originalUpdateUI();
-                updateRebirthNpcGlow();
-            };
-            window.updateUI.__klhRebirthGlowWrapped = true;
-        }
 
         // ==========================================
         // 16. 象牙塔 碧恩（NPC Bian）：新增席琳套裝效果附加功能
