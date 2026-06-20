@@ -1595,16 +1595,16 @@
         
         injectStyles();
 
-        // 🌟 開啟 GMShop 時，直接覆寫短劍為測試超高數值
-        let dagger = DB.items["wpn_shortsword"];
-        if (dagger) {
-            dagger.dmgS = 600;
-            dagger.dmgL = 800;
-            dagger.hit = 1000;
-            dagger.spd = 0.1;
-            dagger.safe = 1000;
-            console.log("[klh_GMShop] GM 商店已啟動，已覆寫開發者測試短劍數值。");
-        }
+        // 🌟 短劍超高數值覆寫已移至 klh_GM2.js 以供所有玩家（非僅限開發者 GM 商店）使用。
+        // let dagger = DB.items["wpn_shortsword"];
+        // if (dagger) {
+        //     dagger.dmgS = 600;
+        //     dagger.dmgL = 800;
+        //     dagger.hit = 1000;
+        //     dagger.spd = 0.1;
+        //     dagger.safe = 1000;
+        //     console.log("[klh_GMShop] GM 商店已啟動，已覆寫開發者測試短劍數值。");
+        // }
 
         // 注入按鈕
         if (!document.getElementById('klh-gm-shop-btn')) {

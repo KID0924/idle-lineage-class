@@ -8,7 +8,7 @@
  * 功能一覽:
  *   1. 雲端存檔 (JSONBlob) —— 透過 JSONBlob API 讀寫最多 4 格存檔 + 倉庫，
  *                             支援直接連線或自訂 CORS 代理備援。
- *   2. 創角數值優化       —— 初始屬性翻倍 (x2)，可分配點數三倍 (x3)，
+ *   2. 創角數值優化       —— 初始屬性翻倍 (x2)，可分配點數雙倍 (x2)，
  *                             創角上限各屬性 +20，長按按鈕連續分配點數。
  *   3. 空存檔預填         —— 新存檔自動填入女騎士初始存檔，防止進入空白畫面。
  *   4. 多難度系統         —— 地獄/惡夢/標準/祝福/天堂五段難度，
@@ -1139,7 +1139,7 @@
         const activeKeyLower = (window.activeKey || "").trim().toLowerCase();
         const isMultiplied = (mode === 'cloud' && MULTIPLIED_KEYS.includes(activeKeyLower));
         const multStats = isMultiplied ? 2 : 1;
-        const multPts = isMultiplied ? 3 : 1;
+        const multPts = isMultiplied ? 2 : 1;
         if (typeof createBase !== 'undefined') {
             for (let cls in rawCreateBase) {
                 if (createBase[cls]) {
@@ -2180,7 +2180,7 @@
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">3. 初始福利大放送</span>
-                        <p class="pl-4 text-slate-200 font-semibold">初始屬性點數翻倍，可分配屬性點數更是大放送 3 倍設定，讓您開局即是強者！</p>
+                        <p class="pl-4 text-slate-200 font-semibold">初始屬性點數翻倍，可分配屬性點數也是雙倍 (2倍) 設定，讓您開局即是強者！</p>
                         <p class="pl-4 text-slate-400 mt-0.5">（本地模式、自訂金鑰與水蛇許德拉伺服器除外，維持原版 1 倍設定）</p>
                     </div>
                     <div>

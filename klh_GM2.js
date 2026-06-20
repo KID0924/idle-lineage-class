@@ -1,5 +1,5 @@
 /* ============================================================================
- * klh_GM2.js — 高級藥水、神之祝福與掉寶藥水機制 & 克里斯特兌換 & 快速批量賣出 & 轉生系統 & 碧恩席琳附魔說明
+ * klh_GM2.js — 高級藥水、神之祝福與掉寶藥水機制 & 克里斯特兌換 & 快速批量賣出 & 轉生系統 & 碧恩席琳附魔說明 & 超強短劍覆寫
  *
  * 設計原則: 完全不改原作者程式碼，只從外面「包住」全域函式 (monkey-patch)。
  * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
@@ -12,7 +12,7 @@
  *   4. 自定義藥水效果   —— 觸發回血、添加 Buff 增益效果。
  *   5. 商店注入       —— 針對含有白色藥水的店鋪自動加入自定義藥水選項。
  *   6. 藥水使用覆蓋     —— useItem Hook，支援八種自定義藥水效果。
- *   7. 克里斯特兌換     —— 新增席琳結晶兌換 (100k 金幣1個 / 2000k 金幣20個)。
+ *   7. 克里斯特兌換     —— 神之祝福藥水兌換 & 所有祝福/解詛咒卷軸調整為 10,000 金幣換 20 張。
  *   8. 掉寶/祝福機制     —— killMob Hook，掉寶藥水金幣x2、裝備掉寶x3、材料x2；
  *                          神之祝福藥水提升祝福/席琳相剋機率。
  *   9. gainItem 覆蓋    —— 怪物掉落裝備時即時判斷祝福 and 席琳相剋機率。
@@ -25,6 +25,7 @@
  *  15. 回憶蠟燭保護   —— Hook resetStatsCandle ，防止轉生點數被回憶蠟燭消耗。
  *  16. 席琳裝備注入   —— Hook openModal 於裝備介面新增「席琳注入」按鈕（消耗 1 顆席琳結晶），為特定部位裝備隨機注入強力的席琳混沌套裝效果。
  *  17. 象牙塔 NPC 碧恩 —— 覆寫 renderBianBless，僅保留祝福與解詛咒，並在最下方附屬性/遠古/席琳套裝效果卡片對照。
+ *  18. 超強短劍覆寫   —— 將基礎武器「短劍」屬性覆寫為 GM 測試超強數值（全員可用）。
  * ========================================================================== */
 
 (function () {
@@ -116,7 +117,7 @@
             n: "掉寶藥水",
             type: "pot",
             req: "all",
-            p: 100000,
+            p: 1000,
             c: "text-green-300 font-bold",
             d: "獲得金幣x2、裝備掉落率x3、材料掉落率x2，持續 300 秒",
             eff: "droprate",
@@ -129,7 +130,7 @@
             n: "神之祝福藥水",
             type: "pot",
             req: "all",
-            p: 1000000,
+            p: 10000,
             c: "text-yellow-300 font-bold",
             d: "怪物掉落裝備時祝福機率x3、附加席琳套裝效果機率x2，持續 300 秒 (無法自動購買)",
             eff: "god_bless",
@@ -152,6 +153,16 @@
 
         // 1-5. 動態注入自動喝水下拉選單選項
         initPotSelectOptions();
+
+        // 1-6. 覆寫短劍為 GM 測試超高數值
+        let dagger = DB.items["wpn_shortsword"];
+        if (dagger) {
+            dagger.dmgS = 600;
+            dagger.dmgL = 800;
+            dagger.hit = 1000;
+            dagger.spd = 0.1;
+            dagger.safe = 1000;
+        }
     }
 
     // 2. 動態添加自動喝水選項至 #set-pot 下拉選單
@@ -305,7 +316,7 @@
 
     window.kristaExchange = function (kind) {
         if (kind === 'god_bless_1' || kind === 'god_bless_20') {
-            let cost = (kind === 'god_bless_1') ? 1000000 : 20000000;
+            let cost = (kind === 'god_bless_1') ? 10000 : 200000;
             let count = (kind === 'god_bless_1') ? 1 : 20;
 
             if ((player.gold || 0) < cost) {
@@ -323,6 +334,37 @@
 
             let _e = document.getElementById('interaction-content');
             if (_e) renderKristaExchange(_e);
+        } else if (kind === 'wpn' || kind === 'arm' || kind === 'acc' || kind === 'uncurse') {
+            let cost = 10000;
+            let count = 20;
+            let outId = {
+                wpn: 'new_item_bless_wpn',
+                arm: 'new_item_bless_arm',
+                acc: 'new_item_bless_acc',
+                uncurse: 'new_item_uncurse'
+            }[kind];
+            let outNm = {
+                wpn: '賦予武器祝福卷軸',
+                arm: '賦予盔甲祝福卷軸',
+                acc: '賦予飾品祝福卷軸',
+                uncurse: '解除詛咒的卷軸'
+            }[kind];
+
+            if ((player.gold || 0) < cost) {
+                logSys(`<span class="text-red-400">金幣不足（需 ${cost.toLocaleString()}）。</span>`);
+                return;
+            }
+
+            player.gold -= cost;
+            gainItem(outId, count, true, true);
+            renderTabs();
+            updateUI();
+            saveGame();
+
+            logSys(`花費 ${cost.toLocaleString()} 金幣，換得 ${count} 張 <span class="text-purple-300 font-bold">${outNm}</span>。`);
+
+            let _e = document.getElementById('interaction-content');
+            if (_e) renderKristaExchange(_e);
         } else {
             if (typeof originalKristaExchange === 'function') {
                 originalKristaExchange(kind);
@@ -331,27 +373,29 @@
     };
 
     window.renderKristaExchange = function (el) {
-        if (typeof originalRenderKristaExchange === 'function') {
-            originalRenderKristaExchange(el);
-            let container = el.querySelector('.flex.flex-col.gap-3.p-1');
-            if (container) {
-                let row1 = document.createElement('div');
-                row1.className = 'flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3';
-                row1.innerHTML = `
-                    <div class="text-sm text-slate-200 leading-relaxed">1,000,000 金幣 → 1 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
-                    <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_1')">兌換</button>
-                `;
-                container.appendChild(row1);
+        let row = (kind, outNm, colorClass) => `
+            <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
+                <div class="text-sm text-slate-200 leading-relaxed">10,000 金幣 → 20 張 <span class="${colorClass} font-bold">${outNm}</span></div>
+                <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('${kind}')">兌換</button>
+            </div>`;
 
-                let row2 = document.createElement('div');
-                row2.className = 'flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3';
-                row2.innerHTML = `
-                    <div class="text-sm text-slate-200 leading-relaxed">20,000,000 金幣 → 20 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
+        el.innerHTML = `
+            <div class="flex flex-col gap-3 p-1">
+                <div class="text-slate-300 text-sm leading-relaxed">克里斯特：把施法卷軸與金幣交給我，我能煉成『賦予祝福卷軸』。</div>
+                <div class="text-sm">你的金幣：<span class="text-yellow-400 font-bold">${(player.gold || 0).toLocaleString()}</span></div>
+                ${row('wpn', '賦予武器祝福卷軸', 'text-purple-300')}
+                ${row('arm', '賦予盔甲祝福卷軸', 'text-purple-300')}
+                ${row('acc', '賦予飾品祝福卷軸', 'text-purple-300')}
+                ${row('uncurse', '解除詛咒的卷軸', 'text-cyan-200')}
+                <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
+                    <div class="text-sm text-slate-200 leading-relaxed">10,000 金幣 → 1 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
+                    <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_1')">兌換</button>
+                </div>
+                <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
+                    <div class="text-sm text-slate-200 leading-relaxed">200,000 金幣 → 20 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
                     <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_20')">兌換</button>
-                `;
-                container.appendChild(row2);
-            }
-        }
+                </div>
+            </div>`;
     };
 
     // 8. 掉寶與神之祝福核心機制 (Monkey Patch 掉落系統)
