@@ -69,7 +69,7 @@ jobs:
           <script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v={dynamic_v}"></script>
           <script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v={dynamic_v}"></script>
           <script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v={dynamic_v}"></script>
-          <script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v={dynamic_v}"></script>
+          <--script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v={dynamic_v}"></script-->
           <script src="klh_jsonblob.js?v={dynamic_v}"></script>
           <script src="klh_GM.js?v={dynamic_v}"></script>
           <script src="klh_GM2.js?v={dynamic_v}"></script>
