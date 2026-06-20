@@ -816,10 +816,15 @@
             if (a.hp === undefined) {
                 a.hp = a.curHp !== undefined ? a.curHp : a.mhp;
             }
+            a.hp = Math.floor(a.hp);
+            a.curHp = a.hp;
+            if (a.mp !== undefined) {
+                a.mp = Math.floor(a.mp);
+            }
             const hp = Math.max(0, a.hp);
-            const mhp = a.mhp || 100;
+            const mhp = Math.floor(a.mhp || 100);
             const mp = Math.max(0, a.mp || 0);
-            const mmp = a.mmp || 0;
+            const mmp = Math.floor(a.mmp || 0);
 
             const isDead = hp <= 0;
             const hpPct = isDead ? 0 : Math.min(100, Math.floor((hp / mhp) * 100));
