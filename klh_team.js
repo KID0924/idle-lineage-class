@@ -921,4 +921,25 @@
         window.toggleAlly.isHooked = true;
     }
 
+    // Hook window.buildAlly 確保傭兵在初始化快照時，其血量與魔力即為乾淨的整數，從而避免戰鬥日誌名稱中出現浮點數
+    if (typeof window.buildAlly === 'function' && !window.buildAlly.isHooked) {
+        const originalBuildAlly = window.buildAlly;
+        window.buildAlly = function () {
+            let ally = originalBuildAlly.apply(this, arguments);
+            if (ally) {
+                if (ally.hp !== undefined) ally.hp = Math.floor(ally.hp);
+                if (ally.curHp !== undefined) ally.curHp = Math.floor(ally.curHp);
+                if (ally.mhp !== undefined) ally.mhp = Math.floor(ally.mhp);
+                if (ally.mp !== undefined) ally.mp = Math.floor(ally.mp);
+                if (ally.mmp !== undefined) ally.mmp = Math.floor(ally.mmp);
+                // 重新渲染並賦予乾淨無小數點的 HTML 名稱，這樣戰鬥日誌中顯示的數值就是完美的整數
+                if (typeof allyName === 'function') {
+                    ally._allyName = allyName(ally);
+                }
+            }
+            return ally;
+        };
+        window.buildAlly.isHooked = true;
+    }
+
 })();
