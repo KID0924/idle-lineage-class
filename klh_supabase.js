@@ -8,6 +8,67 @@
     // ==========================================
     // 共享輔助函式與 UI 宣告 (與 klh_jsonblob.js 共用/相容)
     // ==========================================
+    if (typeof window.showSupabaseKeyBanner !== 'function') {
+        window.showSupabaseKeyBanner = function (key) {
+            const existing = document.getElementById('supabase-key-banner');
+            if (existing) existing.remove();
+
+            const container = document.getElementById('cloud-save-container');
+            if (!container) return;
+
+            const banner = document.createElement('div');
+            banner.id = 'supabase-key-banner';
+            banner.style.cssText = 'background: rgba(30, 41, 59, 0.95); border: 1px solid #b89243; border-radius: 8px; padding: 12px; margin-top: 10px; text-align: center; animation: klh-fade-in 0.3s ease; position: relative;';
+            banner.innerHTML = `
+                <div style="font-size: 13px; font-weight: bold; color: #fbbf24; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span>🎉 雲端金鑰建立成功！</span>
+                    <button onclick="this.closest('#supabase-key-banner').remove()" style="color: #94a3b8; background: none; border: none; font-size: 16px; cursor: pointer; padding: 0 4px; line-height: 1; outline: none;">&times;</button>
+                </div>
+                <div style="font-size: 11px; color: #e2e8f0; margin-bottom: 8px; line-height: 1.4; text-align: left;">
+                    這是您的本機專屬金鑰，可用於多裝置存檔同步。請務必備份保存（點擊下方即可複製）：
+                </div>
+                <div onclick="navigator.clipboard.writeText('${key}'); window.showToast('雲端金鑰已成功複製到剪貼簿！', 'success');" style="background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 16px; font-weight: bold; color: #22d3ee; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 6px; transition: background 0.2s;" onmouseover="this.style.background='#0f172a'" onmouseout="this.style.background='#020617'">
+                    <span>${key}</span>
+                    <span style="font-size: 12px;">📋</span>
+                </div>
+            `;
+            const statusEl = document.getElementById('storage-mode-status');
+            if (statusEl) {
+                statusEl.parentNode.insertBefore(banner, statusEl.nextSibling);
+            } else {
+                container.appendChild(banner);
+            }
+        };
+    }
+
+    if (typeof window.showSupabaseKeyModal !== 'function') {
+        window.showSupabaseKeyModal = function (key) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'klh-modal-backdrop';
+            backdrop.style.cssText = 'position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(5px); z-index: 10001; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.25s ease;';
+            backdrop.innerHTML = `
+                <div style="background: #1e293b padding-box, linear-gradient(135deg, #4a3613 0%, #b89243 20%, #6e5220 42%, #e6c474 60%, #5c4318 80%, #c9a14a 100%) border-box; border: 2px solid transparent; border-radius: 16px; width: 90%; max-width: 380px; padding: 24px; text-align: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8); transform: scale(0.9); transition: transform 0.25s ease;">
+                    <div style="font-size: 40px; margin-bottom: 12px;">🎉</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #fbbf24; margin-bottom: 10px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">雲端金鑰建立成功！</div>
+                    <div style="font-size: 13px; color: #e2e8f0; line-height: 1.5; margin-bottom: 16px;">
+                        這是您的本機專屬雲端金鑰，可用於多裝置存檔同步。請務必妥善備份保存：
+                    </div>
+                    <div onclick="navigator.clipboard.writeText('${key}'); window.showToast('雲端金鑰已成功複製到剪貼簿！', 'success');" style="background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 20px; font-weight: bold; color: #22d3ee; letter-spacing: 1px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px; transition: background 0.2s;" onmouseover="this.style.background='#0f172a'" onmouseout="this.style.background='#020617'">
+                        <span>${key}</span>
+                        <span style="font-size: 16px;">📋</span>
+                    </div>
+                    <div style="font-size: 11px; color: #94a3b8; margin-bottom: 24px;">（點擊上方金鑰框即可快速複製）</div>
+                    <button class="btn w-full py-2.5 text-sm bg-cyan-700 hover:bg-cyan-600 border-cyan-500 font-bold" style="border-radius: 8px;" onclick="const bd = this.closest('.klh-modal-backdrop'); bd.style.opacity='0'; setTimeout(() => bd.remove(), 250);">確認並開始遊戲</button>
+                </div>
+            `;
+            document.body.appendChild(backdrop);
+            setTimeout(() => {
+                backdrop.style.opacity = '1';
+                backdrop.children[0].style.transform = 'scale(1)';
+            }, 20);
+        };
+    }
+
     if (typeof window.isValidUuid !== 'function') {
         window.isValidUuid = function (key) {
             key = (key || "").trim();
@@ -230,6 +291,10 @@
             body.m-mobile.m-keyboard-open #m-nav {
                 display: none !important;
             }
+            @keyframes klh-fade-in {
+                from { opacity: 0; transform: translateY(-8px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
         `;
         document.head.appendChild(styleEl);
     }
@@ -447,10 +512,10 @@
 
             let buttonsHtml = `<button id="btn-switch-local" onclick="switchToLocalMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">切回本地</button>`;
             if (hasSupabase) {
-                buttonsHtml += `<button id="btn-switch-supabase" onclick="switchToSupabaseMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">Supabase</button>`;
+                buttonsHtml += `<button id="btn-switch-supabase" onclick="switchToSupabaseMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">切回雲端</button>`;
             }
             if (hasCloud) {
-                buttonsHtml += `<button id="btn-switch-cloud" onclick="switchToCloudMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">JsonBlob</button>`;
+                buttonsHtml += `<button id="btn-switch-cloud" onclick="switchToCloudMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">Jsonblob</button>`;
             }
 
             container.innerHTML = `
@@ -534,7 +599,23 @@
                         localStorage.setItem('klh_supabase_local_key', localKey);
                     }
 
-                    modeTextEl.innerHTML = `<span class="text-cyan-400 font-bold cursor-pointer" onclick="window.copySupabaseLocalKey()" title="點擊複製本機金鑰">Supabase (${localKey || '無金鑰'}) 📋</span>`;
+                    let keyDisplay = sKey || '無金鑰';
+                    const sKeyLower = sKey.trim().toLowerCase();
+                    const supabaseKeysMap = {
+                        "0012k1i6d225": "水蛇許德拉",
+                        "0012k1i6d226": "太陽神阿波羅",
+                        "0012k1i6d227": "火神赫發斯特斯",
+                        "0012k1i6d228": "勝利女神雅典那",
+                        "0012k1i6d229": "天后海拉",
+                        "0012k1i6d230": "天神宙斯"
+                    };
+                    if (supabaseKeysMap[sKeyLower]) {
+                        keyDisplay = supabaseKeysMap[sKeyLower];
+                    } else if (localKey && sKey === localKey) {
+                        keyDisplay = "本機金鑰";
+                    }
+
+                    modeTextEl.innerHTML = `<span class="text-cyan-400 font-bold cursor-pointer" onclick="window.copySupabaseLocalKey()" title="點擊複製本機金鑰">雲端金鑰 (${keyDisplay}) 📋</span>`;
                     if (settingsSection) settingsSection.style.display = 'flex';
 
                     if (btnLocal) btnLocal.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
@@ -542,11 +623,11 @@
                     if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-cyan-700 hover:bg-cyan-600 text-white font-bold border-cyan-500 whitespace-nowrap';
 
                     if (inputEl) {
-                        inputEl.placeholder = '請輸入 12 碼接關碼';
+                        inputEl.placeholder = '請輸入 12 碼雲端金鑰';
                         inputEl.value = sKey;
                     }
                     if (readBtn) {
-                        readBtn.innerText = '讀取 Supabase 存檔';
+                        readBtn.innerText = '手動讀取雲端';
                         readBtn.setAttribute('onclick', 'handleSupabaseReadClick()');
                         readBtn.className = 'btn w-full py-2.5 text-sm bg-cyan-700 hover:bg-cyan-600 border-cyan-500 font-bold';
                     }
@@ -594,7 +675,7 @@
                             html += `
                                 <button onclick="window.restoreSupabaseLocalKey()" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold w-full mb-1.5" style="position: relative; display: flex; justify-content: center; align-items: center;">
                                     <span style="position: absolute; left: 16px;">⭐</span>
-                                    <span class="font-bold">還原為本機金鑰</span>
+                                    <span class="font-bold">還原為本機雲端金鑰</span>
                                     <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${localKey})</span>
                                 </button>
                             `;
@@ -674,12 +755,29 @@
         return result;
     }
 
+    let lastAutoUploadTime = 0;
+    const AUTO_UPLOAD_DEBOUNCE_MS = 60000; // 60秒自動存檔上傳節流
+
+    window.addEventListener('beforeunload', () => {
+        window.__klh_is_unloading = true;
+    });
+
     // 2. 異步上傳至 Supabase
     window.uploadToSupabase = async function (isManual = false, forceFullOverwrite = false, skipMergeSlot = null) {
         if (!supabase) return;
+
+        // 自動上傳節流：若非手動且非強制全覆寫，且頁面沒有在關閉中，限制 60 秒內只上傳一次
+        if (!isManual && !forceFullOverwrite && !window.__klh_is_unloading) {
+            const now = Date.now();
+            if (now - lastAutoUploadTime < AUTO_UPLOAD_DEBOUNCE_MS) {
+                return;
+            }
+            lastAutoUploadTime = now;
+        }
+
         const key = (localStorage.getItem('klh_supabase_key') || '').trim();
         if (!key) {
-            if (isManual) window.showToast('Supabase 金鑰不存在，無法執行寫入！', 'error');
+            if (isManual) window.showToast('雲端金鑰不存在，無法執行寫入！', 'error');
             return;
         }
 
@@ -696,7 +794,7 @@
         // 合併雲端其他槽位的存檔
         if (!forceFullOverwrite && activeSlot >= 1 && activeSlot <= 4) {
             if (isManual) {
-                window.showLoadingOverlay('正在讀取並合併 Supabase 存檔...');
+                window.showLoadingOverlay('正在讀取並合併雲端存檔...');
             }
             try {
                 const { data, error } = await supabase
@@ -729,7 +827,7 @@
             } catch (e) {
                 console.error("[Supabase] 讀取並合併存檔失敗:", e);
                 if (isManual) {
-                    window.showToast('Supabase 存檔同步失敗：無法取得最新狀態，已取消同步！', 'error');
+                    window.showToast('雲端存檔同步失敗：無法取得最新狀態，已取消同步！', 'error');
                 }
                 return;
             } finally {
@@ -740,7 +838,7 @@
         }
 
         if (isManual) {
-            window.showLoadingOverlay('正在上傳 Supabase 存檔中...');
+            window.showLoadingOverlay('正在上傳雲端存檔中...');
         }
 
         try {
@@ -753,12 +851,12 @@
             if (error) throw error;
 
             if (isManual) {
-                window.showToast('成功將本機進度上傳至 Supabase！', 'success');
+                window.showToast('成功將本機進度同步至雲端！', 'success');
             }
         } catch (err) {
             console.error('Error syncing to Supabase:', err);
             if (isManual) {
-                window.showToast('上傳 Supabase 存檔失敗，請檢查網路連線。', 'error');
+                window.showToast('上傳雲端存檔失敗，請檢查網路連線。', 'error');
             }
         } finally {
             if (isManual) {
@@ -772,7 +870,7 @@
         if (!supabase) return;
         const key = (localStorage.getItem('klh_supabase_key') || '').trim();
         if (!key) {
-            if (isManual) window.showToast('Supabase 金鑰不存在，無法讀取！', 'error');
+            if (isManual) window.showToast('雲端金鑰不存在，無法讀取！', 'error');
             return;
         }
 
@@ -782,7 +880,7 @@
         }
 
         if (isManual) {
-            window.showLoadingOverlay('正在讀取 Supabase 存檔中...');
+            window.showLoadingOverlay('正在讀取雲端存檔中...');
         }
 
         try {
@@ -794,7 +892,7 @@
             }
 
             if (!data) {
-                window.showToast('Supabase 無存檔或金鑰已失效！如果是全新金鑰，請進行手動存檔初始化。', 'error');
+                window.showToast('雲端無存檔或金鑰已失效！如果是全新金鑰，請進行手動存檔初始化。', 'error');
                 return;
             }
 
@@ -823,14 +921,14 @@
                 localStorage.removeItem('lineage_idle_warehouse');
             }
 
-            if (isManual) window.showToast('Supabase 存檔讀取成功！', 'success');
+            if (isManual) window.showToast('雲端存檔同步成功！', 'success');
 
             if (typeof window.refreshLoadBtnVisibility === 'function') {
                 window.refreshLoadBtnVisibility();
             }
         } catch (err) {
             console.error('[Supabase] 讀取失敗:', err);
-            if (isManual) window.showToast('讀取 Supabase 存檔失敗：' + err.message, 'error');
+            if (isManual) window.showToast('讀取雲端存檔失敗：' + err.message, 'error');
         } finally {
             window.isCloudSyncing = false;
             if (typeof window.updateLoadButtonState === 'function') {
@@ -870,7 +968,7 @@
         if (!key) {
             const newKey = generatePlayerID();
 
-            window.showLoadingOverlay('正在初始化 Supabase 雲端位置...');
+            window.showLoadingOverlay('正在初始化雲端存檔位置...');
             try {
                 const initialTemplate = {
                     "save_1": null,
@@ -902,8 +1000,14 @@
                     window.updateStorageModeUI();
                 }
 
-                window.showToast(`【新創成功】接關碼為: ${key}`, 'success');
-                alert(`【新創大成功】您的 Supabase 備份接關碼為:\n\n${key}\n\n請務必截圖妥善保存！`);
+                window.showToast(`【新創成功】雲端金鑰為: ${key}`, 'success');
+                if (typeof window.showSupabaseKeyBanner === 'function') {
+                    window.showSupabaseKeyBanner(key);
+                } else if (typeof window.showSupabaseKeyModal === 'function') {
+                    window.showSupabaseKeyModal(key);
+                } else {
+                    alert(`【新創大成功】您的雲端備份金鑰為:\n\n${key}\n\n請務必截圖妥善保存！`);
+                }
             } catch (err) {
                 console.error("[Supabase] 創立新帳號失敗:", err);
                 window.showToast('創立新帳號失敗：' + err.message, 'error');
@@ -967,7 +1071,7 @@
         if (inputEl) {
             let key = inputEl.value.trim();
             if (key.length !== 12) {
-                window.showToast('金鑰格式錯誤！必須為 12 碼英數字 (例如: 0012k1i6d224)', 'error');
+                window.showToast('雲端金鑰格式錯誤！必須為 12 碼英數字 (例如: 0012k1i6d224)', 'error');
                 return;
             }
             localStorage.setItem('klh_supabase_key', key);
@@ -982,6 +1086,11 @@
     // 初始化與啟動
     async function init() {
         try {
+            // 預設是切回雲端 (supabase)
+            if (localStorage.getItem('klh_storage_mode') === null) {
+                localStorage.setItem('klh_storage_mode', 'supabase');
+            }
+
             // 🚀 在 DOM 載入後先嘗試初始化 UI (若尚未建立)
             if (typeof window.initCloudSaveUI === 'function') {
                 window.initCloudSaveUI();

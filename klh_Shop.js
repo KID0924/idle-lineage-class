@@ -94,15 +94,21 @@
 
     function getSavePlayerId() {
         // 本地模式下不提供交易所角色 ID，防止誤用或冒用公用金鑰 ID
-        const isCloudMode = localStorage.getItem('klh_storage_mode') === 'cloud';
+        const mode = localStorage.getItem('klh_storage_mode');
+        const isCloudMode = mode === 'cloud' || mode === 'supabase';
         if (!isCloudMode) return null;
 
         const slot = (typeof currentSlot !== 'undefined' && currentSlot !== null) ? parseInt(currentSlot, 10) : 1;
-        const key = (typeof window.activeKey === 'string' && window.activeKey.trim() !== '') 
-            ? window.activeKey.trim() 
-            : localStorage.getItem('klh_custom_key');
+        let key = null;
+        if (mode === 'supabase') {
+            key = localStorage.getItem('klh_supabase_key');
+        } else {
+            key = (typeof window.activeKey === 'string' && window.activeKey.trim() !== '') 
+                ? window.activeKey.trim() 
+                : localStorage.getItem('klh_custom_key');
+        }
         if (!key) return null;
-        const inputStr = key + (1000 + slot);
+        const inputStr = key.trim() + (1000 + slot);
         return sha256(inputStr).substring(0, 10);
     }
 
@@ -359,8 +365,15 @@
 
         // 判斷是否具備上架權限：有金鑰登入者，或者 GM
         const isGM = typeof window.openGMShop === 'function';
-        const isCloudMode = localStorage.getItem('klh_storage_mode') === 'cloud';
-        const hasKey = (typeof window.activeKey === 'string' && window.activeKey.trim() !== '') || localStorage.getItem('klh_custom_key');
+        const mode = localStorage.getItem('klh_storage_mode');
+        const isCloudMode = mode === 'cloud' || mode === 'supabase';
+        let hasKey = false;
+        if (mode === 'supabase') {
+            const sKey = localStorage.getItem('klh_supabase_key');
+            hasKey = typeof sKey === 'string' && sKey.trim() !== '';
+        } else {
+            hasKey = (typeof window.activeKey === 'string' && window.activeKey.trim() !== '') || localStorage.getItem('klh_custom_key');
+        }
         const canUpload = isGM || (isCloudMode && hasKey);
         const mySellerId = isGM ? "F123456789" : getSavePlayerId();
 
@@ -1273,7 +1286,14 @@
 
         // 1. 頂部仍渲染管理面板 (以供帶入和點擊上架)
         const isGM = typeof window.openGMShop === 'function';
-        const hasKey = (typeof window.activeKey === 'string' && window.activeKey.trim() !== '') || (localStorage.getItem('klh_storage_mode') === 'cloud' && localStorage.getItem('klh_custom_key'));
+        const mode = localStorage.getItem('klh_storage_mode');
+        let hasKey = false;
+        if (mode === 'supabase') {
+            const sKey = localStorage.getItem('klh_supabase_key');
+            hasKey = typeof sKey === 'string' && sKey.trim() !== '';
+        } else {
+            hasKey = (typeof window.activeKey === 'string' && window.activeKey.trim() !== '') || (mode === 'cloud' && localStorage.getItem('klh_custom_key'));
+        }
         const canUpload = isGM || hasKey;
         const mySellerId = isGM ? "F123456789" : getSavePlayerId();
 
