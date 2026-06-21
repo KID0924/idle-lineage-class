@@ -2658,8 +2658,13 @@
             if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
                 // 只有 INPUT / TEXTAREA 會彈出虛擬鍵盤，需要隱藏底部導航
                 // SELECT 是原生 picker 彈窗，不佔頁面空間，不需隱藏 nav
-                document.body.classList.add('m-keyboard-open');
                 isKeyboardOpened = true;
+                // 延遲隱藏 nav，避免同步改變佈局導致焦點丟失（輸入框震動 bug）
+                setTimeout(() => {
+                    if (isKeyboardOpened) {
+                        document.body.classList.add('m-keyboard-open');
+                    }
+                }, 250);
             }
         });
 
