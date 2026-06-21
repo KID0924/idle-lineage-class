@@ -2445,8 +2445,7 @@
                 <div class="flex flex-col gap-3.5 text-sm text-slate-300 leading-relaxed">
                     <div>
                         <span class="font-bold text-amber-300">1. 全新雲端存檔功能</span>
-                        <p class="pl-4 text-slate-400">支援公用金鑰（所有人皆可改寫）與 Jsonblob 個人私鑰。</p>
-                        <p class="pl-4 text-rose-400 font-semibold mt-0.5">⚠️ 注意事項：私鑰需註冊免費會員，若連續 3 天未登入將會刪除帳號；未註冊者不論是否登入，滿 1 天即會自動刪除帳號。</p>
+                        <p class="pl-4 text-slate-400">支援公用金鑰（所有人皆可改寫）與系統自然產出的專屬雲端金鑰。</p>
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">2. 難易度自由切換</span>
