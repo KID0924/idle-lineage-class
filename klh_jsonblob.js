@@ -33,38 +33,52 @@
     // ==========================================
     // localStorage 模式隔離代理 (Storage.prototype 代理，相容手機版 Safari/Chrome)
     // ==========================================
-    const originalGetItem = Storage.prototype.getItem;
-    const originalSetItem = Storage.prototype.setItem;
-    const originalRemoveItem = Storage.prototype.removeItem;
+    const originalGetItem = Storage.prototype.__originalGetItem || Storage.prototype.getItem;
+    const originalSetItem = Storage.prototype.__originalSetItem || Storage.prototype.setItem;
+    const originalRemoveItem = Storage.prototype.__originalRemoveItem || Storage.prototype.removeItem;
 
     function getRedirectedKey(key) {
         const mode = originalGetItem.call(localStorage, 'klh_storage_mode') || 'local';
-        if (mode === 'cloud') {
-            const activeKey = window.activeKey || originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '019ed445-679f-7ae4-9f05-f887591d1266';
-            const suffix = '_' + activeKey.trim();
-            // 🚀 遊戲存檔與倉庫：重定向至雲端快取鍵 + 金鑰後綴
-            if (key.startsWith('lineage_idle_save_') || key === 'lineage_idle_warehouse') {
-                return key.replace('lineage_idle_save_', 'klh_cloud_save_').replace('lineage_idle_warehouse', 'klh_cloud_warehouse') + suffix;
+        if (mode === 'cloud' || mode === 'supabase') {
+            let activeKey;
+            if (mode === 'supabase') {
+                activeKey = originalGetItem.call(localStorage, 'klh_supabase_key') || '';
+            } else {
+                activeKey = window.activeKey || originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '019ed445-679f-7ae4-9f05-f887591d1266';
             }
-            // 🚀 離線掛機模組 (afk-offline.js) 的狀態鍵：直接加金鑰後綴，防止不同伺服器的地圖/時間戳互相污染
-            if (key.startsWith('afk_ts_') || key.startsWith('afk_map_') || key.startsWith('afk_pride_')) {
-                return key + suffix;
+            if (activeKey) {
+                const suffix = '_' + activeKey.trim();
+                // 🚀 遊戲存檔與倉庫：重定向至雲端快取鍵 + 金鑰後綴
+                if (key.startsWith('lineage_idle_save_') || key === 'lineage_idle_warehouse') {
+                    return key.replace('lineage_idle_save_', 'klh_cloud_save_').replace('lineage_idle_warehouse', 'klh_cloud_warehouse') + suffix;
+                }
+                // 🚀 離線掛機模組 (afk-offline.js) 的狀態鍵：直接加金鑰後綴，防止不同伺服器的地圖/時間戳互相污染
+                if (key.startsWith('afk_ts_') || key.startsWith('afk_map_') || key.startsWith('afk_pride_')) {
+                    return key + suffix;
+                }
             }
         }
         return key;
     }
 
-    Storage.prototype.getItem = function (key) {
-        return originalGetItem.call(this, getRedirectedKey(key));
-    };
+    if (!Storage.prototype.__klh_patched) {
+        Storage.prototype.__klh_patched = true;
+        Storage.prototype.__originalGetItem = originalGetItem;
+        Storage.prototype.__originalSetItem = originalSetItem;
+        Storage.prototype.__originalRemoveItem = originalRemoveItem;
 
-    Storage.prototype.setItem = function (key, value) {
-        return originalSetItem.call(this, getRedirectedKey(key), value);
-    };
+        Storage.prototype.getItem = function (key) {
+            return originalGetItem.call(this, getRedirectedKey(key));
+        };
 
-    Storage.prototype.removeItem = function (key) {
-        return originalRemoveItem.call(this, getRedirectedKey(key));
-    };
+        Storage.prototype.setItem = function (key, value) {
+            return originalSetItem.call(this, getRedirectedKey(key), value);
+        };
+
+        Storage.prototype.removeItem = function (key) {
+            return originalRemoveItem.call(this, getRedirectedKey(key));
+        };
+    }
 
     // ==========================================
     // 本地雲端存檔快取管理與同步鎖
@@ -201,15 +215,23 @@
 
     const PRIVILEGED_KEYS = [
         "019ebb3a-ad04-76f1-81df-d15d7b2d03d0", // 4. 天后海拉
-        "019ebb3a-e777-7ab7-b744-aaab13066231"  // 5. 天神宙斯
+        "019ebb3a-e777-7ab7-b744-aaab13066231", // 5. 天神宙斯
+        "0012k1i6d229",                         // Supabase 5. 天后海拉
+        "0012k1i6d230"                          // Supabase 6. 天神宙斯
     ];
 
     function checkIsPrivileged() {
         if (typeof window.openGMShop === 'function') {
             return false; // 開啟 GM 商店功能時，解除特權金鑰固定限制
         }
-        const normalized = (window.activeKey || "").trim().toLowerCase();
-        return PRIVILEGED_KEYS.some(k => k.toLowerCase() === normalized);
+        const mode = localStorage.getItem('klh_storage_mode') || 'local';
+        if (mode === 'supabase') {
+            const normalized = (localStorage.getItem('klh_supabase_key') || "").trim().toLowerCase();
+            return PRIVILEGED_KEYS.some(k => k.toLowerCase() === normalized);
+        } else {
+            const normalized = (window.activeKey || "").trim().toLowerCase();
+            return PRIVILEGED_KEYS.some(k => k.toLowerCase() === normalized);
+        }
     }
 
     // 注入 CSS 樣式
@@ -383,12 +405,20 @@
         body.m-mobile textarea {
             font-size: 16px !important;
         }
-        body.m-keyboard-open #m-nav {
+        /* 僅在手機版且虛擬鍵盤開啟時隱藏底部/頂部導航，防止擠歪 */
+        body.m-mobile.m-keyboard-open #m-nav {
             display: none !important;
         }
-        /* 解決主選單在鍵盤開啟時元素過多被擠飛的 bug */
-        body.m-keyboard-open #main-menu > *:not(#cloud-save-container) {
-            display: none !important;
+        /* 儲存模式切換按鈕縮小與美化，避免按鈕過大/排版不美觀 */
+        #btn-switch-local, #btn-switch-supabase, #btn-switch-cloud {
+            padding: 5px 2px !important;
+            font-size: 11px !important;
+            line-height: 1.2 !important;
+        }
+        /* 雲端設定區按鈕（讀取按鈕、公用金鑰按鈕等）縮小，使 UI 更加精緻 */
+        #cloud-settings-section button {
+            padding: 6px 12px !important;
+            font-size: 12px !important;
         }
     `;
     document.head.appendChild(styleEl);
@@ -771,6 +801,7 @@
             else btnLoad.classList.add('hidden');
         }
     }
+    window.refreshLoadBtnVisibility = refreshLoadBtnVisibility;
 
 
     window.handleCloudSaveReadClick = async function () {
@@ -818,10 +849,19 @@
 
     window.handleFastKeyClick = async function (btn) {
         const key = btn.getAttribute('data-key');
-        window.saveJsonBlobConfig(key);
-        localStorage.setItem('klh_storage_mode', 'cloud'); // 🚀 切換至雲端模式
-        window.updateStorageModeUI();
-        await window.syncFromCloud(true);
+        const mode = localStorage.getItem('klh_storage_mode') || 'local';
+        // Supabase keys start with "0012" and are 12 characters long
+        if (key.startsWith("0012") && key.length === 12) {
+            localStorage.setItem('klh_supabase_key', key);
+            localStorage.setItem('klh_storage_mode', 'supabase');
+            window.updateStorageModeUI();
+            await window.syncFromSupabase(true);
+        } else {
+            window.saveJsonBlobConfig(key);
+            localStorage.setItem('klh_storage_mode', 'cloud'); // 🚀 切換至雲端模式
+            window.updateStorageModeUI();
+            await window.syncFromCloud(true);
+        }
     };
 
     // 儲存模式 UI 控制與切換
@@ -835,6 +875,12 @@
 
         const btnLocal = document.getElementById('btn-switch-local');
         const btnCloud = document.getElementById('btn-switch-cloud');
+        const btnSupabase = document.getElementById('btn-switch-supabase');
+
+        const inputEl = document.getElementById('jsonblob-input');
+        const readBtn = settingsSection ? settingsSection.querySelector('button') : null;
+        const quickKeysHeader = document.getElementById('klh-quick-keys-header');
+        const quickKeysList = document.getElementById('klh-quick-keys-list');
 
         if (modeTextEl) {
             if (mode === 'cloud') {
@@ -853,21 +899,114 @@
                 }
                 modeTextEl.innerHTML = `<span class="text-indigo-400 font-bold">雲端同步 (${keyName})</span>`;
                 if (settingsSection) settingsSection.style.display = 'flex';
-                if (btnLocal) {
-                    btnLocal.className = 'btn flex-1 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-white font-bold';
+                if (btnLocal) btnLocal.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
+                if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-indigo-700 hover:bg-indigo-600 text-white font-bold border-indigo-500 whitespace-nowrap';
+                if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
+
+                if (inputEl) {
+                    inputEl.placeholder = '019ed445-679f-7ae4-9f05-f887591d1266';
+                    inputEl.value = window.activeKey || '';
                 }
-                if (btnCloud) {
-                    btnCloud.className = 'btn flex-1 py-2 text-xs bg-indigo-700 hover:bg-indigo-600 text-white font-bold border-indigo-500';
+                if (readBtn) {
+                    readBtn.innerText = '手動讀取雲端';
+                    readBtn.setAttribute('onclick', 'handleCloudSaveReadClick()');
+                    readBtn.className = 'btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold';
+                }
+            } else if (mode === 'supabase') {
+                const sKey = localStorage.getItem('klh_supabase_key') || '';
+                let localKey = localStorage.getItem('klh_supabase_local_key') || '';
+                if (!localKey && sKey) {
+                    localKey = sKey;
+                    localStorage.setItem('klh_supabase_local_key', localKey);
+                }
+
+                modeTextEl.innerHTML = `<span class="text-cyan-400 font-bold cursor-pointer" onclick="window.copySupabaseLocalKey()" title="點擊複製本機金鑰">Supabase (${localKey || '無金鑰'}) 📋</span>`;
+                if (settingsSection) settingsSection.style.display = 'flex';
+
+                if (btnLocal) btnLocal.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
+                if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
+                if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-cyan-700 hover:bg-cyan-600 text-white font-bold border-cyan-500 whitespace-nowrap';
+
+                if (inputEl) {
+                    inputEl.placeholder = '請輸入 12 碼接關碼';
+                    inputEl.value = sKey;
+                }
+                if (readBtn) {
+                    readBtn.innerText = '讀取 Supabase 存檔';
+                    readBtn.setAttribute('onclick', 'handleSupabaseReadClick()');
+                    readBtn.className = 'btn w-full py-2.5 text-sm bg-cyan-700 hover:bg-cyan-600 border-cyan-500 font-bold';
                 }
             } else {
                 modeTextEl.innerHTML = `<span class="text-green-400 font-bold">本地模式</span>`;
                 if (settingsSection) settingsSection.style.display = 'none';
-                if (btnLocal) {
-                    btnLocal.className = 'btn flex-1 py-2 text-xs bg-green-700 hover:bg-green-600 text-white font-bold border-green-500';
+                if (btnLocal) btnLocal.className = 'btn flex-1 py-2 text-[10px] bg-green-700 hover:bg-green-600 text-white font-bold border-green-500 whitespace-nowrap';
+                if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
+                if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
+            }
+        }
+
+        // 動態渲染快速公用金鑰清單
+        if (quickKeysHeader && quickKeysList) {
+            if (mode === 'cloud' || mode === 'supabase') {
+                quickKeysHeader.style.display = 'block';
+                quickKeysList.style.display = 'flex';
+                
+                const showLock = (typeof window.openGMShop === 'function') ? '' : '🔒固定';
+                let html = '';
+
+                if (mode === 'cloud') {
+                    html += `<div id="klh-custom-key-btn-container" class="flex flex-col gap-1.5 w-full"></div>`;
+                    const cloudKeys = [
+                        { idx: 1, name: "水蛇許德拉", key: "019ed445-679f-7ae4-9f05-f887591d1266", color: "text-sky-300", suffix: "(預設) (標準)" },
+                        { idx: 2, name: "太陽神阿波羅", key: "019ebb1f-b31c-769f-8475-02be610a13b0", color: "text-amber-300", suffix: "" },
+                        { idx: 3, name: "火神赫發斯特斯", key: "019ebb3a-0d11-7569-a341-463d28054478", color: "text-orange-300", suffix: "" },
+                        { idx: 4, name: "勝利女神雅典那", key: "019ebb3a-58de-78fd-8139-eca46c089de3", color: "text-green-300", suffix: "" },
+                        { idx: 5, name: "天后海拉", key: "019ebb3a-ad04-76f1-81df-d15d7b2d03d0", color: "text-rose-300", suffix: showLock },
+                        { idx: 6, name: "天神宙斯", key: "019ebb3a-e777-7ab7-b744-aaab13066231", color: "text-cyan-300", suffix: showLock }
+                    ];
+                    cloudKeys.forEach(k => {
+                        html += `
+                            <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 ${k.color} font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="${k.key}">
+                                <span style="position: absolute; left: 16px;">${k.idx}.</span>
+                                <span class="font-bold">${k.name}</span>
+                                <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${k.suffix}</span>
+                            </button>
+                        `;
+                    });
+                } else {
+                    const sKey = localStorage.getItem('klh_supabase_key') || '';
+                    const localKey = localStorage.getItem('klh_supabase_local_key') || '';
+                    if (localKey && sKey !== localKey) {
+                        html += `
+                            <button onclick="window.restoreSupabaseLocalKey()" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold w-full mb-1.5" style="position: relative; display: flex; justify-content: center; align-items: center;">
+                                <span style="position: absolute; left: 16px;">⭐</span>
+                                <span class="font-bold">還原為本機金鑰</span>
+                                <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${localKey})</span>
+                            </button>
+                        `;
+                    }
+                    const supabaseKeys = [
+                        { idx: 1, name: "水蛇許德拉", key: "0012k1i6d225", color: "text-sky-300", suffix: "(預設) (標準)" },
+                        { idx: 2, name: "太陽神阿波羅", key: "0012k1i6d226", color: "text-amber-300", suffix: "" },
+                        { idx: 3, name: "火神赫發斯特斯", key: "0012k1i6d227", color: "text-orange-300", suffix: "" },
+                        { idx: 4, name: "勝利女神雅典那", key: "0012k1i6d228", color: "text-green-300", suffix: "" },
+                        { idx: 5, name: "天后海拉", key: "0012k1i6d229", color: "text-rose-300", suffix: showLock },
+                        { idx: 6, name: "天神宙斯", key: "0012k1i6d230", color: "text-cyan-300", suffix: showLock }
+                    ];
+                    supabaseKeys.forEach(k => {
+                        html += `
+                            <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 ${k.color} font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="${k.key}">
+                                <span style="position: absolute; left: 16px;">${k.idx}.</span>
+                                <span class="font-bold">${k.name}</span>
+                                <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${k.suffix}</span>
+                            </button>
+                        `;
+                    });
                 }
-                if (btnCloud) {
-                    btnCloud.className = 'btn flex-1 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-white font-bold';
-                }
+                quickKeysList.innerHTML = html;
+            } else {
+                quickKeysHeader.style.display = 'none';
+                quickKeysList.style.display = 'none';
             }
         }
 
@@ -931,11 +1070,21 @@
         if (!mainMenu) return;
         if (document.getElementById('cloud-save-container')) return;
 
-        const showLock = (typeof window.openGMShop === 'function') ? '' : '🔒固定';
-
         const container = document.createElement('div');
         container.id = 'cloud-save-container';
         container.className = 'w-80 flex flex-col gap-3 mt-6 p-4 rounded-xl border border-slate-700 bg-slate-900/40 text-center';
+
+        const hasSupabase = (typeof window.switchToSupabaseMode === 'function');
+        const hasCloud = (typeof window.switchToCloudMode === 'function');
+
+        let buttonsHtml = `<button id="btn-switch-local" onclick="switchToLocalMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">切回本地</button>`;
+        if (hasSupabase) {
+            buttonsHtml += `<button id="btn-switch-supabase" onclick="switchToSupabaseMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">Supabase</button>`;
+        }
+        if (hasCloud) {
+            buttonsHtml += `<button id="btn-switch-cloud" onclick="switchToCloudMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">JsonBlob</button>`;
+        }
+
         container.innerHTML = `
             <div class="text-sm font-bold text-yellow-500">存檔儲存模式</div>
             <div id="storage-mode-status" class="text-xs text-slate-300 font-bold bg-slate-950/60 p-2.5 rounded border border-slate-800 flex justify-between items-center">
@@ -943,9 +1092,8 @@
                 <span id="current-storage-mode-text" class="font-bold text-green-400">本地模式</span>
             </div>
             
-            <div class="flex gap-2 w-full">
-                <button id="btn-switch-local" onclick="switchToLocalMode()" class="btn flex-1 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-white font-bold">切回本地</button>
-                <button id="btn-switch-cloud" onclick="switchToCloudMode()" class="btn flex-1 py-2 text-xs bg-indigo-700 hover:bg-indigo-600 text-white font-bold">切換雲端</button>
+            <div class="flex gap-1.5 w-full">
+                ${buttonsHtml}
             </div>
 
             <div id="cloud-settings-section" class="flex flex-col gap-3 border-t border-slate-800 pt-3" style="display: none;">
@@ -953,112 +1101,95 @@
                 <div class="w-full">
                     <button onclick="handleCloudSaveReadClick()" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold">手動讀取雲端</button>
                 </div>
-                <div class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
-                <div class="flex flex-col gap-1.5 text-sm">
-                    <div id="klh-custom-key-btn-container" class="flex flex-col gap-1.5 w-full"></div>
-                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-sky-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ed445-679f-7ae4-9f05-f887591d1266">
-                        <span style="position: absolute; left: 16px;">1.</span>
-                        <span class="font-bold">水蛇許德拉</span>
-                        <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(預設) (標準)</span>
-                    </button>
-                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-amber-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb1f-b31c-769f-8475-02be610a13b0">
-                        <span style="position: absolute; left: 16px;">2.</span>
-                        <span class="font-bold">太陽神阿波羅</span>
-                    </button>
-                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-orange-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-0d11-7569-a341-463d28054478">
-                        <span style="position: absolute; left: 16px;">3.</span>
-                        <span class="font-bold">火神赫發斯特斯</span>
-                    </button>
-                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-green-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-58de-78fd-8139-eca46c089de3">
-                        <span style="position: absolute; left: 16px;">4.</span>
-                        <span class="font-bold">勝利女神雅典那</span>
-                    </button>
-                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-rose-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-ad04-76f1-81df-d15d7b2d03d0">
-                        <span style="position: absolute; left: 16px;">5.</span>
-                        <span class="font-bold">天后海拉</span>
-                        <span id="lock-hella-tag" style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${showLock}</span>
-                    </button>
-                    <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-cyan-300 font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="019ebb3a-e777-7ab7-b744-aaab13066231">
-                        <span style="position: absolute; left: 16px;">6.</span>
-                        <span class="font-bold">天神宙斯</span>
-                        <span id="lock-zeus-tag" style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${showLock}</span>
-                    </button>
-                </div>
+                <div id="klh-quick-keys-header" class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
+                <div id="klh-quick-keys-list" class="flex flex-col gap-1.5 text-sm"></div>
             </div>
         `;
         mainMenu.appendChild(container);
 
         // 初始化狀態更新
         window.updateStorageModeUI();
-
-        const inputEl = document.getElementById('jsonblob-input');
-        if (inputEl) {
-            inputEl.placeholder = '019ed445-679f-7ae4-9f05-f887591d1266';
-            inputEl.value = window.activeKey;
-        }
     }
 
     // 攔截 saveGame() / saveWarehouse() / loadGame() / slotSummary()
-    const originalSaveGame = window.saveGame;
-    window.saveGame = async function () {
-        if (player && player.dead) return;
+    if (!window.__klh_save_game_wrapped) {
+        window.__klh_save_game_wrapped = true;
+        const originalSaveGame = window.saveGame;
+        window.saveGame = async function () {
+            if (player && player.dead) return;
 
-        // 🚀 開關開啟時，在寫檔前清理協力傭兵的背包與過濾設定以精簡存檔
-        let originalAllies = null;
-        if (window.CLEAN_ALLY_DATA_ON_SAVE && player && player.allies) {
-            originalAllies = JSON.parse(JSON.stringify(player.allies));
-            player.allies.forEach(ally => {
-                if (ally) {
-                    ally.inv = [];
-                    ally.junkPrefs = {};
+            // 🚀 開關開啟時，在寫檔前清理協力傭兵的背包與過濾設定以精簡存檔
+            let originalAllies = null;
+            if (window.CLEAN_ALLY_DATA_ON_SAVE && player && player.allies) {
+                originalAllies = JSON.parse(JSON.stringify(player.allies));
+                player.allies.forEach(ally => {
+                    if (ally) {
+                        ally.inv = [];
+                        ally.junkPrefs = {};
+                    }
+                });
+            }
+
+            originalSaveGame();
+
+            // 🚀 寫檔後立刻在記憶體中還原原本的傭兵背包與設定，確保對運行中的遊戲完全無副作用
+            if (originalAllies && player) {
+                player.allies = originalAllies;
+            }
+
+            let s = localStorage.getItem('lineage_idle_save_' + currentSlot);
+            if (s) {
+                try {
+                    let d = JSON.parse(s);
+                    d.difficulty = window.gameDifficulty;
+
+                    // 注入自定義設定，以防被原版 saveGame() 覆寫擦除
+                    if (d.p) {
+                        if (!d.p.config) d.p.config = {};
+                        let chkDroprate = document.getElementById('set-droprate');
+                        let chkAutoBuyDroprate = document.getElementById('set-auto-buy-droprate');
+                        let chkGodBless = document.getElementById('set-god-bless');
+
+                        d.p.config.setDroprate = chkDroprate ? chkDroprate.checked : false;
+                        d.p.config.setAutoBuyDroprate = chkAutoBuyDroprate ? chkAutoBuyDroprate.checked : false;
+                        d.p.config.setGodBless = chkGodBless ? chkGodBless.checked : false;
+                    }
+
+                    localStorage.setItem('lineage_idle_save_' + currentSlot, JSON.stringify(d));
+                } catch (e) { }
+            }
+
+            const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
+            if (storageMode === 'cloud') {
+                if (typeof window.uploadToCloud === 'function') {
+                    return await window.uploadToCloud();
                 }
-            });
-        }
-
-        originalSaveGame();
-
-        // 🚀 寫檔後立刻在記憶體中還原原本的傭兵背包與設定，確保對運行中的遊戲完全無副作用
-        if (originalAllies && player) {
-            player.allies = originalAllies;
-        }
-
-        let s = localStorage.getItem('lineage_idle_save_' + currentSlot);
-        if (s) {
-            try {
-                let d = JSON.parse(s);
-                d.difficulty = window.gameDifficulty;
-
-                // 注入自定義設定，以防被原版 saveGame() 覆寫擦除
-                if (d.p) {
-                    if (!d.p.config) d.p.config = {};
-                    let chkDroprate = document.getElementById('set-droprate');
-                    let chkAutoBuyDroprate = document.getElementById('set-auto-buy-droprate');
-                    let chkGodBless = document.getElementById('set-god-bless');
-
-                    d.p.config.setDroprate = chkDroprate ? chkDroprate.checked : false;
-                    d.p.config.setAutoBuyDroprate = chkAutoBuyDroprate ? chkAutoBuyDroprate.checked : false;
-                    d.p.config.setGodBless = chkGodBless ? chkGodBless.checked : false;
+            } else if (storageMode === 'supabase') {
+                if (typeof window.uploadToSupabase === 'function') {
+                    return await window.uploadToSupabase();
                 }
+            }
+        };
+    }
 
-                localStorage.setItem('lineage_idle_save_' + currentSlot, JSON.stringify(d));
-            } catch (e) { }
-        }
+    if (!window.__klh_save_warehouse_wrapped) {
+        window.__klh_save_warehouse_wrapped = true;
+        const originalSaveWarehouse = window.saveWarehouse;
+        window.saveWarehouse = async function (w) {
+            originalSaveWarehouse(w);
 
-        const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
-        if (storageMode === 'cloud') {
-            return await window.uploadToCloud();
-        }
-    };
-
-    const originalSaveWarehouse = window.saveWarehouse;
-    window.saveWarehouse = async function (w) {
-        originalSaveWarehouse(w);
-
-        const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
-        if (storageMode === 'cloud') {
-            return await window.uploadToCloud();
-        }
-    };
+            const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
+            if (storageMode === 'cloud') {
+                if (typeof window.uploadToCloud === 'function') {
+                    return await window.uploadToCloud();
+                }
+            } else if (storageMode === 'supabase') {
+                if (typeof window.uploadToSupabase === 'function') {
+                    return await window.uploadToSupabase();
+                }
+            }
+        };
+    }
 
     const originalLoadGame = window.loadGame;
     window.loadGame = function () {
@@ -2321,6 +2452,14 @@
             window.syncFromCloud(false).then(() => {
                 refreshLoadBtnVisibility();
             });
+        } else if (initialStorageMode === 'supabase') {
+            if (typeof window.syncFromSupabase === 'function') {
+                window.syncFromSupabase(false).then(() => {
+                    refreshLoadBtnVisibility();
+                });
+            } else {
+                refreshLoadBtnVisibility();
+            }
         } else {
             refreshLoadBtnVisibility();
         }
