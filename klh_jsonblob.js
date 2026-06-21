@@ -2643,32 +2643,36 @@
     }
 
     // 解決 iOS 虛擬鍵盤彈起導致網頁滾動、錯位且收起時不回彈的 bug
-    let isKeyboardOpened = false;
-    document.addEventListener('focusin', function (e) {
-        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
-            document.body.classList.add('m-keyboard-open');
-            isKeyboardOpened = true;
-        }
-    });
+    // ⚠ 防止與 klh_supabase.js 重複註冊（兩邊同時載入時只需一組 listener）
+    if (!window.__klh_keyboard_listeners_attached) {
+        window.__klh_keyboard_listeners_attached = true;
+        let isKeyboardOpened = false;
+        document.addEventListener('focusin', function (e) {
+            if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
+                document.body.classList.add('m-keyboard-open');
+                isKeyboardOpened = true;
+            }
+        });
 
-    document.addEventListener('focusout', function (e) {
-        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
-            document.body.classList.remove('m-keyboard-open');
-            isKeyboardOpened = false;
-            setTimeout(() => {
+        document.addEventListener('focusout', function (e) {
+            if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
+                document.body.classList.remove('m-keyboard-open');
+                isKeyboardOpened = false;
+                setTimeout(() => {
+                    window.scrollTo(0, 0);
+                    document.body.scrollTop = 0;
+                }, 50);
+            }
+        });
+
+        // 解決 iOS 鍵盤彈出時強行滾動視窗 (window scroll) 導致 fixed 佈局整體偏移飛走的 bug
+        window.addEventListener('scroll', function () {
+            if (isKeyboardOpened && (window.scrollY > 0 || document.body.scrollTop > 0)) {
                 window.scrollTo(0, 0);
                 document.body.scrollTop = 0;
-            }, 50);
-        }
-    });
-
-    // 解決 iOS 鍵盤彈出時強行滾動視窗 (window scroll) 導致 fixed 佈局整體偏移飛走的 bug
-    window.addEventListener('scroll', function () {
-        if (isKeyboardOpened && (window.scrollY > 0 || document.body.scrollTop > 0)) {
-            window.scrollTo(0, 0);
-            document.body.scrollTop = 0;
-        }
-    });
+            }
+        });
+    }
 
     document.addEventListener('DOMContentLoaded', startup);
     if (document.readyState === 'interactive' || document.readyState === 'complete') {
