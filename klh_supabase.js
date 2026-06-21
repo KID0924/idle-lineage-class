@@ -25,7 +25,7 @@
                     <button onclick="this.closest('#supabase-key-banner').remove()" style="color: #94a3b8; background: none; border: none; font-size: 16px; cursor: pointer; padding: 0 4px; line-height: 1; outline: none;">&times;</button>
                 </div>
                 <div style="font-size: 11px; color: #e2e8f0; margin-bottom: 8px; line-height: 1.4; text-align: left;">
-                    這是您的本機專屬金鑰，可用於多裝置存檔同步。請務必備份保存（點擊下方即可複製）：
+                    這是您的本機專屬金鑰，可用於多裝置存檔同步。<strong style="color: #f87171;">⚠️請務必熟記並妥善備份，此帳號遺失後無法查詢！</strong>（點擊下方即可複製）：
                 </div>
                 <div onclick="navigator.clipboard.writeText('${key}'); window.showToast('雲端金鑰已成功複製到剪貼簿！', 'success');" style="background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 16px; font-weight: bold; color: #22d3ee; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 6px; transition: background 0.2s;" onmouseover="this.style.background='#0f172a'" onmouseout="this.style.background='#020617'">
                     <span>${key}</span>
@@ -51,7 +51,7 @@
                     <div style="font-size: 40px; margin-bottom: 12px;">🎉</div>
                     <div style="font-size: 18px; font-weight: bold; color: #fbbf24; margin-bottom: 10px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">雲端金鑰建立成功！</div>
                     <div style="font-size: 13px; color: #e2e8f0; line-height: 1.5; margin-bottom: 16px;">
-                        這是您的本機專屬雲端金鑰，可用於多裝置存檔同步。請務必妥善備份保存：
+                        這是您的本機專屬雲端金鑰，可用於多裝置存檔同步。<strong style="color: #f87171;">⚠️請務必熟記並妥善備份，此帳號遺失後無法查詢！</strong>
                     </div>
                     <div onclick="navigator.clipboard.writeText('${key}'); window.showToast('雲端金鑰已成功複製到剪貼簿！', 'success');" style="background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 20px; font-weight: bold; color: #22d3ee; letter-spacing: 1px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px; transition: background 0.2s;" onmouseover="this.style.background='#0f172a'" onmouseout="this.style.background='#020617'">
                         <span>${key}</span>
@@ -578,6 +578,7 @@
                     <div class="w-full">
                         <button id="btn-cloud-read" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold"></button>
                     </div>
+                    <div id="klh-restore-key-container" class="w-full"></div>
                     <div id="klh-quick-keys-header" class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
                     <div id="klh-quick-keys-list" class="flex flex-col gap-1.5 text-sm"></div>
                 </div>
@@ -702,17 +703,6 @@
                             `;
                         });
                     } else {
-                        const sKey = localStorage.getItem('klh_supabase_key') || '';
-                        const localKey = localStorage.getItem('klh_supabase_local_key') || '';
-                        if (localKey && sKey !== localKey) {
-                            html += `
-                                <button onclick="window.restoreSupabaseLocalKey()" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold w-full mb-1.5" style="position: relative; display: flex; justify-content: center; align-items: center;">
-                                    <span style="position: absolute; left: 16px;">⭐</span>
-                                    <span class="font-bold">還原為本機雲端金鑰</span>
-                                    <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${localKey})</span>
-                                </button>
-                            `;
-                        }
                         const supabaseKeys = [
                             { idx: 1, name: "水蛇許德拉", key: "0012k1i6d225", color: "text-sky-300", suffix: "(預設) (標準)" },
                             { idx: 2, name: "太陽神阿波羅", key: "0012k1i6d226", color: "text-amber-300", suffix: "" },
@@ -925,7 +915,56 @@
             }
 
             if (!data) {
-                window.showToast('雲端無存檔或金鑰已失效！如果是全新金鑰，請進行手動存檔初始化。', 'error');
+                const localKey = localStorage.getItem('klh_supabase_local_key') || '';
+                if (key === localKey && localKey) {
+                    // 本地金鑰失效（例如超過 20 天未登入被 Supabase 清理），自動生成新金鑰
+                    const newKey = generatePlayerID();
+                    console.warn(`[Supabase] 本機專屬金鑰 ${key} 已失效，自動重置並生成新金鑰 ${newKey}`);
+                    
+                    window.showToast('偵測到本機雲端金鑰已失效（可能因久未使用被清理），正在為您生成新金鑰...', 'info');
+                    
+                    try {
+                        const initialTemplate = {
+                            "save_1": null,
+                            "save_2": null,
+                            "save_3": null,
+                            "save_4": null,
+                            "warehouse": null
+                        };
+                        const { error: initError } = await supabase
+                            .rpc('save_player_save', {
+                                player_id: newKey,
+                                new_save_data: initialTemplate
+                            });
+
+                        if (initError) throw initError;
+
+                        // 寫入本機設定，本機金鑰與當前金鑰同步
+                        localStorage.setItem('klh_supabase_key', newKey);
+                        localStorage.setItem('klh_supabase_local_key', newKey);
+
+                        // 同步本地快取並上傳
+                        if (typeof window.copyLocalSavesToCloudCache === 'function') {
+                            window.copyLocalSavesToCloudCache();
+                        }
+                        await window.uploadToSupabase(false, true);
+
+                        if (typeof window.updateStorageModeUI === 'function') {
+                            window.updateStorageModeUI();
+                        }
+
+                        if (typeof window.showSupabaseKeyModal === 'function') {
+                            window.showSupabaseKeyModal(newKey);
+                        } else {
+                            alert(`【金鑰重置成功】因舊金鑰失效，已為您生成新雲端備份金鑰為:\n\n${newKey}\n\n⚠️請務必截圖或複製妥善保存，本系統無法提供查詢！`);
+                        }
+                    } catch (err2) {
+                        console.error("[Supabase] 自動生成新金鑰失敗:", err2);
+                        window.showToast('自動生成新金鑰失敗，請檢查網路連線。', 'error');
+                    }
+                } else {
+                    window.showToast('雲端無存檔或金鑰已失效！如果是全新金鑰，請進行手動存檔初始化。', 'error');
+                }
                 return;
             }
 
@@ -1038,7 +1077,7 @@
                 } else if (typeof window.showSupabaseKeyModal === 'function') {
                     window.showSupabaseKeyModal(key);
                 } else {
-                    alert(`【新創大成功】您的雲端備份金鑰為:\n\n${key}\n\n請務必截圖妥善保存！`);
+                    alert(`【新創大成功】您的雲端備份金鑰為:\n\n${key}\n\n⚠️請務必熟記並截圖妥善保存，本系統無法提供查詢！`);
                 }
             } catch (err) {
                 console.error("[Supabase] 創立新帳號失敗:", err);
@@ -1107,6 +1146,7 @@
                 return;
             }
             localStorage.setItem('klh_supabase_key', key);
+            // We do NOT overwrite klh_supabase_local_key when manually logging in.
             localStorage.setItem('klh_storage_mode', 'supabase');
             if (typeof window.updateStorageModeUI === 'function') {
                 window.updateStorageModeUI();

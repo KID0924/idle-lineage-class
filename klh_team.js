@@ -508,15 +508,29 @@
                 return; // 過濾重定向玩家補血 log
             }
 
-            // 如果是傭兵攻擊，將輸出的傷害數值進行倍率調整顯示
+            // 如果是傭兵攻擊，進行動態血條替換與傷害倍率調整
             if (isAllyAttacking) {
+                // 動態替換原版寫死的初始血條為當下血條
+                if (player && player.allies) {
+                    player.allies.forEach(ally => {
+                        if (ally && ally._allyName && msg.includes(ally._allyName)) {
+                            msg = msg.replace(ally._allyName, allyName(ally));
+                        }
+                    });
+                }
+
+                // 傷害倍率調整
                 msg = msg.replace(/(造成\s*(?:<span[^>]*>)?\s*)(\d+)(\s*(?:<\/span>)?\s*點傷害)/g, function (match, prefix, numStr, suffix) {
                     let num = parseInt(numStr);
                     let reducedNum = Math.max(1, Math.floor(num * CONFIG.MERC_DAMAGE_SCALE));
                     return prefix + reducedNum + suffix;
                 });
             }
-            return originalLogCombat.apply(this, arguments);
+            
+            // 修正 strict mode 下 arguments 的問題，確保傳遞修改後的 msg
+            let args = Array.from(arguments);
+            args[0] = msg;
+            return originalLogCombat.apply(this, args);
         };
         window.logCombat.isHooked = true;
     }
@@ -675,8 +689,9 @@
                 isAllyAttacking = false;
                 // 恢復原版 curHp 屬性描述，防止內建模擬機制或保存數據異常
                 cleanupList.forEach(item => {
+                    let finalHp = item.mob.curHp;
                     delete item.mob.curHp;
-                    item.mob.curHp = item.orig;
+                    item.mob.curHp = finalHp;
                 });
             }
         };

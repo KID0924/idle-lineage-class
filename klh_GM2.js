@@ -117,7 +117,7 @@
             n: "掉寶藥水",
             type: "pot",
             req: "all",
-            p: 1000,
+            p: 10000,
             c: "text-green-300 font-bold",
             d: "獲得金幣x2、裝備掉落率x3、材料掉落率x2，持續 300 秒",
             eff: "droprate",
@@ -130,7 +130,7 @@
             n: "神之祝福藥水",
             type: "pot",
             req: "all",
-            p: 10000,
+            p: 100000,
             c: "text-yellow-300 font-bold",
             d: "怪物掉落裝備時祝福機率x3、附加席琳套裝效果機率x2，持續 300 秒 (無法自動購買)",
             eff: "god_bless",
@@ -316,7 +316,7 @@
 
     window.kristaExchange = function (kind) {
         if (kind === 'god_bless_1' || kind === 'god_bless_20') {
-            let cost = (kind === 'god_bless_1') ? 10000 : 200000;
+            let cost = (kind === 'god_bless_1') ? 100000 : 2000000;
             let count = (kind === 'god_bless_1') ? 1 : 20;
 
             if ((player.gold || 0) < cost) {
@@ -334,37 +334,6 @@
 
             let _e = document.getElementById('interaction-content');
             if (_e) renderKristaExchange(_e);
-        } else if (kind === 'wpn' || kind === 'arm' || kind === 'acc' || kind === 'uncurse') {
-            let cost = 10000;
-            let count = 20;
-            let outId = {
-                wpn: 'new_item_bless_wpn',
-                arm: 'new_item_bless_arm',
-                acc: 'new_item_bless_acc',
-                uncurse: 'new_item_uncurse'
-            }[kind];
-            let outNm = {
-                wpn: '賦予武器祝福卷軸',
-                arm: '賦予盔甲祝福卷軸',
-                acc: '賦予飾品祝福卷軸',
-                uncurse: '解除詛咒的卷軸'
-            }[kind];
-
-            if ((player.gold || 0) < cost) {
-                logSys(`<span class="text-red-400">金幣不足（需 ${cost.toLocaleString()}）。</span>`);
-                return;
-            }
-
-            player.gold -= cost;
-            gainItem(outId, count, true, true);
-            renderTabs();
-            updateUI();
-            saveGame();
-
-            logSys(`花費 ${cost.toLocaleString()} 金幣，換得 ${count} 張 <span class="text-purple-300 font-bold">${outNm}</span>。`);
-
-            let _e = document.getElementById('interaction-content');
-            if (_e) renderKristaExchange(_e);
         } else {
             if (typeof originalKristaExchange === 'function') {
                 originalKristaExchange(kind);
@@ -373,29 +342,24 @@
     };
 
     window.renderKristaExchange = function (el) {
-        let row = (kind, outNm, colorClass) => `
-            <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
-                <div class="text-sm text-slate-200 leading-relaxed">10,000 金幣 → 20 張 <span class="${colorClass} font-bold">${outNm}</span></div>
-                <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('${kind}')">兌換</button>
-            </div>`;
+        if (typeof originalRenderKristaExchange === 'function') {
+            originalRenderKristaExchange(el);
+        }
 
-        el.innerHTML = `
-            <div class="flex flex-col gap-3 p-1">
-                <div class="text-slate-300 text-sm leading-relaxed">克里斯特：把施法卷軸與金幣交給我，我能煉成『賦予祝福卷軸』。</div>
-                <div class="text-sm">你的金幣：<span class="text-yellow-400 font-bold">${(player.gold || 0).toLocaleString()}</span></div>
-                ${row('wpn', '賦予武器祝福卷軸', 'text-purple-300')}
-                ${row('arm', '賦予盔甲祝福卷軸', 'text-purple-300')}
-                ${row('acc', '賦予飾品祝福卷軸', 'text-purple-300')}
-                ${row('uncurse', '解除詛咒的卷軸', 'text-cyan-200')}
+        let container = el.querySelector('.flex-col');
+        if (container) {
+            let blessRow1 = `
                 <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
-                    <div class="text-sm text-slate-200 leading-relaxed">10,000 金幣 → 1 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
+                    <div class="text-sm text-slate-200 leading-relaxed">100,000 金幣 → 1 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
                     <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_1')">兌換</button>
-                </div>
+                </div>`;
+            let blessRow20 = `
                 <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
-                    <div class="text-sm text-slate-200 leading-relaxed">200,000 金幣 → 20 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
+                    <div class="text-sm text-slate-200 leading-relaxed">2,000,000 金幣 → 20 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
                     <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_20')">兌換</button>
-                </div>
-            </div>`;
+                </div>`;
+            container.insertAdjacentHTML('beforeend', blessRow1 + blessRow20);
+        }
     };
 
     // 8. 掉寶與神之祝福核心機制 (Monkey Patch 掉落系統)
@@ -678,6 +642,12 @@
         item: { active: false, sel: {} }
     };
 
+    window.quickUnlock = {
+        wpn: { active: false, sel: {} },
+        arm: { active: false, sel: {} },
+        item: { active: false, sel: {} }
+    };
+
     // 取得該分頁可被批量賣出的背包物品 (未鎖定、非裝備在身上的物品，並排除不可販售物品)
     window._qsEligibleItems = function (type) {
         if (typeof player === 'undefined' || !player || !player.inv) return [];
@@ -691,8 +661,44 @@
         });
     };
 
-    // 建立批量賣出頭部 UI
+    // 取得該分頁可被批量解鎖的背包物品 (已鎖定、非裝備在身上的物品)
+    window._quEligibleItems = function (type) {
+        if (typeof player === 'undefined' || !player || !player.inv) return [];
+        return player.inv.filter(i => {
+            let d = DB.items[i.id];
+            if (!d || !i.lock) return false;
+            if (type === 'wpn') return d.type === 'wpn';
+            if (type === 'arm') return d.type === 'arm' || d.type === 'acc';
+            return d.type !== 'wpn' && d.type !== 'arm' && d.type !== 'acc';
+        });
+    };
+
+    // 建立批量賣出與解鎖頭部 UI
     window.buildQuickSellHeader = function (type) {
+        // 批量解鎖啟用中
+        if (window.quickUnlock && window.quickUnlock[type].active) {
+            let st = window.quickUnlock[type];
+            let eligible = _quEligibleItems(type);
+            let allSel = eligible.length > 0 && eligible.every(i => st.sel[i.uid]);
+            let someSel = eligible.some(i => st.sel[i.uid]);
+            let totalCount = eligible.filter(i => st.sel[i.uid]).length;
+
+            let hdr = document.createElement('div');
+            hdr.className = 'sticky top-0 z-10 mb-1 bg-slate-900 pb-1 flex gap-1';
+            hdr.innerHTML = `<div class="flex items-center gap-1 bg-slate-900/80 border border-red-700 rounded p-1 w-full">
+                <button onclick="cancelQuickUnlock('${type}')" class="btn border-slate-600 bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs font-bold text-white rounded">取消</button>
+                <button onclick="runQuickUnlock('${type}')" class="btn border-red-600 bg-red-800 hover:bg-red-700 px-2 py-1 text-xs font-bold text-red-200 rounded">🔓 解鎖 (${totalCount} 件物品)</button>
+                <label class="flex items-center gap-1 text-xs text-slate-300 cursor-pointer select-none whitespace-nowrap ml-auto">
+                    <input type="checkbox" ${allSel ? 'checked' : ''} onchange="quickUnlockSelectAll('${type}', this.checked)"> 全選
+                </label>
+            </div>`;
+
+            let cb = hdr.querySelector('label input');
+            if (cb) cb.indeterminate = someSel && !allSel;
+            return hdr;
+        }
+
+        // 批量賣出啟用中
         let st = window.quickSell[type];
         let hdr = document.createElement('div');
         hdr.className = 'sticky top-0 z-10 mb-1 bg-slate-900 pb-1 flex gap-1';
@@ -700,7 +706,10 @@
         if (!st.active) {
             hdr.className = 'sticky top-0 z-10 mb-1 bg-slate-900 pb-1 flex flex-col gap-1';
             hdr.innerHTML = `
-                <button onclick="toggleQuickSell('${type}')" class="w-full btn border-amber-700 bg-amber-900/70 hover:bg-amber-800 py-1.5 text-sm font-bold text-amber-200 rounded shadow">💰 批量賣出</button>
+                <div class="flex gap-1 w-full">
+                    <button onclick="toggleQuickSell('${type}')" class="flex-1 btn border-amber-700 bg-amber-900/70 hover:bg-amber-800 py-1 text-xs font-bold text-amber-200 rounded shadow">💰 批量賣出</button>
+                    <button onclick="toggleQuickUnlock('${type}')" class="flex-1 btn border-red-700 bg-red-900/70 hover:bg-red-800 py-1 text-xs font-bold text-red-200 rounded shadow shadow-md">🔓 批量解鎖</button>
+                </div>
                 <div class="flex gap-1 w-full">
                     <input type="text" id="fuzzy-sell-input-${type}" placeholder="模糊搜尋 (如: 匕首)..." class="flex-1 bg-slate-950 border border-slate-700 text-white rounded text-xs px-2 py-1" onkeydown="if(event.key==='Enter') runFuzzySearch('${type}')">
                     <button onclick="runFuzzySearch('${type}')" class="btn border-sky-700 bg-sky-900/70 hover:bg-sky-800 py-1 px-3 text-xs font-bold text-sky-200 rounded shadow shrink-0">🔍 搜尋</button>
@@ -747,6 +756,12 @@
             quickEnh[type].sel = {};
         }
 
+        // 互斥：關閉該分頁的批量解鎖模式
+        if (window.quickUnlock && window.quickUnlock[type]) {
+            window.quickUnlock[type].active = false;
+            window.quickUnlock[type].sel = {};
+        }
+
         renderTabs(true);
     };
 
@@ -777,6 +792,79 @@
             st.sel[uid] = true;
         }
         renderTabs(true);
+    };
+
+    // 切換至批量解鎖模式
+    window.toggleQuickUnlock = function (type) {
+        let st = window.quickUnlock[type];
+        st.active = true;
+        st.sel = {};
+
+        // 互斥：關閉該分頁的批量賣出模式
+        if (window.quickSell && window.quickSell[type]) {
+            window.quickSell[type].active = false;
+            window.quickSell[type].sel = {};
+        }
+        // 互斥：關閉該分頁的快速強化模式
+        if (typeof quickEnh !== 'undefined' && quickEnh[type]) {
+            quickEnh[type].active = false;
+            quickEnh[type].sel = {};
+        }
+
+        renderTabs(true);
+    };
+
+    // 取消批量解鎖模式
+    window.cancelQuickUnlock = function (type) {
+        let st = window.quickUnlock[type];
+        st.active = false;
+        st.sel = {};
+        renderTabs(true);
+    };
+
+    // 勾選單個已鎖定物品
+    window.toggleQuickUnlockItem = function (type, uid) {
+        let st = window.quickUnlock[type];
+        if (st.sel[uid]) {
+            delete st.sel[uid];
+        } else {
+            st.sel[uid] = true;
+        }
+        renderTabs(true);
+    };
+
+    // 批量全選 / 全不選 (解鎖模式)
+    window.quickUnlockSelectAll = function (type, checked) {
+        let st = window.quickUnlock[type];
+        st.sel = {};
+        if (checked) {
+            _quEligibleItems(type).forEach(i => st.sel[i.uid] = true);
+        }
+        renderTabs(true);
+    };
+
+    // 執行批量解鎖
+    window.runQuickUnlock = function (type) {
+        let st = window.quickUnlock[type];
+        let entries = _quEligibleItems(type).filter(i => st.sel[i.uid]);
+        if (!entries.length) {
+            logSys(`<span class="text-red-400 font-bold">尚未勾選任何已鎖定物品。</span>`);
+            return;
+        }
+
+        let count = 0;
+        entries.forEach(entry => {
+            entry.lock = false;
+            count++;
+        });
+
+        st.active = false;
+        st.sel = {};
+
+        logSys(`<span class="text-green-400 font-bold">批量解鎖完成！已成功解鎖 ${count} 件物品。</span>`);
+        updateUI();
+        renderTabs(true);
+        saveGame();
     };
 
     // 執行批量賣出
@@ -942,13 +1030,17 @@
         saveGame();
     };
 
-    // 互斥處理：覆寫 window.toggleQuickEnhance，點擊快速強化時主動關閉批量賣出
+    // 互斥處理：覆寫 window.toggleQuickEnhance，點擊快速強化時主動關閉批量賣出與解鎖
     const originalToggleQuickEnhance = window.toggleQuickEnhance;
     if (typeof originalToggleQuickEnhance === 'function') {
         window.toggleQuickEnhance = function (type) {
             if (window.quickSell && window.quickSell[type]) {
                 window.quickSell[type].active = false;
                 window.quickSell[type].sel = {};
+            }
+            if (window.quickUnlock && window.quickUnlock[type]) {
+                window.quickUnlock[type].active = false;
+                window.quickUnlock[type].sel = {};
             }
             originalToggleQuickEnhance(type);
         };
@@ -1018,7 +1110,7 @@
         };
     }
 
-    // 覆寫 window.renderTabs 整合快速強化與批量賣出
+    // 覆寫 window.renderTabs 整合快速強化、批量賣出與解鎖
     window.renderTabs = function (force) {
         if (state.ff) return; // 補跑期間不刷新畫面
         // ===== 內容簽章：背包/裝備/技能等實際內容沒變時直接跳過重建 =====
@@ -1028,7 +1120,9 @@
             let qsSel = window.quickSell ? (Object.keys(window.quickSell.wpn.sel).join(',') + ';' + Object.keys(window.quickSell.arm.sel).join(',') + ';' + Object.keys(window.quickSell.item.sel).join(',')) : '';
             let qeActive = typeof quickEnh !== 'undefined' ? (quickEnh.wpn.active + '.' + quickEnh.arm.active) : '';
             let qeSel = typeof quickEnh !== 'undefined' ? (Object.keys(quickEnh.wpn.sel).join(',') + ';' + Object.keys(quickEnh.arm.sel).join(',')) : '';
-            return `${baseSig}#${qsActive}#${qsSel}#${qeActive}#${qeSel}`;
+            let quActive = window.quickUnlock ? (window.quickUnlock.wpn.active + '.' + window.quickUnlock.arm.active + '.' + window.quickUnlock.item.active) : '';
+            let quSel = window.quickUnlock ? (Object.keys(window.quickUnlock.wpn.sel).join(',') + ';' + Object.keys(window.quickUnlock.arm.sel).join(',') + ';' + Object.keys(window.quickUnlock.item.sel).join(',')) : '';
+            return `${baseSig}#${qsActive}#${qsSel}#${qeActive}#${qeSel}#${quActive}#${quSel}`;
         })();
         if (!force && _sig === window.renderTabs._sig) return;
         window.renderTabs._sig = _sig;
@@ -1136,9 +1230,10 @@
 
             let _rowInner = `<div class="flex items-center gap-2">${imgHtml}<span class="${getItemColor(i)} font-bold">${getItemFullName(i)}</span> ${statusTag} ${i.lock ? '<span class="text-xs text-red-500">[🔒]</span>' : ''} ${(i.junk && !i.lock) ? '<span class="text-xs text-amber-400 font-bold">[廢]</span>' : ''}</div>`;
 
-            // ⚡ 快速強化 / 批量賣出模式切換與渲染
+            // ⚡ 快速強化 / 批量賣出 / 批量解鎖模式切換與渲染
             let _qeType = (d.type === 'wpn' && !d.isArrow) ? 'wpn' : ((d.type === 'arm' || d.type === 'acc') ? 'arm' : null);
             let _qsType = (d.type === 'wpn') ? 'wpn' : ((d.type === 'arm' || d.type === 'acc') ? 'arm' : 'item');
+            let _quType = (d.type === 'wpn') ? 'wpn' : ((d.type === 'arm' || d.type === 'acc') ? 'arm' : 'item');
 
             if (_qeType && quickEnh[_qeType].active && !i.lock) {
                 let _checked = !!quickEnh[_qeType].sel[i.uid];
@@ -1151,6 +1246,12 @@
                 el.innerHTML = `<div class="flex items-center justify-between gap-2">${_rowInner}<input type="checkbox" class="pointer-events-none w-4 h-4 mr-1 flex-shrink-0" ${_checked ? 'checked' : ''}></div>`;
                 if (_checked) el.className += ' ring-2 ring-amber-500/70';
                 el.onclick = () => toggleQuickSellItem(_qsType, i.uid);
+            }
+            else if (_quType && window.quickUnlock && window.quickUnlock[_quType].active && i.lock) {
+                let _checked = !!window.quickUnlock[_quType].sel[i.uid];
+                el.innerHTML = `<div class="flex items-center justify-between gap-2">${_rowInner}<input type="checkbox" class="pointer-events-none w-4 h-4 mr-1 flex-shrink-0" ${_checked ? 'checked' : ''}></div>`;
+                if (_checked) el.className += ' ring-2 ring-red-500/70';
+                el.onclick = () => toggleQuickUnlockItem(_quType, i.uid);
             }
             else {
                 el.innerHTML = _rowInner;
@@ -1260,10 +1361,10 @@ window.interactNPC = function (npcId, townId) {
 
 function getRebirthPointsByLv(lv) {
     // 原公式：Math.floor(Math.sqrt(difficulty)) + 1
-    // const mult = (typeof getExpGainMult === 'function') ? getExpGainMult(lv) : (1 / 8);
-    // const difficulty = mult > 0 ? (1 / mult) : 1024;
-    // return Math.floor(Math.sqrt(difficulty)) + 1;
-    return Math.floor((lv - 50) / 2);
+    const mult = (typeof getExpGainMult === 'function') ? getExpGainMult(lv) : (1 / 8);
+    const difficulty = mult > 0 ? (1 / mult) : 1024;
+    return Math.floor(Math.sqrt(difficulty)) + 1;
+    // return Math.floor((lv - 50) / 2);
 }
 
 function renderRebirthNPC(div) {
@@ -1297,7 +1398,7 @@ function renderRebirthNPC(div) {
                     <div>1. **等級限制**：等級達到 <b class="text-orange-400">75 等</b> 以上方可進行轉生。</div>
                     <div>2. **轉生後狀態**：等級重置為 <b class="text-yellow-400">1 等</b>，經驗值歸零。</div>
                     <div>3. **屬性保留**：您之前分配的屬性點數、基礎屬性、以及萬能藥加成將**完全保留**。</div>
-                    <div>4. **額外屬性點**：每次轉生時，您將額外獲得依當前等級計算的自由分配點數 <b>(等級 - 50) / 2</b> 點（例如：75等送 12 點，80等送 15 點，90等送 20 點）。</div>
+                    <div>4. **額外屬性點**：每次轉生時，您將額外獲得依當前等級（經驗衰減難度）計算的自由分配屬性點（例如：75等送 3 點，80等送 6 點，90等送 33 點，等級越高獲得點數越多）。</div>
                     <div>5. **回憶蠟燭保護**：轉生獲得的點數將受到系統保護，使用「回憶蠟燭」重置時不會遺失。</div>
                 </div>
                 

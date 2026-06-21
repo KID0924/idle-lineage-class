@@ -25,9 +25,9 @@
         // 調整係數 (方便未來微調，附上各稀有度平均基礎 W 值與平均最終權重)
         const multExtreme = 1;  // 極度稀有 (價格 > 100,000)：平均 W = 1.00，平均最終權重 = 1.00 * 0.5 = 0.5
         const multRare = 1;  // 稀有 (價格 > 30,000)：平均 W = 9.88，平均最終權重 = 9.88 * 0.5 = 4.94
-        const multUncommon = 1;    // 罕見 (價格 > 10,000)：平均 W = 13.41，平均最終權重 = 13.41 * 2 = 26.82
-        const multCommon = 1;    // 一般 (價格 > 1,000)：平均 W = 46.13，平均最終權重 = 46.13 * 3 = 138.39
-        const multJunk = 1;   // 便宜貨 (價格 <= 1,000)：平均 W = 73.12，平均最終權重 = 73.12 * 10 = 731.2
+        const multUncommon = 2;    // 罕見 (價格 > 10,000)：平均 W = 13.41，平均最終權重 = 13.41 * 2 = 26.82
+        const multCommon = 3;    // 一般 (價格 > 1,000)：平均 W = 46.13，平均最終權重 = 46.13 * 3 = 138.39
+        const multJunk = 10;   // 便宜貨 (價格 <= 1,000)：平均 W = 73.12，平均最終權重 = 73.12 * 10 = 731.2
 
         for (let id in DB.items) {
             let item = DB.items[id];
@@ -91,12 +91,12 @@
         return pool[pool.length - 1].id;
     }
 
-    // 取得動態抽獎價格（單抽固定 9999 金幣，十抽 10 倍，百抽 100 倍）
+    // 取得動態抽獎價格（單抽固定 9999 金幣，十抽 10 倍，百抽 100 倍且百連加收 10 倍魔力維持費）
     function getSisterGachaCost(mode) {
         let base = 9999;
         if (mode === 'single') return base;
         if (mode === 'ten') return base * 10;
-        if (mode === 'hundred') return base * 100;
+        if (mode === 'hundred') return base * 1000;
         return base;
     }
 
@@ -121,7 +121,7 @@
         let costTen = getSisterGachaCost('ten');
         let costHundred = getSisterGachaCost('hundred');
 
-        let warningHtml = ``;
+        let warningHtml = `<p class="text-red-400 text-[10px] mb-0.5 text-center font-bold">⚠️ 召喚百次法陣將導致空間震盪，百連抽需加收 10 倍魔力維持費！</p>`;
 
         let html = `
         <div class="flex flex-col items-center justify-start h-full p-2 w-full">

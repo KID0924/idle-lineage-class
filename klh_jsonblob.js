@@ -164,6 +164,13 @@
             localStorage.removeItem('klh_jsonblob_key'); // 刪除多餘的新金鑰欄位
         }
     }
+
+    // 初始化本機專屬金鑰
+    let localKeyVal = localStorage.getItem('klh_jsonblob_local_key');
+    if (!localKeyVal && initialKey) {
+        localStorage.setItem('klh_jsonblob_local_key', initialKey);
+    }
+
     window.activeKey = initialKey || "019ed445-679f-7ae4-9f05-f887591d1266";
     window.gameDifficulty = 'standard';
     window._slotMode = 'new';
@@ -661,6 +668,10 @@
         window.activeKey = key;
         localStorage.setItem('lineage_idle_jsonblob_url', key);
 
+        if (!localStorage.getItem('klh_jsonblob_local_key')) {
+            localStorage.setItem('klh_jsonblob_local_key', key);
+        }
+
         const inputEl = document.getElementById('jsonblob-input');
         if (inputEl) inputEl.value = key;
     };
@@ -900,7 +911,9 @@
                 window.showToast('金鑰格式錯誤！必須為 36 碼 UUID 格式 (例如: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)', 'error');
                 return;
             }
-            window.saveJsonBlobConfig(key);
+            const rememberChk = document.getElementById('chk-remember-key');
+            const remember = rememberChk ? rememberChk.checked : true;
+            window.saveJsonBlobConfig(key, remember);
             localStorage.setItem('klh_storage_mode', 'cloud'); // 🚀 切換至雲端模式
             window.updateStorageModeUI();
             await window.syncFromCloud(true);
@@ -915,7 +928,9 @@
                 window.showToast('金鑰格式錯誤！必須為 36 碼 UUID 格式 (例如: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)', 'error');
                 return;
             }
-            window.saveJsonBlobConfig(key);
+            const rememberChk = document.getElementById('chk-remember-key');
+            const remember = rememberChk ? rememberChk.checked : true;
+            window.saveJsonBlobConfig(key, remember);
             localStorage.setItem('klh_storage_mode', 'cloud'); // 🚀 切換至雲端模式
             window.updateStorageModeUI();
 
@@ -1035,6 +1050,36 @@
             }
         }
 
+        const restoreContainer = document.getElementById('klh-restore-key-container');
+        if (restoreContainer) {
+            restoreContainer.innerHTML = '';
+            if (mode === 'supabase') {
+                const sKey = localStorage.getItem('klh_supabase_key') || '';
+                const localKey = localStorage.getItem('klh_supabase_local_key') || '';
+                if (localKey && sKey !== localKey) {
+                    restoreContainer.innerHTML = `
+                        <button onclick="window.restoreSupabaseLocalKey()" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold w-full mb-1.5" style="position: relative; display: flex; justify-content: center; align-items: center;">
+                            <span style="position: absolute; left: 16px;">⭐</span>
+                            <span class="font-bold">還原為本機雲端金鑰</span>
+                            <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${localKey})</span>
+                        </button>
+                    `;
+                }
+            } else if (mode === 'cloud') {
+                const localKey = localStorage.getItem('klh_jsonblob_local_key') || '';
+                const activeK = window.activeKey || '';
+                if (localKey && activeK !== localKey) {
+                    restoreContainer.innerHTML = `
+                        <button onclick="window.restoreJsonBlobLocalKey()" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold w-full mb-1.5" style="position: relative; display: flex; justify-content: center; align-items: center;">
+                            <span style="position: absolute; left: 16px;">⭐</span>
+                            <span class="font-bold">還原為本機雲端金鑰</span>
+                            <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${localKey.substring(0, 8)}...)</span>
+                        </button>
+                    `;
+                }
+            }
+        }
+
         // 動態渲染快速公用金鑰清單
         if (quickKeysHeader && quickKeysList) {
             if (mode === 'cloud' || mode === 'supabase') {
@@ -1064,17 +1109,6 @@
                         `;
                     });
                 } else {
-                    const sKey = localStorage.getItem('klh_supabase_key') || '';
-                    const localKey = localStorage.getItem('klh_supabase_local_key') || '';
-                    if (localKey && sKey !== localKey) {
-                        html += `
-                            <button onclick="window.restoreSupabaseLocalKey()" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold w-full mb-1.5" style="position: relative; display: flex; justify-content: center; align-items: center;">
-                                <span style="position: absolute; left: 16px;">⭐</span>
-                                <span class="font-bold">還原為本機雲端金鑰</span>
-                                <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${localKey})</span>
-                            </button>
-                        `;
-                    }
                     const supabaseKeys = [
                         { idx: 1, name: "水蛇許德拉", key: "0012k1i6d225", color: "text-sky-300", suffix: "(預設) (標準)" },
                         { idx: 2, name: "太陽神阿波羅", key: "0012k1i6d226", color: "text-amber-300", suffix: "" },
@@ -1116,6 +1150,16 @@
                 customContainer.innerHTML = '';
             }
         }
+    };
+
+    window.restoreJsonBlobLocalKey = async function () {
+        const localKey = localStorage.getItem('klh_jsonblob_local_key') || '';
+        if (!localKey) return;
+        window.saveJsonBlobConfig(localKey);
+        if (typeof window.updateStorageModeUI === 'function') {
+            window.updateStorageModeUI();
+        }
+        await window.syncFromCloud(true);
     };
 
     window.switchToLocalMode = function () {
@@ -1191,6 +1235,7 @@
                 <div class="w-full">
                     <button id="btn-cloud-read" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold"></button>
                 </div>
+                <div id="klh-restore-key-container" class="w-full"></div>
                 <!-- <div id="klh-quick-keys-header" class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
                 <div id="klh-quick-keys-list" class="flex flex-col gap-1.5 text-sm"></div> -->
             </div>
@@ -2431,7 +2476,7 @@
                 <div class="flex flex-col gap-3.5 text-sm text-slate-300 leading-relaxed">
                     <div>
                         <span class="font-bold text-amber-300">1. 全新雲端存檔功能</span>
-                        <p class="pl-4 text-slate-400">支援系統自然產出的專屬雲端金鑰。</p>
+                        <p class="pl-4 text-slate-400">支援系統自然產出的專屬雲端金鑰。<strong class="text-rose-400">（⚠️請務必熟記並保存金鑰。）</strong></p>
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">2. 難易度自由切換</span>
