@@ -95,7 +95,7 @@ jobs:
           <!-- 傭兵生存戰鬥血魔擴充模組 -->
           <script src="klh_supabase.js?v={dynamic_v}"></script>
           <!-- 傭兵生存戰鬥血魔擴充模組 -->
-          <script src="klh_touch_fix.js?v={dynamic_v}"></script>
+          <!--script src="klh_touch_fix.js?v={dynamic_v}"></script-->
 
           <script>
             document.addEventListener("DOMContentLoaded", function() {{
