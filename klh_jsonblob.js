@@ -2672,6 +2672,37 @@
                 document.body.scrollTop = 0;
             }
         });
+
+        // 利用 visualViewport 雙重保險偵測鍵盤收起（解決 iOS 點擊鍵盤「完成」後不觸發 blur/focusout 導致選單消失的 bug）
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', function () {
+                const vv = window.visualViewport;
+                // 計算真實 Layout 視窗高度，防止 pinch-zoom 影響判斷
+                const currentHeight = vv.height * (vv.scale || 1);
+                const standardHeight = window.innerHeight;
+                
+                // 如果目前高度已恢復（大於標準高度減 100px），代表鍵盤已關閉
+                if (currentHeight >= (standardHeight - 100)) {
+                    if (document.body.classList.contains('m-keyboard-open')) {
+                        document.body.classList.remove('m-keyboard-open');
+                        isKeyboardOpened = false;
+                        
+                        // 強制讓輸入框失焦，確保觸發 focusout 事件與同步狀態
+                        if (document.activeElement && 
+                            (document.activeElement.tagName === 'INPUT' || 
+                             document.activeElement.tagName === 'SELECT' || 
+                             document.activeElement.tagName === 'TEXTAREA')) {
+                            document.activeElement.blur();
+                        }
+                        
+                        setTimeout(() => {
+                            window.scrollTo(0, 0);
+                            document.body.scrollTop = 0;
+                        }, 50);
+                    }
+                }
+            });
+        }
     }
 
     document.addEventListener('DOMContentLoaded', startup);
