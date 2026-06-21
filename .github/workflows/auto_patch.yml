@@ -91,10 +91,10 @@ jobs:
           <!-- 黃金交易所/雲端資源商店模組 -->
           <!--script src="klh_Shop.js?v={dynamic_v}"></script-->
           <!-- 傭兵生存戰鬥血魔擴充模組 -->
-          <script src="klh_team.js?v={dynamic_v}"></script>
-          <!-- 傭兵生存戰鬥血魔擴充模組 -->
+          <!--script src="klh_team.js?v={dynamic_v}"></script-->
+          <!-- Supabase雲端模組 -->
           <script src="klh_supabase.js?v={dynamic_v}"></script>
-          <!-- 傭兵生存戰鬥血魔擴充模組 -->
+          <!-- 手機觸控卡死修復 -->
           <script src="klh_touch_fix.js?v={dynamic_v}"></script>
 
           <script>
