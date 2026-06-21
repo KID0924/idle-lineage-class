@@ -139,7 +139,7 @@
         else if (rollHit !== 1 && hitValue >= rollHit) hit = true;
 
         if (!hit) {
-            logCombat(`[傭兵] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 成功迴避 <span class="${getMobColor(mob.lv)}">${mob.n}</span> 的物理攻擊。`, 'evade');
+            logCombat(`[傭兵] <span class="text-emerald-300 font-bold">${allyName(ally)}</span> 成功迴避 <span class="${getMobColor(mob.lv)}">${mob.n}</span> 的物理攻擊。`, 'evade');
             return;
         }
 
@@ -205,15 +205,15 @@
         ally.hp -= totalDmg;
         ally.curHp = ally.hp;
 
-        let atkMsg = `[傭兵] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 被 <span class="${getMobColor(mob.lv)}">${mob.n}</span> 擊中，造成 ${totalDmg} 點傷害。`;
+        let atkMsg = `[傭兵] <span class="text-emerald-300 font-bold">${allyName(ally)}</span> 被 <span class="${getMobColor(mob.lv)}">${mob.n}</span> 擊中，造成 ${totalDmg} 點傷害。`;
         if (heavy) atkMsg += " (重擊!)";
         logCombat(atkMsg, 'enemy');
 
         if (ally.hp <= 0) {
             ally.hp = 0;
             ally.curHp = 0;
-            logSys(`<span class="text-red-400 font-bold">「協力傭兵 ${ally._allyName} 傷重陣亡！」</span>`);
-            logCombat(`[傭兵] ${ally._allyName} 已經戰死。`, 'enemy');
+            logSys(`<span class="text-red-400 font-bold">「協力傭兵 ${allyName(ally)} 傷重陣亡！」</span>`);
+            logCombat(`[傭兵] ${allyName(ally)} 已經戰死。`, 'enemy');
         }
 
         if (typeof updateUI === 'function') updateUI();
@@ -247,7 +247,7 @@
         if (!isDamageSkill) {
             const directDamageTypes = ['stone', 'paralyze', 'silence', 'magicseal', 'freeze', 'slowatk', 'poison', 'burn', 'scald', 'stun'];
             if (!directDamageTypes.includes(sk.type)) {
-                logCombat(`[傭兵] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 抵抗了 <span class="${getMobColor(mob.lv)}">${mob.n}</span> 的 ${sk.skn || '魔法'}。`, 'magic');
+                logCombat(`[傭兵] <span class="text-emerald-300 font-bold">${allyName(ally)}</span> 抵抗了 <span class="${getMobColor(mob.lv)}">${mob.n}</span> 的 ${sk.skn || '魔法'}。`, 'magic');
                 return;
             }
         }
@@ -286,13 +286,13 @@
         ally.hp -= dmg;
         ally.curHp = ally.hp;
 
-        logCombat(`[傭兵] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 受到 <span class="${getMobColor(mob.lv)}">${mob.n}</span> 施放的 ${sk.skn || '魔法'} 攻擊，受到 ${dmg} 點傷害。`, 'enemy');
+        logCombat(`[傭兵] <span class="text-emerald-300 font-bold">${allyName(ally)}</span> 受到 <span class="${getMobColor(mob.lv)}">${mob.n}</span> 施放的 ${sk.skn || '魔法'} 攻擊，受到 ${dmg} 點傷害。`, 'enemy');
 
         if (ally.hp <= 0) {
             ally.hp = 0;
             ally.curHp = 0;
-            logSys(`<span class="text-red-400 font-bold">「協力傭兵 ${ally._allyName} 傷重陣亡！」</span>`);
-            logCombat(`[傭兵] ${ally._allyName} 已經戰死。`, 'enemy');
+            logSys(`<span class="text-red-400 font-bold">「協力傭兵 ${allyName(ally)} 傷重陣亡！」</span>`);
+            logCombat(`[傭兵] ${allyName(ally)} 已經戰死。`, 'enemy');
         }
 
         if (typeof updateUI === 'function') updateUI();
@@ -382,7 +382,7 @@
                             let reducedHot = Math.max(1, Math.floor(hotHealAmount * getMercHealScale()));
                             ally.hp = Math.min(ally.mhp, ally.hp + reducedHot);
                             ally.curHp = ally.hp;
-                            logCombat(`[團隊] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 受到生命的祝福持續回復了 ${reducedHot} HP。`, 'heal');
+                            logCombat(`[團隊] <span class="text-emerald-300 font-bold">${allyName(ally)}</span> 受到生命的祝福持續回復了 ${reducedHot} HP。`, 'heal');
                         }
                     });
                     if (typeof updateUI === 'function') updateUI();
@@ -442,7 +442,7 @@
                                 let reducedHeal = Math.max(1, Math.floor(heal * getMercHealScale()));
                                 ally.hp = Math.min(ally.mhp, ally.hp + reducedHeal);
                                 ally.curHp = ally.hp;
-                                logCombat(`[團隊] <span class="text-emerald-300 font-bold">${ally._allyName}</span> 受到全部治癒術恢復了 ${reducedHeal} HP。`, 'heal');
+                                logCombat(`[團隊] <span class="text-emerald-300 font-bold">${allyName(ally)}</span> 受到全部治癒術恢復了 ${reducedHeal} HP。`, 'heal');
                             }
                         });
                     }
@@ -455,7 +455,7 @@
                     targetAlly.hp = Math.min(targetAlly.mhp, targetAlly.hp + reducedHeal);
                     targetAlly.curHp = targetAlly.hp;
 
-                    logCombat(`施放 ${sk.n} 治療 [傭兵] <span class="text-emerald-300 font-bold">${targetAlly._allyName}</span>，恢復了 ${reducedHeal} 點 HP。`, 'heal');
+                    logCombat(`施放 ${sk.n} 治療 [傭兵] <span class="text-emerald-300 font-bold">${allyName(targetAlly)}</span>，恢復了 ${reducedHeal} 點 HP。`, 'heal');
                 } else {
                     // 玩家自身單體治療：不再進行 10% 分水聯動
                 }
@@ -492,7 +492,7 @@
                 targetPotionAlly.hp = Math.min(targetPotionAlly.mhp, targetPotionAlly.hp + reducedH);
                 targetPotionAlly.curHp = targetPotionAlly.hp;
 
-                logSys(`給予 [傭兵] ${targetPotionAlly._allyName} 飲用 ${d.n}，恢復 ${reducedH} HP。`);
+                logSys(`給予 [傭兵] ${allyName(targetPotionAlly)} 飲用 ${d.n}，恢復 ${reducedH} HP。`);
                 if (typeof updateUI === 'function') updateUI();
             }
             return res;
