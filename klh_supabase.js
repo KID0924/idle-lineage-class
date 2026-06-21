@@ -602,8 +602,8 @@
 
             const inputEl = document.getElementById('jsonblob-input');
             const readBtn = document.getElementById('btn-cloud-read');
-            const quickKeysHeader = document.getElementById('klh-quick-keys-header');
-            const quickKeysList = document.getElementById('klh-quick-keys-list');
+            // const quickKeysHeader = document.getElementById('klh-quick-keys-header');
+            // const quickKeysList = document.getElementById('klh-quick-keys-list');
 
             if (modeTextEl) {
                 if (mode === 'cloud') {
@@ -627,11 +627,11 @@
                     if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
 
                     if (inputEl) {
-                        inputEl.placeholder = '019ed445-679f-7ae4-9f05-f887591d1266';
+                        inputEl.placeholder = '請輸入雲端金鑰';
                         inputEl.value = window.activeKey || '';
                     }
                     if (readBtn) {
-                        readBtn.innerText = '手動讀取雲端';
+                        readBtn.innerText = '登入';
                         readBtn.setAttribute('onclick', 'handleCloudSaveReadClick()');
                         readBtn.className = 'btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold';
                     }
@@ -644,18 +644,7 @@
                     }
 
                     let keyDisplay = sKey || '無金鑰';
-                    const sKeyLower = sKey.trim().toLowerCase();
-                    const supabaseKeysMap = {
-                        "0012k1i6d225": "水蛇許德拉",
-                        "0012k1i6d226": "太陽神阿波羅",
-                        "0012k1i6d227": "火神赫發斯特斯",
-                        "0012k1i6d228": "勝利女神雅典那",
-                        "0012k1i6d229": "天后海拉",
-                        "0012k1i6d230": "天神宙斯"
-                    };
-                    if (supabaseKeysMap[sKeyLower]) {
-                        keyDisplay = supabaseKeysMap[sKeyLower];
-                    } else if (localKey && sKey === localKey) {
+                    if (localKey && sKey === localKey) {
                         keyDisplay = "本機金鑰";
                     }
 
@@ -671,7 +660,7 @@
                         inputEl.value = sKey;
                     }
                     if (readBtn) {
-                        readBtn.innerText = '手動讀取雲端';
+                        readBtn.innerText = '登入';
                         readBtn.setAttribute('onclick', 'handleSupabaseReadClick()');
                         readBtn.className = 'btn w-full py-2.5 text-sm bg-cyan-700 hover:bg-cyan-600 border-cyan-500 font-bold';
                     }
@@ -996,14 +985,13 @@
     window.switchToSupabaseMode = async function () {
         localStorage.setItem('klh_storage_mode', 'supabase');
 
-        let key = (localStorage.getItem('klh_supabase_key') || '').trim();
         let localKey = (localStorage.getItem('klh_supabase_local_key') || '').trim();
 
-        // 🚀 預設一開始會優先繼承本機專屬金鑰
-        if (!key && localKey) {
-            key = localKey;
-            localStorage.setItem('klh_supabase_key', key);
+        // 直接套用本機專屬金鑰
+        if (localKey) {
+            localStorage.setItem('klh_supabase_key', localKey);
         }
+        let key = (localStorage.getItem('klh_supabase_key') || '').trim();
 
         if (typeof window.updateStorageModeUI === 'function') {
             window.updateStorageModeUI();

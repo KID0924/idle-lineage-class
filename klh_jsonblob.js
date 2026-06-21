@@ -973,30 +973,20 @@
         if (modeTextEl) {
             if (mode === 'cloud') {
                 let keyName = "自訂金鑰";
-                const normalized = (window.activeKey || "").trim().toLowerCase();
-                const keys = {
-                    "019ed445-679f-7ae4-9f05-f887591d1266": "水蛇許德拉",
-                    "019ebb1f-b31c-769f-8475-02be610a13b0": "太陽神阿波羅",
-                    "019ebb3a-0d11-7569-a341-463d28054478": "火神赫發斯特斯",
-                    "019ebb3a-58de-78fd-8139-eca46c089de3": "勝利女神雅典那",
-                    "019ebb3a-ad04-76f1-81df-d15d7b2d03d0": "天后海拉",
-                    "019ebb3a-e777-7ab7-b744-aaab13066231": "天神宙斯"
-                };
-                if (keys[normalized]) {
-                    keyName = keys[normalized];
-                }
-                modeTextEl.innerHTML = `<span class="text-indigo-400 font-bold">雲端同步 (${keyName})</span>`;
+                modeTextEl.innerHTML = `<span class="text-indigo-400 font-bold">雲端同步</span>`;
                 if (settingsSection) settingsSection.style.display = 'flex';
                 if (btnLocal) btnLocal.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-indigo-700 hover:bg-indigo-600 text-white font-bold border-indigo-500 whitespace-nowrap';
                 if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
 
                 if (inputEl) {
-                    inputEl.placeholder = '019ed445-679f-7ae4-9f05-f887591d1266';
-                    inputEl.value = window.activeKey || '';
+                    inputEl.placeholder = '請輸入雲端金鑰';
+                    inputEl.value = '';
+                    inputEl.classList.remove('text-white/50');
+                    inputEl.classList.add('text-white');
                 }
                 if (readBtn) {
-                    readBtn.innerText = '手動讀取雲端';
+                    readBtn.innerText = '登入';
                     readBtn.setAttribute('onclick', 'handleCloudSaveReadClick()');
                     readBtn.className = 'btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold';
                 }
@@ -1009,18 +999,7 @@
                 }
 
                 let keyDisplay = sKey || '無金鑰';
-                const sKeyLower = sKey.trim().toLowerCase();
-                const supabaseKeysMap = {
-                    "0012k1i6d225": "水蛇許德拉",
-                    "0012k1i6d226": "太陽神阿波羅",
-                    "0012k1i6d227": "火神赫發斯特斯",
-                    "0012k1i6d228": "勝利女神雅典那",
-                    "0012k1i6d229": "天后海拉",
-                    "0012k1i6d230": "天神宙斯"
-                };
-                if (supabaseKeysMap[sKeyLower]) {
-                    keyDisplay = supabaseKeysMap[sKeyLower];
-                } else if (localKey && sKey === localKey) {
+                if (localKey && sKey === localKey) {
                     keyDisplay = "本機金鑰";
                 }
 
@@ -1034,9 +1013,16 @@
                 if (inputEl) {
                     inputEl.placeholder = '請輸入 12 碼雲端金鑰';
                     inputEl.value = sKey;
+                    if (sKey === localKey && sKey) {
+                        inputEl.classList.remove('text-white');
+                        inputEl.classList.add('text-white/50');
+                    } else {
+                        inputEl.classList.remove('text-white/50');
+                        inputEl.classList.add('text-white');
+                    }
                 }
                 if (readBtn) {
-                    readBtn.innerText = '手動讀取雲端';
+                    readBtn.innerText = '登入';
                     readBtn.setAttribute('onclick', 'handleSupabaseReadClick()');
                     readBtn.className = 'btn w-full py-2.5 text-sm bg-cyan-700 hover:bg-cyan-600 border-cyan-500 font-bold';
                 }
@@ -1201,12 +1187,12 @@
             </div>
 
             <div id="cloud-settings-section" class="flex flex-col gap-3 border-t border-slate-800 pt-3" style="display: none;">
-                <input id="jsonblob-input" type="text" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
+                <input id="jsonblob-input" type="text" oninput="this.classList.remove('text-white/50'); this.classList.add('text-white');" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
                 <div class="w-full">
-                    <button onclick="handleCloudSaveReadClick()" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold">手動讀取雲端</button>
+                    <button id="btn-cloud-read" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold"></button>
                 </div>
-                <div id="klh-quick-keys-header" class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
-                <div id="klh-quick-keys-list" class="flex flex-col gap-1.5 text-sm"></div>
+                <!-- <div id="klh-quick-keys-header" class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
+                <div id="klh-quick-keys-list" class="flex flex-col gap-1.5 text-sm"></div> -->
             </div>
         `;
         mainMenu.appendChild(container);
@@ -2445,43 +2431,38 @@
                 <div class="flex flex-col gap-3.5 text-sm text-slate-300 leading-relaxed">
                     <div>
                         <span class="font-bold text-amber-300">1. 全新雲端存檔功能</span>
-                        <p class="pl-4 text-slate-400">支援公用金鑰（所有人皆可改寫）與系統自然產出的專屬雲端金鑰。</p>
+                        <p class="pl-4 text-slate-400">支援系統自然產出的專屬雲端金鑰。</p>
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">2. 難易度自由切換</span>
                         <p class="pl-4 text-slate-400">新增遊戲難易度隨時、隨意切換功能，關卡挑戰更彈性。</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">3. 初始福利大放送</span>
-                        <p class="pl-4 text-slate-200 font-semibold">初始屬性點數翻倍，可分配屬性點數也是雙倍 (2倍) 設定，讓您開局即是強者！</p>
-                        <p class="pl-4 text-slate-400 mt-0.5">（本地模式、自訂金鑰與水蛇許德拉伺服器除外，維持原版 1 倍設定）</p>
-                    </div>
-                    <div>
-                        <span class="font-bold text-amber-300">4. 全新金幣抽獎系統</span>
+                        <span class="font-bold text-amber-300">3. 全新金幣抽獎系統</span>
                         <p class="pl-4 text-slate-400">「潘朵拉的妹妹」神秘降臨！她偷偷帶走了姐姐藏寶庫中的稀世神裝，讓冒險者能用閃亮的金幣進行轉蛋。不過，為了維護亞丁大陸的物價平衡，諸神稍微對她的魔法機率動了點手腳，以免神裝氾濫成災！</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">5. 煉金術的究極補給</span>
+                        <span class="font-bold text-amber-300">4. 煉金術的究極補給</span>
                         <p class="pl-4 text-slate-400">象牙塔研究室的瘋狂煉金術士們終於爆肝研發出突破性成果！現在可在商店購得「濃縮白水」與「超級濃縮白水」，更有能獲得幸運女神微笑的「掉寶藥水」與「神之祝福藥水」，讓你的獵殺之旅效率倍增！</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">6. 時光裂縫與重獲新生</span>
+                        <span class="font-bold text-amber-300">5. 時光裂縫與重獲新生</span>
                         <p class="pl-4 text-slate-400">象牙塔的「時光使者」開啟了禁忌的轉生法陣！當你的實力達到 75 級的凡人極限，即可選擇打破肉身重獲新生，不僅能保留你強大的天賦，還能獲得神明額外賜予的屬性點數，重登巔峰！</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">7. 赫爾溫的背包整理術</span>
+                        <span class="font-bold text-amber-300">6. 赫爾溫的背包整理術</span>
                         <p class="pl-4 text-slate-400">總是為雜亂的背包頭痛嗎？赫爾溫大師為你解鎖了強大的次元背包整理術！新增「批量賣出」與「模糊搜尋」功能，彈指間就能清除海量垃圾廢品，讓你的行囊如施展了極道防護般清爽！</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">8. 奇岩「財富收割者」黑市</span>
-                        <p class="pl-4 text-slate-400">奇岩城鎮的陰暗角落出現了神祕的黑市商人「財富收割者」！他串聯了無形的次元雲端市場，讓全亞丁的行者都能在此自由上架寄售神兵利器、隨時提領金幣，享受一夜暴富的快感！</p>
+                        <span class="font-bold text-amber-300">7. 奇岩「財富收割者」黑市</span>
+                        <p class="pl-4 text-slate-400">財富收割者跑路了 收割了大家的財富</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">9. 死神席琳的禁忌共鳴</span>
+                        <span class="font-bold text-amber-300">8. 死神席琳的禁忌共鳴</span>
                         <p class="pl-4 text-slate-400">死神席琳的眼淚落入凡間，化為了蘊含無盡黑暗力量的「席琳結晶」！只要在裝備介面輕輕捏碎一顆結晶，就能為你手中的特定神兵防具注入禁忌的靈魂共鳴，強行激活傳說中的九大混沌套裝效果！</p>
                     </div>
                     <div>
-                        <span class="font-bold text-amber-300">10. 屬性配點與萬能藥上限提升</span>
+                        <span class="font-bold text-amber-300">9. 屬性配點與萬能藥上限提升</span>
                         <p class="pl-4 text-slate-400">屬性升級配點上限提升 +40，萬能藥使用上限也提升 +40；同時六大屬性的查表公式全面擴充延伸（70 至 120 級距），單項屬性最高上限可達 120，突破凡人極限！</p>
                     </div>
                 </div>
