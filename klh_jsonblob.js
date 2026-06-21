@@ -151,6 +151,15 @@
     // ==========================================
     window.DEFAULT_CLOUD_URL = "https://api.jsonblob.com/api/jsonBlob";
 
+    const PUBLIC_KEYS = [
+        "019ed445-679f-7ae4-9f05-f887591d1266", // 水蛇許德拉
+        "019ebb1f-b31c-769f-8475-02be610a13b0", // 太陽神阿波羅
+        "019ebb3a-0d11-7569-a341-463d28054478", // 火神赫發斯特斯
+        "019ebb3a-58de-78fd-8139-eca46c089de3", // 勝利女神雅典那
+        "019ebb3a-ad04-76f1-81df-d15d7b2d03d0", // 天后海拉
+        "019ebb3a-e777-7ab7-b744-aaab13066231"  // 天神宙斯
+    ];
+
     // 🚀 存檔時是否自動清理協力傭兵背包與設定以減少存檔體積 (true: 預設開啟; false: 關閉)
     window.CLEAN_ALLY_DATA_ON_SAVE = true;
 
@@ -167,7 +176,11 @@
 
     // 初始化本機專屬金鑰
     let localKeyVal = localStorage.getItem('klh_jsonblob_local_key');
-    if (!localKeyVal && initialKey) {
+    if (localKeyVal && PUBLIC_KEYS.includes(localKeyVal.trim().toLowerCase())) {
+        localStorage.removeItem('klh_jsonblob_local_key');
+        localKeyVal = null;
+    }
+    if (!localKeyVal && initialKey && !PUBLIC_KEYS.includes(initialKey.trim().toLowerCase())) {
         localStorage.setItem('klh_jsonblob_local_key', initialKey);
     }
 
@@ -329,6 +342,12 @@
         .klh-toast.error {
             border-color: rgba(239, 68, 68, 0.6);
             color: #fef2f2;
+        }
+        .klh-toast.danger {
+            border-color: rgba(239, 68, 68, 1);
+            background: rgba(127, 29, 29, 0.95);
+            color: #fee2e2;
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
         }
 
         /* 載入遮罩樣式 (防呆與讀取進度條) */
@@ -669,7 +688,9 @@
         localStorage.setItem('lineage_idle_jsonblob_url', key);
 
         if (!localStorage.getItem('klh_jsonblob_local_key')) {
-            localStorage.setItem('klh_jsonblob_local_key', key);
+            if (!PUBLIC_KEYS.includes(key.trim().toLowerCase())) {
+                localStorage.setItem('klh_jsonblob_local_key', key);
+            }
         }
 
         const inputEl = document.getElementById('jsonblob-input');
@@ -861,7 +882,14 @@
 
                     // 🚀 雲端模式下讀取完畢後不在此處偷偷自動預填空存檔，以保持雲端與本地狀態誠實一致
                     // checkAndPrepopulateSlots();
-                    if (isManual) window.showToast('雲端存檔讀取並同步本機成功！(管道：' + (res.connectionMethod || '未知') + ')', 'success');
+                    if (isManual) {
+                        const isPublic = PUBLIC_KEYS.includes(activeKeyLower);
+                        if (isPublic) {
+                            window.showToast('進入諸神共用殿堂成功，已成功登入！(管道：' + (res.connectionMethod || '未知') + ')', 'danger');
+                        } else {
+                            window.showToast('雲端存檔讀取並同步本機成功！(管道：' + (res.connectionMethod || '未知') + ')', 'success');
+                        }
+                    }
 
                     refreshLoadBtnVisibility();
 
@@ -988,7 +1016,22 @@
         if (modeTextEl) {
             if (mode === 'cloud') {
                 let keyName = "自訂金鑰";
-                modeTextEl.innerHTML = `<span class="text-indigo-400 font-bold">雲端同步</span>`;
+                const normalized = (window.activeKey || "").trim().toLowerCase();
+                const keys = {
+                    "019ed445-679f-7ae4-9f05-f887591d1266": "水蛇許德拉",
+                    "019ebb1f-b31c-769f-8475-02be610a13b0": "太陽神阿波羅",
+                    "019ebb3a-0d11-7569-a341-463d28054478": "火神赫發斯特斯",
+                    "019ebb3a-58de-78fd-8139-eca46c089de3": "勝利女神雅典那",
+                    "019ebb3a-ad04-76f1-81df-d15d7b2d03d0": "天后海拉",
+                    "019ebb3a-e777-7ab7-b744-aaab13066231": "天神宙斯"
+                };
+                const localKey = localStorage.getItem('klh_jsonblob_local_key') || '';
+                if (keys[normalized]) {
+                    keyName = keys[normalized];
+                } else if (localKey && normalized === localKey.toLowerCase()) {
+                    keyName = "本機金鑰";
+                }
+                modeTextEl.innerHTML = `<span class="text-indigo-400 font-bold">雲端同步 (${keyName})</span>`;
                 if (settingsSection) settingsSection.style.display = 'flex';
                 if (btnLocal) btnLocal.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-indigo-700 hover:bg-indigo-600 text-white font-bold border-indigo-500 whitespace-nowrap';
@@ -996,9 +1039,16 @@
 
                 if (inputEl) {
                     inputEl.placeholder = '請輸入雲端金鑰';
-                    inputEl.value = '';
-                    inputEl.classList.remove('text-white/50');
-                    inputEl.classList.add('text-white');
+                    const activeKLower = (window.activeKey || "").trim().toLowerCase();
+                    const isPublic = PUBLIC_KEYS.some(k => k.toLowerCase() === activeKLower);
+                    inputEl.value = isPublic ? '' : (window.activeKey || '');
+                    if (localKey && window.activeKey === localKey) {
+                        inputEl.classList.remove('text-white');
+                        inputEl.classList.add('text-white/50');
+                    } else {
+                        inputEl.classList.remove('text-white/50');
+                        inputEl.classList.add('text-white');
+                    }
                 }
                 if (readBtn) {
                     readBtn.innerText = '登入';
@@ -1014,7 +1064,18 @@
                 }
 
                 let keyDisplay = sKey || '無金鑰';
-                if (localKey && sKey === localKey) {
+                const sKeyLower = sKey.trim().toLowerCase();
+                const supKeys = {
+                    "0012k1i6d225": "水蛇許德拉",
+                    "0012k1i6d226": "太陽神阿波羅",
+                    "0012k1i6d227": "火神赫發斯特斯",
+                    "0012k1i6d228": "勝利女神雅典那",
+                    "0012k1i6d229": "天后海拉",
+                    "0012k1i6d230": "天神宙斯"
+                };
+                if (supKeys[sKeyLower]) {
+                    keyDisplay = supKeys[sKeyLower];
+                } else if (localKey && sKey === localKey) {
                     keyDisplay = "本機金鑰";
                 }
 
@@ -1027,7 +1088,7 @@
 
                 if (inputEl) {
                     inputEl.placeholder = '請輸入 12 碼雲端金鑰';
-                    inputEl.value = sKey;
+                    inputEl.value = supKeys[sKeyLower] ? '' : sKey;
                     if (sKey === localKey && sKey) {
                         inputEl.classList.remove('text-white');
                         inputEl.classList.add('text-white/50');
@@ -1082,51 +1143,40 @@
 
         // 動態渲染快速公用金鑰清單
         if (quickKeysHeader && quickKeysList) {
-            if (mode === 'cloud' || mode === 'supabase') {
+            if (mode === 'cloud') {
                 quickKeysHeader.style.display = 'block';
                 quickKeysList.style.display = 'flex';
+                
+                // 用遊戲的口吻說明這是公用區域，存檔可能被覆蓋或借用
+                quickKeysHeader.innerHTML = `
+                    <div class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
+                    <div class="text-[11px] text-rose-400 font-bold mt-1 mb-2 leading-normal text-left border border-rose-950/40 bg-rose-950/20 p-2 rounded">
+                        ⚠️ 這裡屬於【諸神共用殿堂】！此為諸神共享的時空裂隙，勇者的冒險靈魂（存檔）隨時可能與他人交錯，導致被借用、覆蓋或吞噬！<br>
+                        🛡️ 若勇者不想被打擾、渴望擁有獨立無干擾的冒險旅程，強烈推薦點選上方【切回雲端】（使用本機專屬金鑰），構築個人專屬的時空結界！
+                    </div>
+                `;
                 
                 const showLock = (typeof window.openGMShop === 'function') ? '' : '🔒固定';
                 let html = '';
 
-                if (mode === 'cloud') {
-                    html += `<div id="klh-custom-key-btn-container" class="flex flex-col gap-1.5 w-full"></div>`;
-                    const cloudKeys = [
-                        { idx: 1, name: "水蛇許德拉", key: "019ed445-679f-7ae4-9f05-f887591d1266", color: "text-sky-300", suffix: "(預設) (標準)" },
-                        { idx: 2, name: "太陽神阿波羅", key: "019ebb1f-b31c-769f-8475-02be610a13b0", color: "text-amber-300", suffix: "" },
-                        { idx: 3, name: "火神赫發斯特斯", key: "019ebb3a-0d11-7569-a341-463d28054478", color: "text-orange-300", suffix: "" },
-                        { idx: 4, name: "勝利女神雅典那", key: "019ebb3a-58de-78fd-8139-eca46c089de3", color: "text-green-300", suffix: "" },
-                        { idx: 5, name: "天后海拉", key: "019ebb3a-ad04-76f1-81df-d15d7b2d03d0", color: "text-rose-300", suffix: showLock },
-                        { idx: 6, name: "天神宙斯", key: "019ebb3a-e777-7ab7-b744-aaab13066231", color: "text-cyan-300", suffix: showLock }
-                    ];
-                    cloudKeys.forEach(k => {
-                        html += `
-                            <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 ${k.color} font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="${k.key}">
-                                <span style="position: absolute; left: 16px;">${k.idx}.</span>
-                                <span class="font-bold">${k.name}</span>
-                                <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${k.suffix}</span>
-                            </button>
-                        `;
-                    });
-                } else {
-                    const supabaseKeys = [
-                        { idx: 1, name: "水蛇許德拉", key: "0012k1i6d225", color: "text-sky-300", suffix: "(預設) (標準)" },
-                        { idx: 2, name: "太陽神阿波羅", key: "0012k1i6d226", color: "text-amber-300", suffix: "" },
-                        { idx: 3, name: "火神赫發斯特斯", key: "0012k1i6d227", color: "text-orange-300", suffix: "" },
-                        { idx: 4, name: "勝利女神雅典那", key: "0012k1i6d228", color: "text-green-300", suffix: "" },
-                        { idx: 5, name: "天后海拉", key: "0012k1i6d229", color: "text-rose-300", suffix: showLock },
-                        { idx: 6, name: "天神宙斯", key: "0012k1i6d230", color: "text-cyan-300", suffix: showLock }
-                    ];
-                    supabaseKeys.forEach(k => {
-                        html += `
-                            <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 ${k.color} font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="${k.key}">
-                                <span style="position: absolute; left: 16px;">${k.idx}.</span>
-                                <span class="font-bold">${k.name}</span>
-                                <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${k.suffix}</span>
-                            </button>
-                        `;
-                    });
-                }
+                html += `<div id="klh-custom-key-btn-container" class="flex flex-col gap-1.5 w-full"></div>`;
+                const cloudKeys = [
+                    { idx: 1, name: "水蛇許德拉", key: "019ed445-679f-7ae4-9f05-f887591d1266", color: "text-sky-300", suffix: "(預設) (標準)" },
+                    { idx: 2, name: "太陽神阿波羅", key: "019ebb1f-b31c-769f-8475-02be610a13b0", color: "text-amber-300", suffix: "" },
+                    { idx: 3, name: "火神赫發斯特斯", key: "019ebb3a-0d11-7569-a341-463d28054478", color: "text-orange-300", suffix: "" },
+                    { idx: 4, name: "勝利女神雅典那", key: "019ebb3a-58de-78fd-8139-eca46c089de3", color: "text-green-300", suffix: "" },
+                    { idx: 5, name: "天后海拉", key: "019ebb3a-ad04-76f1-81df-d15d7b2d03d0", color: "text-rose-300", suffix: showLock },
+                    { idx: 6, name: "天神宙斯", key: "019ebb3a-e777-7ab7-b744-aaab13066231", color: "text-cyan-300", suffix: showLock }
+                ];
+                cloudKeys.forEach(k => {
+                    html += `
+                        <button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 ${k.color} font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="${k.key}">
+                            <span style="position: absolute; left: 16px;">${k.idx}.</span>
+                            <span class="font-bold">${k.name}</span>
+                            <span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${k.suffix}</span>
+                        </button>
+                    `;
+                });
                 quickKeysList.innerHTML = html;
             } else {
                 quickKeysHeader.style.display = 'none';
@@ -1149,6 +1199,12 @@
             } else {
                 customContainer.innerHTML = '';
             }
+        }
+
+        // 確保 supabase 建立金鑰提示（橫幅）只在切回雲端（supabase 模式）下可見
+        const supabaseBanner = document.getElementById('supabase-key-banner');
+        if (supabaseBanner) {
+            supabaseBanner.style.display = (mode === 'supabase') ? 'block' : 'none';
         }
     };
 
@@ -1182,12 +1238,9 @@
         window.showToast('已切換回本地儲存模式，存檔將只保存在本機瀏覽器。', 'success');
     };
 
-    window.switchToCloudMode = async function () {
+    window.switchToCloudMode = function () {
         localStorage.setItem('klh_storage_mode', 'cloud');
         window.updateStorageModeUI();
-
-        // 切換到雲端時，自動同步一次雲端
-        await window.syncFromCloud(true);
 
         // 重新渲染存檔選擇畫面 (如果目前開著)
         const slotSelectPanel = document.getElementById('slot-select-panel');
@@ -1236,8 +1289,8 @@
                     <button id="btn-cloud-read" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold"></button>
                 </div>
                 <div id="klh-restore-key-container" class="w-full"></div>
-                <!-- <div id="klh-quick-keys-header" class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
-                <div id="klh-quick-keys-list" class="flex flex-col gap-1.5 text-sm"></div> -->
+                <div id="klh-quick-keys-header" class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
+                <div id="klh-quick-keys-list" class="flex flex-col gap-1.5 text-sm"></div>
             </div>
         `;
         mainMenu.appendChild(container);
@@ -2540,8 +2593,17 @@
         attachHoldEventsToStatButtons();
         attachHoldEventsToInGameStatButtons();
 
-        // 修正 _slotMode 作用域遮蔽問題與清理空存檔標記
+        // 修正 _slotMode 作用域遮蔽問題與清理空存檔標記，且限制特權金鑰匯入
         patchGlobalFunctionMultiple('importSave', [
+            {
+                find: `let input = document.createElement('input');`,
+                replace: `if (typeof checkIsPrivileged === 'function' && checkIsPrivileged()) {
+                    if (typeof showToast === 'function') showToast('特權金鑰限制：禁止匯入存檔到此伺服器！', 'error');
+                    else alert('特權金鑰限制：禁止匯入存檔！');
+                    return;
+                }
+                let input = document.createElement('input');`
+            },
             {
                 find: `localStorage.setItem('lineage_idle_save_' + n, saveText);`,
                 replace: `localStorage.setItem('lineage_idle_save_' + n, saveText); localStorage.removeItem('lineage_idle_save_' + n + '_empty_flag');`
@@ -2552,6 +2614,15 @@
             }
         ]);
         patchGlobalFunctionMultiple('restoreBackup', [
+            {
+                find: `let bak = localStorage.getItem('lineage_idle_save_' + n + '_bak');`,
+                replace: `if (typeof checkIsPrivileged === 'function' && checkIsPrivileged()) {
+                    if (typeof showToast === 'function') showToast('特權金鑰限制：禁止復原備份！', 'error');
+                    else alert('特權金鑰限制：禁止復原備份！');
+                    return;
+                }
+                let bak = localStorage.getItem('lineage_idle_save_' + n + '_bak');`
+            },
             {
                 find: `localStorage.setItem('lineage_idle_save_' + n, bak);`,
                 replace: `localStorage.setItem('lineage_idle_save_' + n, bak); localStorage.removeItem('lineage_idle_save_' + n + '_empty_flag');`

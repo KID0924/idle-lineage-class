@@ -642,7 +642,7 @@
         item: { active: false, sel: {} }
     };
 
-    window.quickUnlock = {
+    window.quickLock = {
         wpn: { active: false, sel: {} },
         arm: { active: false, sel: {} },
         item: { active: false, sel: {} }
@@ -661,35 +661,36 @@
         });
     };
 
-    // 取得該分頁可被批量解鎖的背包物品 (已鎖定、非裝備在身上的物品)
-    window._quEligibleItems = function (type) {
+    // 取得該分頁可被批量加鎖/解鎖的背包物品 (此模式下所有裝備/物品均可挑選，非裝備在身上的物品)
+    window._qlEligibleItems = function (type) {
         if (typeof player === 'undefined' || !player || !player.inv) return [];
         return player.inv.filter(i => {
             let d = DB.items[i.id];
-            if (!d || !i.lock) return false;
+            if (!d) return false;
             if (type === 'wpn') return d.type === 'wpn';
             if (type === 'arm') return d.type === 'arm' || d.type === 'acc';
             return d.type !== 'wpn' && d.type !== 'arm' && d.type !== 'acc';
         });
     };
 
-    // 建立批量賣出與解鎖頭部 UI
+    // 建立批量賣出與加鎖/解鎖頭部 UI
     window.buildQuickSellHeader = function (type) {
-        // 批量解鎖啟用中
-        if (window.quickUnlock && window.quickUnlock[type].active) {
-            let st = window.quickUnlock[type];
-            let eligible = _quEligibleItems(type);
+        // 批量加鎖/解鎖啟用中
+        if (window.quickLock && window.quickLock[type].active) {
+            let st = window.quickLock[type];
+            let eligible = _qlEligibleItems(type);
             let allSel = eligible.length > 0 && eligible.every(i => st.sel[i.uid]);
             let someSel = eligible.some(i => st.sel[i.uid]);
             let totalCount = eligible.filter(i => st.sel[i.uid]).length;
 
             let hdr = document.createElement('div');
             hdr.className = 'sticky top-0 z-10 mb-1 bg-slate-900 pb-1 flex gap-1';
-            hdr.innerHTML = `<div class="flex items-center gap-1 bg-slate-900/80 border border-red-700 rounded p-1 w-full">
-                <button onclick="cancelQuickUnlock('${type}')" class="btn border-slate-600 bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs font-bold text-white rounded">取消</button>
-                <button onclick="runQuickUnlock('${type}')" class="btn border-red-600 bg-red-800 hover:bg-red-700 px-2 py-1 text-xs font-bold text-red-200 rounded">🔓 解鎖 (${totalCount} 件物品)</button>
-                <label class="flex items-center gap-1 text-xs text-slate-300 cursor-pointer select-none whitespace-nowrap ml-auto">
-                    <input type="checkbox" ${allSel ? 'checked' : ''} onchange="quickUnlockSelectAll('${type}', this.checked)"> 全選
+            hdr.innerHTML = `<div class="flex items-center gap-1 bg-slate-900/80 border border-blue-700 rounded p-1 w-full text-xs">
+                <button onclick="cancelQuickLock('${type}')" class="btn border-slate-600 bg-slate-700 hover:bg-slate-600 px-1.5 py-1 font-bold text-white rounded shrink-0">取消</button>
+                <button onclick="runQuickLock('${type}', true)" class="btn border-blue-600 bg-blue-800 hover:bg-blue-700 px-1.5 py-1 font-bold text-blue-200 rounded shrink-0">🔒 加鎖 (${totalCount})</button>
+                <button onclick="runQuickLock('${type}', false)" class="btn border-red-600 bg-red-800 hover:bg-red-700 px-1.5 py-1 font-bold text-red-200 rounded shrink-0">🔓 解鎖 (${totalCount})</button>
+                <label class="flex items-center gap-1 text-slate-300 cursor-pointer select-none whitespace-nowrap ml-auto shrink-0">
+                    <input type="checkbox" ${allSel ? 'checked' : ''} onchange="quickLockSelectAll('${type}', this.checked)"> 全選
                 </label>
             </div>`;
 
@@ -707,8 +708,8 @@
             hdr.className = 'sticky top-0 z-10 mb-1 bg-slate-900 pb-1 flex flex-col gap-1';
             hdr.innerHTML = `
                 <div class="flex gap-1 w-full">
-                    <button onclick="toggleQuickSell('${type}')" class="flex-1 btn border-amber-700 bg-amber-900/70 hover:bg-amber-800 py-1 text-xs font-bold text-amber-200 rounded shadow">💰 批量賣出</button>
-                    <button onclick="toggleQuickUnlock('${type}')" class="flex-1 btn border-red-700 bg-red-900/70 hover:bg-red-800 py-1 text-xs font-bold text-red-200 rounded shadow shadow-md">🔓 批量解鎖</button>
+                    <button onclick="toggleQuickSell('${type}')" class="flex-1 btn border-amber-700 bg-amber-900/70 hover:bg-amber-800 py-1.5 text-sm font-bold text-amber-200 rounded shadow">💰 批量賣出</button>
+                    <button onclick="toggleQuickLock('${type}')" class="flex-1 btn border-blue-700 bg-blue-900/70 hover:bg-blue-800 py-1.5 text-sm font-bold text-blue-200 rounded shadow shadow-md">🔒 批量鎖定</button>
                 </div>
                 <div class="flex gap-1 w-full">
                     <input type="text" id="fuzzy-sell-input-${type}" placeholder="模糊搜尋 (如: 匕首)..." class="flex-1 bg-slate-950 border border-slate-700 text-white rounded text-xs px-2 py-1" onkeydown="if(event.key==='Enter') runFuzzySearch('${type}')">
@@ -756,10 +757,10 @@
             quickEnh[type].sel = {};
         }
 
-        // 互斥：關閉該分頁的批量解鎖模式
-        if (window.quickUnlock && window.quickUnlock[type]) {
-            window.quickUnlock[type].active = false;
-            window.quickUnlock[type].sel = {};
+        // 互斥：關閉該分頁的批量加鎖/解鎖模式
+        if (window.quickLock && window.quickLock[type]) {
+            window.quickLock[type].active = false;
+            window.quickLock[type].sel = {};
         }
 
         renderTabs(true);
@@ -794,9 +795,9 @@
         renderTabs(true);
     };
 
-    // 切換至批量解鎖模式
-    window.toggleQuickUnlock = function (type) {
-        let st = window.quickUnlock[type];
+    // 切換至批量加鎖/解鎖模式
+    window.toggleQuickLock = function (type) {
+        let st = window.quickLock[type];
         st.active = true;
         st.sel = {};
 
@@ -814,17 +815,17 @@
         renderTabs(true);
     };
 
-    // 取消批量解鎖模式
-    window.cancelQuickUnlock = function (type) {
-        let st = window.quickUnlock[type];
+    // 取消批量加鎖/解鎖模式
+    window.cancelQuickLock = function (type) {
+        let st = window.quickLock[type];
         st.active = false;
         st.sel = {};
         renderTabs(true);
     };
 
-    // 勾選單個已鎖定物品
-    window.toggleQuickUnlockItem = function (type, uid) {
-        let st = window.quickUnlock[type];
+    // 勾選單個已鎖定/未鎖定物品
+    window.toggleQuickLockItem = function (type, uid) {
+        let st = window.quickLock[type];
         if (st.sel[uid]) {
             delete st.sel[uid];
         } else {
@@ -833,39 +834,42 @@
         renderTabs(true);
     };
 
-    // 批量全選 / 全不選 (解鎖模式)
-    window.quickUnlockSelectAll = function (type, checked) {
-        let st = window.quickUnlock[type];
+    // 批量全選 / 全不選 (加鎖/解鎖模式)
+    window.quickLockSelectAll = function (type, checked) {
+        let st = window.quickLock[type];
         st.sel = {};
         if (checked) {
-            _quEligibleItems(type).forEach(i => st.sel[i.uid] = true);
+            _qlEligibleItems(type).forEach(i => st.sel[i.uid] = true);
         }
         renderTabs(true);
     };
 
-    // 執行批量解鎖
-    window.runQuickUnlock = function (type) {
-        let st = window.quickUnlock[type];
-        let entries = _quEligibleItems(type).filter(i => st.sel[i.uid]);
+    // 執行批量加鎖/解鎖
+    window.runQuickLock = function (type, targetLockState) {
+        let st = window.quickLock[type];
+        let entries = _qlEligibleItems(type).filter(i => st.sel[i.uid]);
         if (!entries.length) {
-            logSys(`<span class="text-red-400 font-bold">尚未勾選任何已鎖定物品。</span>`);
+            logSys(`<span class="text-red-400 font-bold">尚未勾選任何物品。</span>`);
             return;
         }
 
         let count = 0;
         entries.forEach(entry => {
-            entry.lock = false;
+            entry.lock = targetLockState;
             count++;
         });
 
         st.active = false;
         st.sel = {};
 
-        logSys(`<span class="text-green-400 font-bold">批量解鎖完成！已成功解鎖 ${count} 件物品。</span>`);
+        let actionName = targetLockState ? '加鎖' : '解鎖';
+        logSys(`<span class="text-green-400 font-bold">批量${actionName}完成！已成功${actionName} ${count} 件物品。</span>`);
         updateUI();
         renderTabs(true);
         saveGame();
     };
+
+
 
     // 執行批量賣出
     window.runQuickSell = function (type) {
@@ -1030,7 +1034,7 @@
         saveGame();
     };
 
-    // 互斥處理：覆寫 window.toggleQuickEnhance，點擊快速強化時主動關閉批量賣出與解鎖
+    // 互斥處理：覆寫 window.toggleQuickEnhance，點擊快速強化時主動關閉批量賣出與加鎖/解鎖
     const originalToggleQuickEnhance = window.toggleQuickEnhance;
     if (typeof originalToggleQuickEnhance === 'function') {
         window.toggleQuickEnhance = function (type) {
@@ -1038,9 +1042,9 @@
                 window.quickSell[type].active = false;
                 window.quickSell[type].sel = {};
             }
-            if (window.quickUnlock && window.quickUnlock[type]) {
-                window.quickUnlock[type].active = false;
-                window.quickUnlock[type].sel = {};
+            if (window.quickLock && window.quickLock[type]) {
+                window.quickLock[type].active = false;
+                window.quickLock[type].sel = {};
             }
             originalToggleQuickEnhance(type);
         };
@@ -1110,7 +1114,7 @@
         };
     }
 
-    // 覆寫 window.renderTabs 整合快速強化、批量賣出與解鎖
+    // 覆寫 window.renderTabs 整合快速強化、批量賣出、加鎖與解鎖
     window.renderTabs = function (force) {
         if (state.ff) return; // 補跑期間不刷新畫面
         // ===== 內容簽章：背包/裝備/技能等實際內容沒變時直接跳過重建 =====
@@ -1120,9 +1124,9 @@
             let qsSel = window.quickSell ? (Object.keys(window.quickSell.wpn.sel).join(',') + ';' + Object.keys(window.quickSell.arm.sel).join(',') + ';' + Object.keys(window.quickSell.item.sel).join(',')) : '';
             let qeActive = typeof quickEnh !== 'undefined' ? (quickEnh.wpn.active + '.' + quickEnh.arm.active) : '';
             let qeSel = typeof quickEnh !== 'undefined' ? (Object.keys(quickEnh.wpn.sel).join(',') + ';' + Object.keys(quickEnh.arm.sel).join(',')) : '';
-            let quActive = window.quickUnlock ? (window.quickUnlock.wpn.active + '.' + window.quickUnlock.arm.active + '.' + window.quickUnlock.item.active) : '';
-            let quSel = window.quickUnlock ? (Object.keys(window.quickUnlock.wpn.sel).join(',') + ';' + Object.keys(window.quickUnlock.arm.sel).join(',') + ';' + Object.keys(window.quickUnlock.item.sel).join(',')) : '';
-            return `${baseSig}#${qsActive}#${qsSel}#${qeActive}#${qeSel}#${quActive}#${quSel}`;
+            let qlActive = window.quickLock ? (window.quickLock.wpn.active + '.' + window.quickLock.arm.active + '.' + window.quickLock.item.active) : '';
+            let qlSel = window.quickLock ? (Object.keys(window.quickLock.wpn.sel).join(',') + ';' + Object.keys(window.quickLock.arm.sel).join(',') + ';' + Object.keys(window.quickLock.item.sel).join(',')) : '';
+            return `${baseSig}#${qsActive}#${qsSel}#${qeActive}#${qeSel}#${qlActive}#${qlSel}`;
         })();
         if (!force && _sig === window.renderTabs._sig) return;
         window.renderTabs._sig = _sig;
@@ -1230,10 +1234,10 @@
 
             let _rowInner = `<div class="flex items-center gap-2">${imgHtml}<span class="${getItemColor(i)} font-bold">${getItemFullName(i)}</span> ${statusTag} ${i.lock ? '<span class="text-xs text-red-500">[🔒]</span>' : ''} ${(i.junk && !i.lock) ? '<span class="text-xs text-amber-400 font-bold">[廢]</span>' : ''}</div>`;
 
-            // ⚡ 快速強化 / 批量賣出 / 批量解鎖模式切換與渲染
+            // ⚡ 快速強化 / 批量賣出 / 批量加鎖與解鎖模式切換與渲染
             let _qeType = (d.type === 'wpn' && !d.isArrow) ? 'wpn' : ((d.type === 'arm' || d.type === 'acc') ? 'arm' : null);
             let _qsType = (d.type === 'wpn') ? 'wpn' : ((d.type === 'arm' || d.type === 'acc') ? 'arm' : 'item');
-            let _quType = (d.type === 'wpn') ? 'wpn' : ((d.type === 'arm' || d.type === 'acc') ? 'arm' : 'item');
+            let _qlType = (d.type === 'wpn') ? 'wpn' : ((d.type === 'arm' || d.type === 'acc') ? 'arm' : 'item');
 
             if (_qeType && quickEnh[_qeType].active && !i.lock) {
                 let _checked = !!quickEnh[_qeType].sel[i.uid];
@@ -1247,11 +1251,12 @@
                 if (_checked) el.className += ' ring-2 ring-amber-500/70';
                 el.onclick = () => toggleQuickSellItem(_qsType, i.uid);
             }
-            else if (_quType && window.quickUnlock && window.quickUnlock[_quType].active && i.lock) {
-                let _checked = !!window.quickUnlock[_quType].sel[i.uid];
+            else if (_qlType && window.quickLock && window.quickLock[_qlType].active) {
+                let st = window.quickLock[_qlType];
+                let _checked = !!st.sel[i.uid];
                 el.innerHTML = `<div class="flex items-center justify-between gap-2">${_rowInner}<input type="checkbox" class="pointer-events-none w-4 h-4 mr-1 flex-shrink-0" ${_checked ? 'checked' : ''}></div>`;
-                if (_checked) el.className += ' ring-2 ring-red-500/70';
-                el.onclick = () => toggleQuickUnlockItem(_quType, i.uid);
+                if (_checked) el.className += ' ring-2 ring-blue-500/70';
+                el.onclick = () => toggleQuickLockItem(_qlType, i.uid);
             }
             else {
                 el.innerHTML = _rowInner;
