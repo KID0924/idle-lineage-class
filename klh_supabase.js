@@ -135,13 +135,15 @@
         window.__klh_keyboard_listeners_attached = true;
         let isKeyboardOpened = false;
         document.addEventListener('focusin', function (e) {
-            if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
+            if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+                // 只有 INPUT / TEXTAREA 會彈出虛擬鍵盤，需要隱藏底部導航
+                // SELECT 是原生 picker 彈窗，不佔頁面空間，不需隱藏 nav
                 document.body.classList.add('m-keyboard-open');
                 isKeyboardOpened = true;
             }
         });
         document.addEventListener('focusout', function (e) {
-            if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) {
+            if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
                 document.body.classList.remove('m-keyboard-open');
                 isKeyboardOpened = false;
                 setTimeout(() => {
@@ -174,7 +176,6 @@
                         // 強制讓輸入框失焦，確保觸發 focusout 事件與同步狀態
                         if (document.activeElement && 
                             (document.activeElement.tagName === 'INPUT' || 
-                             document.activeElement.tagName === 'SELECT' || 
                              document.activeElement.tagName === 'TEXTAREA')) {
                             document.activeElement.blur();
                         }
@@ -318,9 +319,16 @@
             body.m-mobile textarea {
                 font-size: 16px !important;
             }
-            /* 僅在手機版且虛擬鍵盤開啟時隱藏底部/頂部導航，防止擠歪 */
+            /* 僅在手機版且虛擬鍵盤開啟時將底部導航移到螢幕外（不用 display:none 以避免 layout shift 導致靠近底部的 input 震動） */
             body.m-mobile.m-keyboard-open #m-nav {
-                display: none !important;
+                position: fixed !important;
+                bottom: -200px !important;
+                left: 0 !important;
+                right: 0 !important;
+                pointer-events: none !important;
+                opacity: 0 !important;
+                height: 0 !important;
+                overflow: hidden !important;
             }
             @keyframes klh-fade-in {
                 from { opacity: 0; transform: translateY(-8px); }
