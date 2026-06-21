@@ -89,7 +89,7 @@ jobs:
           <!-- 自定義藥水與兌換模組 -->
           <script src="klh_GM2.js?v={dynamic_v}"></script>
           <!-- 黃金交易所/雲端資源商店模組 -->
-          <script src="klh_Shop.js?v={dynamic_v}"></script>
+          <!--script src="klh_Shop.js?v={dynamic_v}"></script-->
           <!-- 傭兵生存戰鬥血魔擴充模組 -->
           <script src="klh_team.js?v={dynamic_v}"></script>
           <!-- 傭兵生存戰鬥血魔擴充模組 -->
