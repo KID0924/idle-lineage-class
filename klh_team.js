@@ -358,15 +358,15 @@
                 }
 
                 // 3. 處理存活傭兵的自然回血回魔
-                if (now - lastRegenTime >= 15000) {
+                if (now - lastRegenTime >= 5000) {
                     lastRegenTime = now;
                     player.allies.forEach(ally => {
                         if (ally && (ally.hp !== undefined ? ally.hp : ally.curHp) > 0) {
                             if (ally.hp === undefined) ally.hp = ally.curHp || ally.mhp;
-                            let hpRegen = Math.max(1, Math.floor(ally.mhp * 0.05));
+                            let hpRegen = Math.max(1, Math.floor(ally.mhp * 0.03));
                             ally.hp = Math.min(ally.mhp, ally.hp + hpRegen);
                             if (ally.mmp > 0) {
-                                let mpRegen = Math.max(1, Math.floor(ally.mmp * 0.10));
+                                let mpRegen = Math.max(1, Math.floor(ally.mmp * 0.02));
                                 ally.mp = Math.min(ally.mmp, (ally.mp || 0) + mpRegen);
                             }
                             ally.curHp = ally.hp;
