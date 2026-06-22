@@ -30,6 +30,69 @@
  * ========================================================================== */
 
 (function () {
+    // ==========================================
+    // 動態存檔位偵測與全域註冊
+    // ==========================================
+    function getMaxSaveSlot() {
+        // 使用快取避免每次都重新偵測（快取 10 秒）
+        if (window._klhMaxSaveSlotCache && (Date.now() - window._klhMaxSaveSlotCache.time < 10000)) {
+            return window._klhMaxSaveSlotCache.value;
+        }
+        let maxSlot = 6; // 安全回退值：目前最少為 6 個
+        // 1. 嘗試從 original anySaveExists 函數內容解析
+        if (typeof window.anySaveExists === 'function') {
+            try {
+                const code = window.anySaveExists.toString();
+                const match = code.match(/\[([\s\S]*?)\]/);
+                if (match && match[1]) {
+                    const items = match[1].split(',').map(s => s.trim().replace(/['"`]/g, ''));
+                    const nums = items.map(Number).filter(n => !isNaN(n) && n > 0);
+                    if (nums.length > 0) {
+                        maxSlot = Math.max(maxSlot, ...nums);
+                    }
+                }
+            } catch (e) {
+                console.error("[KLH] 讀取 anySaveExists 失敗:", e);
+            }
+        }
+        // 2. 嘗試從 original openSlotSelect 函數內容解析
+        if (typeof window.openSlotSelect === 'function') {
+            try {
+                const code = window.openSlotSelect.toString();
+                const match = code.match(/n\s*<=\s*(\d+)/);
+                if (match && match[1]) {
+                    const parsedVal = parseInt(match[1], 10);
+                    if (!isNaN(parsedVal) && parsedVal > 0) {
+                        maxSlot = Math.max(maxSlot, parsedVal);
+                    }
+                }
+            } catch (e) {
+                console.error("[KLH] 讀取 openSlotSelect 失敗:", e);
+            }
+        }
+        // 3. 掃描 localStorage 目前已存在的 lineage_idle_save_X
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('lineage_idle_save_')) {
+                    const suffix = key.substring('lineage_idle_save_'.length);
+                    const numMatch = suffix.match(/^(\d+)/);
+                    if (numMatch) {
+                        const parsedVal = parseInt(numMatch[1], 10);
+                        if (!isNaN(parsedVal) && parsedVal > 0) {
+                            maxSlot = Math.max(maxSlot, parsedVal);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("[KLH] 掃描 localStorage 失敗:", e);
+        }
+        window._klhMaxSaveSlotCache = { value: maxSlot, time: Date.now() };
+        return maxSlot;
+    }
+    window.getMaxSaveSlot = getMaxSaveSlot;
+
     // 每次重置防呆：防止重開網頁時自動進入 jsonblob 模式，自動退回到 supabase 雲端金鑰模式
     try {
         const storedMode = localStorage.getItem('klh_storage_mode');
@@ -118,10 +181,11 @@
     function clearLocalCloudCache() {
         const activeKey = window.activeKey || originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '019ed445-679f-7ae4-9f05-f887591d1266';
         const suffix = '_' + activeKey.trim();
-        ['1', '2', '3', '4'].forEach(n => {
+        const maxSlots = getMaxSaveSlot();
+        for (let n = 1; n <= maxSlots; n++) {
             originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + suffix);
             originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag' + suffix);
-        });
+        }
         originalRemoveItem.call(localStorage, 'klh_cloud_warehouse' + suffix);
         console.log("[JSONBlob] 本地雲端存檔快取已清空。後綴:", suffix);
     }
@@ -129,7 +193,8 @@
     window.copyLocalSavesToCloudCache = function () {
         const activeKey = window.activeKey || originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '019ed445-679f-7ae4-9f05-f887591d1266';
         const suffix = '_' + activeKey.trim();
-        ['1', '2', '3', '4'].forEach(n => {
+        const maxSlots = getMaxSaveSlot();
+        for (let n = 1; n <= maxSlots; n++) {
             const localVal = originalGetItem.call(localStorage, 'lineage_idle_save_' + n);
             if (localVal !== null) {
                 originalSetItem.call(localStorage, 'klh_cloud_save_' + n + suffix, localVal);
@@ -144,7 +209,7 @@
             } else {
                 originalRemoveItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag' + suffix);
             }
-        });
+        }
         const localWarehouse = originalGetItem.call(localStorage, 'lineage_idle_warehouse');
         if (localWarehouse !== null) {
             originalSetItem.call(localStorage, 'klh_cloud_warehouse' + suffix, localWarehouse);
@@ -735,19 +800,19 @@
             return;
         }
         const targetUrl = getCleanCloudUrl(window.activeKey);
+        const maxSlots = getMaxSaveSlot();
         const payload = {
-            save_1: localStorage.getItem('lineage_idle_save_1'),
-            save_2: localStorage.getItem('lineage_idle_save_2'),
-            save_3: localStorage.getItem('lineage_idle_save_3'),
-            save_4: localStorage.getItem('lineage_idle_save_4'),
             warehouse: localStorage.getItem('lineage_idle_warehouse')
         };
+        for (let n = 1; n <= maxSlots; n++) {
+            payload['save_' + n] = localStorage.getItem('lineage_idle_save_' + n);
+        }
 
-        // 取得目前正在遊玩的存檔位 (1~4)
+        // 取得目前正在遊玩的存檔位 (1~maxSlots)
         const activeSlot = (typeof currentSlot !== 'undefined') ? parseInt(currentSlot, 10) : null;
 
         // 如果不是強制全覆寫，且當前有加載角色，先取得雲端存檔，把其他存檔位的雲端資料合併進來，避免覆蓋別人的存檔
-        if (!forceFullOverwrite && activeSlot >= 1 && activeSlot <= 4) {
+        if (!forceFullOverwrite && activeSlot >= 1 && activeSlot <= maxSlots) {
             if (isManual) {
                 window.showLoadingOverlay('正在讀取並合併雲端存檔...');
             }
@@ -759,7 +824,7 @@
                         // 確定要跳過合併的槽位 (若 skipMergeSlot 被指定)
                         const skipSlot = (skipMergeSlot !== null) ? parseInt(skipMergeSlot, 10) : null;
 
-                        for (let n = 1; n <= 4; n++) {
+                        for (let n = 1; n <= maxSlots; n++) {
                             // 如果是目前正在玩的槽位，或者是被指定跳過合併 (即要刪除/覆寫) 的槽位，則不上傳雲端舊值 (維持 payload 本地值)
                             if (n !== activeSlot && n !== skipSlot) {
                                 const cloudSlotVal = cloudData['save_' + n] || cloudData['lineage_idle_save_' + n];
@@ -872,7 +937,8 @@
                     if (window.isValidUuid(window.activeKey) && !PUBLIC_KEYS.includes(activeKeyLower)) {
                         localStorage.setItem('klh_custom_key', (window.activeKey || "").trim());
                     }
-                    ['1', '2', '3', '4'].forEach(n => {
+                    const maxSlots = getMaxSaveSlot();
+                    for (let n = 1; n <= maxSlots; n++) {
                         const val = payload['save_' + n] || payload['lineage_idle_save_' + n];
                         if (val !== undefined && val !== null) {
                             const strVal = (typeof val === 'object') ? JSON.stringify(val) : val;
@@ -880,7 +946,7 @@
                         } else {
                             localStorage.removeItem('lineage_idle_save_' + n);
                         }
-                    });
+                    }
 
                     // 支援舊版 lineage_idle_warehouse 的相容性，避免移轉時清空倉庫
                     const warehouseVal = payload.warehouse || payload.lineage_idle_warehouse;
@@ -1749,7 +1815,8 @@
         }
         if (!confirm('確定要清除所有存檔嗎？此動作將無法復原。')) return;
 
-        for (let n = 1; n <= 4; n++) {
+        const maxSlots = getMaxSaveSlot();
+        for (let n = 1; n <= maxSlots; n++) {
             localStorage.removeItem('lineage_idle_save_' + n);
             localStorage.removeItem('lineage_idle_save_' + n + '_bak');
         }
@@ -1902,7 +1969,8 @@
         // 🚀 為了確保與雲端伺服器誠實一致，我們不在此處自動預填空存檔
         // checkAndPrepopulateSlots();
 
-        for (let n = 1; n <= 4; n++) {
+        const maxSlots = getMaxSaveSlot();
+        for (let n = 1; n <= maxSlots; n++) {
             let sum = slotSummary(n);
             let label;
             if (sum) {
