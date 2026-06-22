@@ -30,6 +30,14 @@
  * ========================================================================== */
 
 (function () {
+    // 每次重置防呆：防止重開網頁時自動進入 jsonblob 模式，自動退回到 supabase 雲端金鑰模式
+    try {
+        const storedMode = localStorage.getItem('klh_storage_mode');
+        if (storedMode === 'cloud') {
+            localStorage.setItem('klh_storage_mode', 'supabase');
+        }
+    } catch (e) {}
+
     // ==========================================
     // localStorage 模式隔離代理 (Storage.prototype 代理，相容手機版 Safari/Chrome)
     // ==========================================

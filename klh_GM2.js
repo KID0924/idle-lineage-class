@@ -1117,6 +1117,17 @@
     // 覆寫 window.renderTabs 整合快速強化、批量賣出、加鎖與解鎖
     window.renderTabs = function (force) {
         if (state.ff) return; // 補跑期間不刷新畫面
+        // 🛡 保護 1: 使用者正按住分頁面板（點擊中）→延後重建，避免按鈕被重繪掉而點擊失效
+        if (!force && typeof _tabPointerDown !== 'undefined' && _tabPointerDown) { _tabRebuildPending = true; return; }
+        // 🛡 保護 2: 戰鬥 tick 內節流，降低怪物受傷/死亡時高頻重建造成的按鈕閃爍與輸入框失焦
+        if (!force && typeof state !== 'undefined' && state.inTick) {
+            var _throttleMs = (typeof TAB_REBUILD_THROTTLE_MS !== 'undefined') ? TAB_REBUILD_THROTTLE_MS : 250;
+            if (!_tabThrottleTimer) {
+                _tabThrottleTimer = setTimeout(function () { _tabThrottleTimer = null; renderTabs(); }, _throttleMs);
+            }
+            return;
+        }
+        if (typeof _tabThrottleTimer !== 'undefined' && _tabThrottleTimer) { clearTimeout(_tabThrottleTimer); _tabThrottleTimer = null; }
         // ===== 內容簽章：背包/裝備/技能等實際內容沒變時直接跳過重建 =====
         let _sig = (function () {
             let baseSig = getOriginalSig();
@@ -1134,6 +1145,15 @@
         // 真的要重建時，先記住各分頁的捲動位置，重建後還原（避免跳回頂端）
         let _scroll = {};
         ['tab-items', 'tab-weapons', 'tab-armors', 'tab-equip', 'tab-skill'].forEach(id => { let el = document.getElementById(id); if (el) _scroll[id] = el.scrollTop; });
+
+        // 🔧 保存模糊搜尋輸入框的值與焦點狀態，避免 innerHTML='' 銷毀後遺失
+        let _fuzzyState = {};
+        ['wpn', 'arm', 'item'].forEach(function (t) {
+            let inp = document.getElementById('fuzzy-sell-input-' + t);
+            if (inp) {
+                _fuzzyState[t] = { value: inp.value, focused: document.activeElement === inp, selStart: inp.selectionStart, selEnd: inp.selectionEnd };
+            }
+        });
 
         let eDiv = document.getElementById('tab-equip'); eDiv.innerHTML = '';
         { let _wd = player.d || {}; let _t = _wd.loadTier || 0; let _hdr = document.createElement('div'); _hdr.className = 'text-center py-0.5 mb-1 rounded bg-slate-900/60 border border-slate-700 text-sm font-bold leading-tight' + (_t >= 1 ? ' cursor-help' : ''); if (_t >= 1) { _hdr.title = _t === 1 ? '負重50%↑：HP/MP不自然恢復' : (_t === 2 ? '負重82%↑：HP/MP不自然恢復、停自動施法、攻速變慢' : '負重100%↑：HP/MP不自然恢復、停自動施法、攻速大幅變慢'); } _hdr.innerHTML = `<span class="text-slate-400">負重 </span><span class="${getLoadColor(_t)}">${_wd.weightPct || 0}%</span>`; eDiv.appendChild(_hdr); }
@@ -1313,6 +1333,22 @@
         }
 
         ['tab-items', 'tab-weapons', 'tab-armors', 'tab-equip', 'tab-skill'].forEach(id => { let el = document.getElementById(id); if (el && _scroll[id] != null) el.scrollTop = _scroll[id]; });
+
+        // 🔧 還原模糊搜尋輸入框的值與焦點
+        ['wpn', 'arm', 'item'].forEach(function (t) {
+            let saved = _fuzzyState[t];
+            if (saved) {
+                let inp = document.getElementById('fuzzy-sell-input-' + t);
+                if (inp) {
+                    inp.value = saved.value;
+                    if (saved.focused) {
+                        inp.focus();
+                        try { inp.setSelectionRange(saved.selStart, saved.selEnd); } catch (e) {}
+                    }
+                }
+            }
+        });
+
         updateSummonLock();
     };
 

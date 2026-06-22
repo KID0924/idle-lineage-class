@@ -765,39 +765,17 @@
     if (typeof window.saveGame === 'function' && !window.saveGame.isHookedMerc) {
         const originalSaveGame = window.saveGame;
         window.saveGame = function () {
-            // 1. 呼叫原始存檔 (這會建立全新的 player.config 並儲存到 localStorage)
-            let res = originalSaveGame.apply(this, arguments);
-
-            // 2. 存檔後，在記憶體與 LocalStorage 中補回傭兵自定義設定
+            // 1. 存檔前，先將傭兵設定寫入 player.config，確保隨原版 saveGame 一併序列化
             if (player && player.config) {
                 const mercHpThrEl = document.getElementById('set-merc-hp-thr');
                 const mercHealTypeEl = document.getElementById('set-merc-heal-type');
 
-                let valHpThr = mercHpThrEl ? mercHpThrEl.value : "40";
-                let valHealType = mercHealTypeEl ? mercHealTypeEl.value : "";
-
-                player.config.mercHpThr = valHpThr;
-                player.config.mercHealType = valHealType;
-
-                // 3. 同步寫入 LocalStorage，以防被原版 saveGame() 覆寫擦除
-                if (typeof currentSlot !== 'undefined') {
-                    let s = localStorage.getItem('lineage_idle_save_' + currentSlot);
-                    if (s) {
-                        try {
-                            let d = JSON.parse(s);
-                            if (d.p) {
-                                if (!d.p.config) d.p.config = {};
-                                d.p.config.mercHpThr = valHpThr;
-                                d.p.config.mercHealType = valHealType;
-                                localStorage.setItem('lineage_idle_save_' + currentSlot, JSON.stringify(d));
-                            }
-                        } catch (e) {
-                            console.error("[klh_team] 寫入 LocalStorage 自定義存檔失敗:", e);
-                        }
-                    }
-                }
+                player.config.mercHpThr = mercHpThrEl ? mercHpThrEl.value : "40";
+                player.config.mercHealType = mercHealTypeEl ? mercHealTypeEl.value : "";
             }
-            return res;
+
+            // 2. 呼叫原始存檔 (此時 player.config 已包含傭兵設定，會一併寫入 localStorage)
+            return originalSaveGame.apply(this, arguments);
         };
         window.saveGame.isHookedMerc = true;
     }
