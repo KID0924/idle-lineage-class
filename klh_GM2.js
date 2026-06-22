@@ -1,9 +1,9 @@
 /* ============================================================================
- * klh_GM2.js — 高級藥水、神之祝福與掉寶藥水機制 & 克里斯特兌換 & 快速批量賣出 & 轉生系統 & 碧恩席琳附魔說明 & 超強短劍覆寫
+ * klh_GM2.js — 高級藥水、神之祝福與掉寶藥水機制 & 克里斯特兌換 & 快速批量賣出 & 轉生系統 & 碧恩席琳附魔說明
  *
  * 設計原則: 完全不改原作者程式碼，只從外面「包住」全域函式 (monkey-patch)。
  * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
- * * <script src="klh_GM2.js?v=20260616"></script>
+ * * <script src="klh_GM2.js?v=20260622"></script>
  *
  * 功能一覽:
  *   1. 發光 CSS 注入     —— 注入屬性詞綴圖示動態光暈特效 (earth3/earth5-glow等)。
@@ -20,12 +20,10 @@
  *  11. 快速批量賣出   —— 背包第三欄加入「批量賣出」模式，含模糊搜尋賣出功能。
  *  12. 自動互斥處理   —— 批量賣出與快速強化模式相互排他。
  *  13. renderTabs 覆蓋  —— 完整重寫背包標籤渲染邏輯，支援快速強化和批量賣出 UI 整合。
- *  14. 轉生系統       —— 「時光使者」 NPC ，75 等以上可轉生重置等級，
- *                          保留擁有屬性點數並額外獲得 (Lv-50)/2 點數。
+ *  14. 轉生系統       —— 「時光使者」 NPC ，75 等以上可轉生重置等級，保留擁有屬性點數並依當前等級（經驗衰減難度）計算獲得額外屬性點，並加入轉生前匯出存檔之防範提醒。
  *  15. 回憶蠟燭保護   —— Hook resetStatsCandle ，防止轉生點數被回憶蠟燭消耗。
  *  16. 席琳裝備注入   —— Hook openModal 於裝備介面新增「席琳注入」按鈕（消耗 1 顆席琳結晶），為特定部位裝備隨機注入強力的席琳混沌套裝效果。
  *  17. 象牙塔 NPC 碧恩 —— 覆寫 renderBianBless，僅保留祝福與解詛咒，並在最下方附屬性/遠古/席琳套裝效果卡片對照。
- *  18. 超強短劍覆寫   —— 將基礎武器「短劍」屬性覆寫為 GM 測試超強數值（全員可用）。
  * ========================================================================== */
 
 (function () {
@@ -153,16 +151,6 @@
 
         // 1-5. 動態注入自動喝水下拉選單選項
         initPotSelectOptions();
-
-        // 1-6. 覆寫短劍為 GM 測試超高數值
-        let dagger = DB.items["wpn_shortsword"];
-        if (dagger) {
-            dagger.dmgS = 600;
-            dagger.dmgL = 800;
-            dagger.hit = 1000;
-            dagger.spd = 0.1;
-            dagger.safe = 1000;
-        }
     }
 
     // 2. 動態添加自動喝水選項至 #set-pot 下拉選單
@@ -424,11 +412,11 @@
             let goldBefore = player.gold || 0;
             originalKillMob(idx);
 
-            // 掉寶藥水：獲得金幣翻倍
+            // 掉寶藥水：獲得金幣翻倍 (靜默加錢，不顯示洗頻提示)
             let goldGained = (player.gold || 0) - goldBefore;
             if (goldGained > 0 && player.buffs.droprate > 0) {
                 player.gold += goldGained;
-                logSys(`[掉寶藥水] 額外獲得 <span class="text-yellow-400 font-bold">${goldGained} 金幣</span>。`);
+                // logSys(`[掉寶藥水] 額外獲得 <span class="text-yellow-400 font-bold">${goldGained} 金幣</span>。`); // 註解隱藏以防洗頻
             }
 
             // 掉寶藥水：處理 hardcoded 非資料庫迴圈掉落項目的二次加成 (達到 2倍 效果)
@@ -1222,6 +1210,9 @@
             if (!DB.items[i.id]) return;
             let d = DB.items[i.id];
 
+            // 解決 BUG-6: 快速強化開啟時，在武器分頁過濾掉無法強化的箭矢，以免使用者困惑
+            if (d.type === 'wpn' && d.isArrow && typeof quickEnh !== 'undefined' && quickEnh.wpn.active) return;
+
             let statusTag = '';
             let itemBg = 'bg-slate-800';
 
@@ -1293,44 +1284,69 @@
         });
 
         let sDiv = document.getElementById('tab-skill'); sDiv.innerHTML = '';
-        let tiers = {};
-        let sortedSkills = [...player.skills].sort((a, b) => DB.skills[a].tier - DB.skills[b].tier);
-        sortedSkills.forEach(sid => {
-            let sk = DB.skills[sid];
-            if (!tiers[sk.tier]) tiers[sk.tier] = [];
-            tiers[sk.tier].push(sid);
-        });
+        let sortedSkills = [...player.skills].sort((a,b) => (DB.skills[a].tier||0) - (DB.skills[b].tier||0));
 
-        for (let t in tiers) {
-            let tDiv = document.createElement('div');
-            tDiv.className = 'flex flex-wrap gap-1 mb-2 bg-slate-800 p-1 rounded';
-            tiers[t].forEach(sid => {
-                let sk = DB.skills[sid];
-                let isAvail = true;
-                let __granted = player.grantedSkills && player.grantedSkills.includes(sid);
-                let needLv = skillReqLv(sk, sid);
-                if (!__granted && (needLv === undefined || player.lv < needLv)) isAvail = false;
-                if (!__granted && sk.reqEle && player.elfEle !== sk.reqEle) isAvail = false;
-                if (!__granted && sk.reqEleAny && !player.elfEle) isAvail = false;
-                let imgUrl = getIconUrl(sk, true);
-                if (sk.type === 'manual') {
-                    tDiv.innerHTML += `<button id="manual-btn-${sid}" data-unavail="${isAvail ? '0' : '1'}" onclick="manualCast('${sid}')" ${isAvail ? '' : 'disabled'}
-                class="px-2 py-1 text-xs border rounded whitespace-nowrap flex items-center gap-1 transition-colors
-                ${isAvail ? 'border-amber-500 text-amber-300 hover:bg-amber-900/40 cursor-pointer' : 'border-slate-600 text-slate-500 opacity-50 cursor-not-allowed'}">
-                <img src="${imgUrl}" onerror="this.style.display='none';" class="w-4 h-4 object-contain pointer-events-none">
-                <span>${sk.n}</span><span class="text-[10px] opacity-70">施放</span>
-            </button>`;
-                    return;
-                }
-                let c = sk.type === 'atk' ? 'text-cyan-300' : (sk.type === 'heal' ? 'text-green-300' : 'text-purple-300');
-                if (!isAvail) c = 'text-slate-500 opacity-50';
-                tDiv.innerHTML += `<div class="px-2 py-1 text-xs border border-slate-600 rounded whitespace-nowrap flex items-center gap-1 ${c}">
-        <img src="${imgUrl}" onerror="this.style.display='none';" class="w-4 h-4 object-contain pointer-events-none">
-        <span>${sk.n}</span>
-    </div>`;
-            });
-            sDiv.appendChild(tDiv);
+        // 🎨 已學技能：固定大小 ICON 排版；階級文字置左、4 欄格(至少 4×2)置右
+        // 🔮 依「學習來源」分區：魔法書／技術書／精靈水晶／黑暗精靈水晶 各自獨立，即使同階也分開；裝備授予(sk_helm_*)歸「裝備授予」
+        if (!renderTabs._skillSrc) {   // 由 skillbk 物品名稱前綴建表（一次性快取）：sk → 來源組名（split('(') 避免「黑暗精靈水晶」⊃「精靈水晶」誤判）
+            renderTabs._skillSrc = {};
+            for (let k in DB.items) { let it = DB.items[k]; if (it && it.type === 'skillbk' && it.sk) renderTabs._skillSrc[it.sk] = String(it.n || '').split('(')[0]; }
         }
+        let _SKILL_SRC = renderTabs._skillSrc;
+        const _CELL = 'width:46px;height:46px;';
+
+        // 分組：來源 → 階級 → [技能id]
+        let _grp = {};
+        sortedSkills.forEach(sid => {
+            let sk = DB.skills[sid]; if (!sk) return;
+            let src = _SKILL_SRC[sid] || '裝備授予';
+            let tier = (sk.tier === undefined || sk.tier === null || sk.tier === '') ? '_' : sk.tier;
+            (_grp[src] = _grp[src] || {});
+            (_grp[src][tier] = _grp[src][tier] || []).push(sid);
+        });
+        // 來源顯示順序：固定序（不分職業）魔法書→精靈水晶→黑暗精靈水晶→技術書，裝備授予最後
+        let _srcOrder = ['魔法書', '精靈水晶', '黑暗精靈水晶', '技術書', '裝備授予'];
+
+        let _renderCell = (sid) => {
+            let sk = DB.skills[sid];
+            let isAvail = true;
+            let __granted = player.grantedSkills && player.grantedSkills.includes(sid);
+            let needLv = skillReqLv(sk, sid);   // 🏅 集中化：含魔導精通特例
+            if(!__granted && (needLv === undefined || player.lv < needLv)) isAvail = false;
+            if(!__granted && sk.reqEle && player.elfEle !== sk.reqEle) isAvail = false;
+            if(!__granted && sk.reqEleAny && !player.elfEle) isAvail = false;
+            let imgUrl = getIconUrl(sk, true);
+            let _bd = !isAvail ? 'border-slate-600 opacity-50'
+                : (sk.type === 'manual' ? 'border-amber-500'
+                : (sk.type === 'atk' ? 'border-cyan-500'
+                : (sk.type === 'heal' ? 'border-green-500' : 'border-purple-500')));
+            let _img = `<img src="${imgUrl}" onerror="this.style.display='none';" class="object-contain pointer-events-none" style="width:36px;height:36px;">`;
+            if(sk.type === 'manual') {
+                // 手動施放技能：ICON 本身可點擊施放（右下角「施」標記）；保留 id/data-unavail 供 updateSummonLock 控制(迷魅)
+                return `<button id="manual-btn-${sid}" data-tip-skill="${sid}" data-unavail="${isAvail?'0':'1'}" onclick="manualCast('${sid}')" ${isAvail?'':'disabled'} title="${sk.n}"
+                    class="tip-host relative flex items-center justify-center rounded border ${_bd} bg-slate-900/40 ${isAvail?'hover:bg-amber-900/40 cursor-pointer':'cursor-not-allowed'}" style="${_CELL}">${_img}<span class="absolute right-0 -bottom-px text-[9px] leading-none font-bold text-amber-300 pointer-events-none">施</span></button>`;
+            }
+            return `<div data-tip-skill="${sid}" title="${sk.n}" class="tip-host flex items-center justify-center rounded border ${_bd} bg-slate-900/40" style="${_CELL}">${_img}</div>`;
+        };
+
+        _srcOrder.forEach(src => {
+            let byTier = _grp[src]; if (!byTier) return;
+            let _tiers = Object.keys(byTier).sort((a,b) => (a === '_' ? 999 : +a) - (b === '_' ? 999 : +b));
+            _tiers.forEach(t => {
+                let list = byTier[t];
+                let _tierLabel = (t === '_') ? '其他' : (t + ' 階');
+                let cells = list.map(_renderCell).join('');
+                // 補空白格至 4 的倍數、且至少 8 格（4×2），維持 4×2 區塊版型
+                let _pad = Math.max(8, Math.ceil(list.length / 4) * 4);
+                for(let i = list.length; i < _pad; i++) cells += `<div class="rounded border border-slate-800/40 bg-slate-900/20" style="${_CELL}"></div>`;
+                let section = document.createElement('div');
+                // 階級文字置左、4×2 ICON 置右；區塊間以細分隔線區隔（首區不畫上邊線）
+                let _sepCls = sDiv.children.length ? ' border-t border-slate-700/50' : '';
+                section.className = 'flex items-center gap-2 py-2' + _sepCls;
+                section.innerHTML = `<div class="flex flex-col justify-center shrink-0" style="width:82px;"><div class="text-sm font-bold text-slate-300 leading-tight">${_tierLabel}</div><div class="text-[11px] text-slate-500 leading-tight">${src}</div></div><div class="grid gap-1.5 shrink-0" style="grid-template-columns:repeat(4,46px);">${cells}</div>`;
+                sDiv.appendChild(section);
+            });
+        });
 
         ['tab-items', 'tab-weapons', 'tab-armors', 'tab-equip', 'tab-skill'].forEach(id => { let el = document.getElementById(id); if (el && _scroll[id] != null) el.scrollTop = _scroll[id]; });
 
@@ -1381,24 +1397,7 @@
         }
     }
 
-    // 攔截並 Hook interactNPC 以支援時光使者
-    const originalInteractNPC = window.interactNPC;
-window.interactNPC = function (npcId, townId) {
-    if (npcId === "npc_rebirth") {
-        window._activePanel = null;
-        document.getElementById('town-npc-container').classList.add('hidden');
-        document.getElementById('town-interaction-container').classList.remove('hidden');
-        document.getElementById('town-interaction-container').classList.add('flex');
 
-        document.getElementById('interaction-npc-name').innerText = "時光使者";
-        document.getElementById('interaction-npc-title').innerText = "[轉生系統]";
-
-        let contentDiv = document.getElementById('interaction-content');
-        renderRebirthNPC(contentDiv);
-        return;
-    }
-    originalInteractNPC(npcId, townId);
-};
 
 function getRebirthPointsByLv(lv) {
     // 原公式：Math.floor(Math.sqrt(difficulty)) + 1
@@ -1441,6 +1440,7 @@ function renderRebirthNPC(div) {
                     <div>3. **屬性保留**：您之前分配的屬性點數、基礎屬性、以及萬能藥加成將**完全保留**。</div>
                     <div>4. **額外屬性點**：每次轉生時，您將額外獲得依當前等級（經驗衰減難度）計算的自由分配屬性點（例如：75等送 3 點，80等送 6 點，90等送 33 點，等級越高獲得點數越多）。</div>
                     <div>5. **回憶蠟燭保護**：轉生獲得的點數將受到系統保護，使用「回憶蠟燭」重置時不會遺失。</div>
+                    <div>6. **時空印記**：時空亂流莫測，轉生前建議先**匯出存檔**以防靈魂消散於時光洪流之中。</div>
                 </div>
                 
                 <div class="bg-slate-900/60 border border-slate-700 rounded-lg p-4 flex justify-around text-center shrink-0">
@@ -1502,17 +1502,7 @@ window.executeRebirthNPC = function () {
     }
 };
 
-// 攔截並 Hook resetStatsCandle()，防止轉生屬性點被回憶蠟燭吃掉
-const originalResetStatsCandle = window.resetStatsCandle;
-window.resetStatsCandle = function () {
-    originalResetStatsCandle();
-    if (player && player.rebirthPoints) {
-        player.bonus += player.rebirthPoints;
-        if (typeof updateUI === 'function') {
-            updateUI();
-        }
-    }
-};
+
 
 
 
@@ -1700,6 +1690,8 @@ window.sellAllJunkFromModal = function () {
 };
 
 function startupGM2() {
+    if (window.__klhGM2Started) return;
+    window.__klhGM2Started = true;
     injectGlowStyles();
     initCustomDB();
     restoreCustomSettings();
@@ -1727,13 +1719,33 @@ function startupGM2() {
         window.interactNPC.__klhRebirthWrapped = true;
     }
 
-    // 攔截並 Hook resetStatsCandle()，防止轉生屬性點被回憶蠟燭吃掉
+    // 攔截並 Hook resetStatsCandle()，防止前世升級與轉生屬性點被回憶蠟燭吃掉
     if (typeof window.resetStatsCandle === 'function' && !window.resetStatsCandle.__klhRebirthWrapped) {
         const originalResetStatsCandle = window.resetStatsCandle;
         window.resetStatsCandle = function () {
+            // 計算吃蠟燭前，玩家「應有」的總升級與轉生點數
+            // alloc 是玩家已經點上去的點數，bonus 是還沒點的點數
+            let currentTotalPoints = 0;
+            if (player) {
+                if (player.alloc) {
+                    currentTotalPoints += (player.alloc.str || 0);
+                    currentTotalPoints += (player.alloc.dex || 0);
+                    currentTotalPoints += (player.alloc.con || 0);
+                    currentTotalPoints += (player.alloc.int || 0);
+                    currentTotalPoints += (player.alloc.wis || 0);
+                    currentTotalPoints += (player.alloc.cha || 0);
+                }
+                currentTotalPoints += (player.bonus || 0);
+            }
+
+            // 執行原版的吃蠟燭 (這會把 alloc 歸零，並把 bonus 洗成 創角加成 + (lv-49))
             originalResetStatsCandle();
-            if (player && player.rebirthPoints) {
-                player.bonus += player.rebirthPoints;
+
+            // 蓋掉原版的計算，直接把玩家吃蠟燭前持有的「總點數量」原封不動還給他！
+            if (player) {
+                // 由於重置後 player.alloc 是 0，所以把吃蠟燭前的所有點數都塞回 player.bonus
+                player.bonus = currentTotalPoints;
+                
                 if (typeof updateUI === 'function') {
                     updateUI();
                 }

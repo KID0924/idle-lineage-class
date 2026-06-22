@@ -3,7 +3,7 @@
  *
  * 設計原則: 完全不改原作者程式碼，透過 monkey-patch 方式攔截/擴充功能。
  * 掛接方式: 在 index.html 的 </body> 標籤正上方插入此腳本：
- * * <script src="klh_Shop.js?v=20260619"></script>
+ * * <script src="klh_Shop.js?v=20260622"></script>
  *
  * 功能一覽:
  *   1. 交易所密鑰加密 —— 使用 SHA-256 對使用者存檔金鑰與存檔位進行雜湊加密，產生唯一且安全的交易所角色 ID，防止直接暴露雲端私鑰。

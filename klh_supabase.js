@@ -1,3 +1,24 @@
+/* ============================================================================
+ * klh_supabase.js — Supabase 雲端存檔同步系統
+ *
+ * 設計原則: 完全不改原作者程式碼，透過 monkey-patch 方式攔截/擴充功能。
+ * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
+ * * <script src="klh_supabase.js?v=20260622"></script>
+ *
+ * 功能一覽:
+ *   1. 雲端存檔 (Supabase)  —— 透過 Supabase Database API 儲存最多 4 格存檔與倉庫。
+ *   2. 儲存隔離代理        —— 代理 Storage.prototype，在 Supabase 模式下自動重新導向
+ *                             本機存檔鍵 (lineage_idle_save_ / lineage_idle_warehouse)
+ *                             至雲端快取鍵 + 金鑰後綴，防止多帳號資料互相污染。
+ *   3. 存檔合併同步        —— 上傳時自動讀取雲端最新資料並進行非目前槽位存檔的合併，
+ *                             防止覆蓋其他存檔位，並於寫入/讀取時提供全域 Loading 遮罩。
+ *   4. 本機金鑰過期防護     —— 當偵測到本機金鑰在雲端已失效（久未登入被清理）時，
+ *                             自動為本機重新生成新金鑰並上傳同步，防止存檔遺失。
+ *   5. iOS 鍵盤彈起修復    —— 偵測 focusin/focusout 並設定 m-keyboard-open，
+ *                             改善手機版 virtualViewport 縮放與底部選單錯位問題。
+ *   6. 儲存模式切換 UI     —— 於主選單注入本地/Supabase/Jsonblob 模式切換按鈕，
+ *                             並支援快速切換六大公用金鑰。
+ * ========================================================================== */
 (function () {
     'use strict';
 
@@ -1137,7 +1158,9 @@
     };
 
     // 5. 處理手動讀取按鈕
+    let isSupabaseLoggingIn = false;
     window.handleSupabaseReadClick = async function () {
+        if (isSupabaseLoggingIn) return;
         const inputEl = document.getElementById('jsonblob-input');
         if (inputEl) {
             let key = inputEl.value.trim();
@@ -1145,22 +1168,64 @@
                 window.showToast('雲端金鑰格式錯誤！必須為 12 碼英數字 (例如: 0012k1i6d224)', 'error');
                 return;
             }
-            localStorage.setItem('klh_supabase_key', key);
-            // We do NOT overwrite klh_supabase_local_key when manually logging in.
-            localStorage.setItem('klh_storage_mode', 'supabase');
-            if (typeof window.updateStorageModeUI === 'function') {
-                window.updateStorageModeUI();
+            
+            isSupabaseLoggingIn = true;
+            if (typeof window.showLoadingOverlay === 'function') {
+                window.showLoadingOverlay('安全驗證中，請稍候...');
             }
-            await window.syncFromSupabase(true);
+
+            // 防機器人暴力破解：強制延遲 1 秒
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            try {
+                // 🔒 安全防護：手動登入時先驗證該金鑰在雲端是否已存在（防範自創任意金鑰）
+                const { data, error } = await supabase
+                    .rpc('load_player_save', { player_id: key });
+
+                if (error) throw error;
+
+                if (!data) {
+                    window.showToast('雲端金鑰不存在或已失效！無法手動建立新帳號。', 'error');
+                    if (typeof window.hideLoadingOverlay === 'function') {
+                        window.hideLoadingOverlay();
+                    }
+                    isSupabaseLoggingIn = false;
+                    return;
+                }
+
+                // 驗證成功，才寫入 localStorage 並切換模式
+                localStorage.setItem('klh_supabase_key', key);
+                // 登入成功時，不覆寫 klh_supabase_local_key
+                localStorage.setItem('klh_storage_mode', 'supabase');
+                if (typeof window.updateStorageModeUI === 'function') {
+                    window.updateStorageModeUI();
+                }
+                
+                // 直接使用 syncFromSupabase(true) 完成載入同步
+                await window.syncFromSupabase(true);
+            } catch (err) {
+                console.error('[Supabase] 手動登入驗證失敗:', err);
+                window.showToast('登入驗證失敗，請檢查網路連線或金鑰是否正確。', 'error');
+            } finally {
+                isSupabaseLoggingIn = false;
+                if (typeof window.hideLoadingOverlay === 'function') {
+                    window.hideLoadingOverlay();
+                }
+            }
         }
     };
 
     // 初始化與啟動
     async function init() {
         try {
-            // 預設是切回雲端 (supabase)
-            if (localStorage.getItem('klh_storage_mode') === null) {
-                localStorage.setItem('klh_storage_mode', 'supabase');
+            // 預設是切回雲端 (supabase)，但如果檢測到沒有配置 Key，自動將預設模式降級為本地的 local
+            if (localStorage.getItem('klh_storage_mode') === null || localStorage.getItem('klh_storage_mode') === 'supabase') {
+                const hasSupabaseKey = (localStorage.getItem('klh_supabase_key') || '').trim() || (localStorage.getItem('klh_supabase_local_key') || '').trim();
+                if (!hasSupabaseKey) {
+                    localStorage.setItem('klh_storage_mode', 'local');
+                } else if (localStorage.getItem('klh_storage_mode') === null) {
+                    localStorage.setItem('klh_storage_mode', 'supabase');
+                }
             }
 
             // 🚀 在 DOM 載入後先嘗試初始化 UI (若尚未建立)

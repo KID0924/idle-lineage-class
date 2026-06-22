@@ -3,7 +3,7 @@
  *
  * 設計原則: 完全不改原作者程式碼，只從外面「包住」全域函式 (monkey-patch)。
  * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
- * * <script src="klh_jsonblob.js?v=20260616"></script>
+ * * <script src="klh_jsonblob.js?v=20260622"></script>
  *
  * 功能一覽:
  *   1. 雲端存檔 (JSONBlob) —— 透過 JSONBlob API 讀寫最多 4 格存檔 + 倉庫，
@@ -17,7 +17,7 @@
  *                             recomputeStats/spawnMob等)，嵌入難度乘數運算。
  *   6. 屬性查表擴充       —— 力量/敏捷/智力/體質/精神 等六大屬性查表延伸至 70-120 級距，
  *                             上限 120，並動態覆蓋遊戲原生查表函式。
- *   7. 遊戲內配點優化     —— 遊戲內配點上限 +40，萬能藥上限 +40，
+ *   7. 遊戲內配點優化     —— 遊戲內配點上限 +20，萬能藥上限 +20，
  *                             加入長按連續配點功能。
  *   8. 存檔槽整合         —— 重實作 openSlotSelect/chooseSlot/slotSummary，
  *                             整合難度顯示，防止特權金鑰覆蓋存檔。
@@ -234,11 +234,11 @@
     };
 
     window.DIFFICULTY_SETTINGS = {
-        hell: { name: "地獄", mobPower: 3.0, dropRate: 3.0, goldRate: 3.0, potionRate: 0.8, noSunDelay: 1, sunDelay: 1 },
-        nightmare: { name: "惡夢", mobPower: 1.5, dropRate: 1.5, goldRate: 1.5, potionRate: 0.9, noSunDelay: 10, sunDelay: 3 },
+        hell: { name: "地獄", mobPower: 3.0, dropRate: 1.5, goldRate: 1.5, potionRate: 0.8, noSunDelay: 5, sunDelay: 5 },
+        nightmare: { name: "惡夢", mobPower: 1.5, dropRate: 1.25, goldRate: 1.25, potionRate: 0.9, noSunDelay: 25, sunDelay: 5 },
         standard: { name: "標準", mobPower: 1.0, dropRate: 1.0, goldRate: 1.0, potionRate: 1.0, noSunDelay: 50, sunDelay: 10 },
-        blessing: { name: "祝福", mobPower: 0.9, dropRate: 1.5, goldRate: 1.5, potionRate: 1.0, noSunDelay: 10, sunDelay: 3 },
-        heaven: { name: "天堂", mobPower: 0.8, dropRate: 2.0, goldRate: 2.0, potionRate: 2.0, noSunDelay: 10, sunDelay: 1 }
+        blessing: { name: "祝福", mobPower: 0.9, dropRate: 1.1, goldRate: 1.1, potionRate: 1.1, noSunDelay: 25, sunDelay: 5 },
+        heaven: { name: "天堂", mobPower: 0.9, dropRate: 1.3, goldRate: 1.3, potionRate: 1.3, noSunDelay: 25, sunDelay: 5 }
     };
 
     const PRIVILEGED_KEYS = [
@@ -253,6 +253,9 @@
             return false; // 開啟 GM 商店功能時，解除特權金鑰固定限制
         }
         const mode = localStorage.getItem('klh_storage_mode') || 'local';
+        if (mode === 'local') {
+            return false; // 本地模式不限制特權金鑰，允許匯入與刪除
+        }
         if (mode === 'supabase') {
             const normalized = (localStorage.getItem('klh_supabase_key') || "").trim().toLowerCase();
             return PRIVILEGED_KEYS.some(k => k.toLowerCase() === normalized);
@@ -1814,11 +1817,11 @@
         const descEl = document.getElementById('diff-desc');
         if (descEl) {
             const descs = {
-                hell: "【地獄】怪物強度 3.0x，掉寶率 3.0x，金幣量 3.0x，<br>增益藥水效力 0.8x。出怪延遲 0.1秒。<br><span class=\"text-rose-400 font-semibold\">「無盡的絕望深淵，唯有強者能在冥界烈火中存活。」</span>",
-                nightmare: "【惡夢】怪物強度 1.5x，掉寶率 1.5x，金幣量 1.5x，<br>增益藥水效力 0.9x。出怪延遲 1.0秒 / 日光 0.3秒。<br><span class=\"text-orange-400 font-semibold\">「恐懼與迷霧籠罩，稍有不慎便會墮入萬劫不復深淵。」</span>",
+                hell: "【地獄】怪物強度 3.0x，掉寶率 1.5x，金幣量 1.5x，<br>增益藥水效力 0.8x。出怪延遲 0.5秒。<br><span class=\"text-rose-400 font-semibold\">「無盡的絕望深淵，唯有強者能在冥界烈火中存活。」</span>",
+                nightmare: "【惡夢】怪物強度 1.5x，掉寶率 1.25x，金幣量 1.25x，<br>增益藥水效力 0.9x。出怪延遲 2.5秒 / 日光 0.5秒。<br><span class=\"text-orange-400 font-semibold\">「恐懼與迷霧籠罩，稍有不慎便會墮入萬劫不復深淵。」</span>",
                 standard: "【標準】怪物強度 1.0x，掉寶率 1.0x，金幣量 1.0x，<br>增益藥水效力 1.0x。出怪延遲 5.0秒 / 日光 1.0秒。<br><span class=\"text-slate-400 font-semibold\">「命運之輪平穩運轉，適合所有尋求經典冒險的旅者。」</span>",
-                blessing: "【祝福】怪物強度 0.9x，掉寶率 1.5x，金幣量 1.5x，<br>增益藥水效力 1.0x。出怪延遲 1.0秒 / 日光 0.3秒。<br><span class=\"text-emerald-400 font-semibold\">「神聖的光芒庇護著大地，豐饒與幸運伴隨你的每一步。」</span>",
-                heaven: "【天堂】怪物強度 0.8x，掉寶率 2.0x，金幣量 2.0x，<br>增益藥水效力 2.0x。出怪延遲 1.0秒 / 日光 0.1秒。<br><span class=\"text-sky-400 font-semibold\">「諸神眷顧的極樂之地，怪孱弱而寶藏無窮的夢幻旅途。」</span>"
+                blessing: "【祝福】怪物強度 0.9x，掉寶率 1.1x，金幣量 1.1x，<br>增益藥水效力 1.1x。出怪延遲 2.5秒 / 日光 0.5秒。<br><span class=\"text-emerald-400 font-semibold\">「神聖的光芒庇護著大地，豐饒與幸運伴隨你的每一步。」</span>",
+                heaven: "【天堂】怪物強度 0.9x，掉寶率 1.3x，金幣量 1.3x，<br>增益藥水效力 1.3x。出怪延遲 2.5秒 / 日光 0.5秒。<br><span class=\"text-sky-400 font-semibold\">「諸神眷顧的極樂之地，怪孱弱而寶藏無窮的夢幻旅途。」</span>"
             };
             descEl.innerHTML = descs[diff] || "";
         }
@@ -2223,30 +2226,30 @@
         }
     ]);
 
-    // 遊戲內配點上限為原本+40 (動態改寫為原本上限+40)
+    // 遊戲內配點上限為原本+20 (動態改寫為原本上限+20)
     patchGlobalFunctionMultiple('adjBonusStat', [
         {
             find: /let capN = (\d+);/,
-            replace: 'let capN = parseInt($1) + 40;'
+            replace: 'let capN = parseInt($1) + 20;'
         }
     ]);
 
-    // 萬能藥單項屬性上限為原本+40 (動態改寫為原本上限+40)
+    // 萬能藥單項屬性上限為原本+20 (動態改寫為原本上限+20)
     patchGlobalFunctionMultiple('useItem', [
         {
             find: /let st = d\.pstat,\s*cap = (\d+);/,
-            replace: 'let st = d.pstat, cap = parseInt($1) + 40;'
+            replace: 'let st = d.pstat, cap = parseInt($1) + 20;'
         }
     ]);
 
-    // 動態修改萬能藥說明文字中的上限描述為原本上限+40
+    // 動態修改萬能藥說明文字中的上限描述為原本上限+20
     if (typeof DB !== 'undefined' && DB.items) {
         for (let itemId in DB.items) {
             let item = DB.items[itemId];
             if (item && item.eff === 'panacea' && item.d) {
                 item.d = item.d.replace(/上限\s*(\d+)/g, (match, p1) => {
                     const originalVal = parseInt(p1, 10);
-                    return `上限${originalVal + 40}`;
+                    return `上限${originalVal + 20}`;
                 });
             }
         }
@@ -2569,7 +2572,7 @@
                     </div>
                     <div>
                         <span class="font-bold text-amber-300">9. 屬性配點與萬能藥上限提升</span>
-                        <p class="pl-4 text-slate-400">屬性升級配點上限提升 +40，萬能藥使用上限也提升 +40；同時六大屬性的查表公式全面擴充延伸（70 至 120 級距），單項屬性最高上限可達 120，突破凡人極限！</p>
+                        <p class="pl-4 text-slate-400">屬性升級配點上限提升 +20，萬能藥使用上限也提升 +20；同時六大屬性的查表公式全面擴充延伸（70 至 120 級距），單項屬性最高上限可達 120，突破凡人極限！</p>
                     </div>
                 </div>
             `;
@@ -2600,6 +2603,20 @@
         // registerRebirthNPC(); // Moved to klh_GM2.js
         attachHoldEventsToStatButtons();
         attachHoldEventsToInGameStatButtons();
+
+        // 攔截 exportSave 避免特權金鑰被匯出進度
+        if (typeof window.exportSave === 'function' && !window.exportSave.__klh_patched_priv) {
+            const originalExportSave = window.exportSave;
+            window.exportSave = async function () {
+                if (typeof checkIsPrivileged === 'function' && checkIsPrivileged()) {
+                    if (typeof showToast === 'function') showToast('特權金鑰限制：禁止匯出進度！', 'error');
+                    else alert('特權金鑰限制：禁止匯出進度！');
+                    return;
+                }
+                return await originalExportSave.apply(this, arguments);
+            };
+            window.exportSave.__klh_patched_priv = true;
+        }
 
         // 修正 _slotMode 作用域遮蔽問題與清理空存檔標記，且限制特權金鑰匯入
         patchGlobalFunctionMultiple('importSave', [

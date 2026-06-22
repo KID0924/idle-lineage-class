@@ -50,11 +50,22 @@
 
     // ── 3. 強制 reflow 工具函式 ──
     var gs = null;
+    var isAndroid = /Android/i.test(navigator.userAgent);
     function reflow() {
         if (!gs) gs = document.getElementById('game-screen');
         if (!gs) return;
-        // 讀 offsetHeight 強制瀏覽器重算佈局與觸控命中矩陣
-        void gs.offsetHeight;
+
+        if (isAndroid) {
+            // Android/Blink: 透過微調 style 並強制讀取，確保重寫觸控命中測試矩陣
+            var orig = gs.style.paddingRight;
+            gs.style.paddingRight = '1px';
+            void gs.offsetHeight;
+            gs.style.paddingRight = orig;
+        } else {
+            // iOS/Safari: 讀 offsetHeight 強制瀏覽器重算佈局與觸控命中矩陣
+            void gs.offsetHeight;
+        }
+
         // 雙重保險：也讀 #m-nav 的命中矩陣
         var nav = document.getElementById('m-nav');
         if (nav) void nav.offsetHeight;

@@ -1,3 +1,19 @@
+/* ============================================================================
+ * klh_team.js — 協力傭兵輔助、仇恨吸引及受療平衡調整機制
+ *
+ * 設計原則: 完全不改原作者程式碼，透過 monkey-patch 方式攔截/擴充功能。
+ * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
+ * * <script src="klh_team.js?v=20260622"></script>
+ *
+ * 功能一覽:
+ *   1. 仇恨吸引權重演算法  —— 依職業特徵自動分配怪物物理與魔法攻擊目標 (騎士:10 / 黑妖:6 / 妖精:4 / 法師:3)。
+ *   2. 傭兵戰鬥傷害與抵抗  —— 重寫傭兵承受物理/魔法傷害與屬性抗性、減免、格擋、暴擊計算，防護傭兵並調整輸出倍率與受傷比例。
+ *   3. 傭兵自然回血魔      —— 定時 (5秒) 恢復存活傭兵 HP/MP，並於回城後自動解散已陣亡傭兵及補滿存活者血魔。
+ *   4. 輔助治療/藥水重定向 —— 當施放治癒魔法或使用生命藥水時，可選擇重定向治療目標至指定傭兵，並支援「生命的祝福」(HoT) 全體聯動恢復。
+ *   5. 自動傭兵吃藥/魔法   —— 於設定面板注入傭兵輔助 UI，支援設定 HP 閾值自動為傭兵吃藥水或施放治癒魔法。
+ *   6. 戰鬥日誌動態過濾    —— Hook logCombat 替換傭兵姓名、傷害倍率，並過濾重定向的自身治癒日誌。
+ *   7. 存檔與 UI 設定同步  —— saveGame/loadGame Hook 以讀寫儲存傭兵自動吃藥與閾值配置。
+ * ========================================================================== */
 (function () {
     'use strict';
 
@@ -61,10 +77,10 @@
     function selectAttackTarget() {
         const targets = [];
 
-        // 1. 主角 (主角權重多 * 2)
+        // 1. 主角 (主角權重多 * 1.5)
         targets.push({
             type: 'player',
-            weight: getJobWeight(player.cls) * 2,
+            weight: getJobWeight(player.cls) * 1.5,
             ref: player
         });
 
@@ -731,24 +747,29 @@
 
     function restoreMercenarySettings() {
         injectMercenaryUI();
-        if (player && player.config) {
-            const mercHpThrEl = document.getElementById('set-merc-hp-thr');
-            const mercHealTypeEl = document.getElementById('set-merc-heal-type');
-            if (mercHpThrEl) {
-                if (player.config.mercHpThr !== undefined) {
-                    mercHpThrEl.value = player.config.mercHpThr;
-                } else {
-                    mercHpThrEl.value = "40";
-                    player.config.mercHpThr = "40";
+        if (player) {
+            if (!player.klhTeamConfig) {
+                player.klhTeamConfig = {
+                    mercHpThr: "40",
+                    mercHealType: ""
+                };
+                // 嘗試從舊版 config 繼承（如果有的話）
+                if (player.config && player.config.mercHpThr) {
+                    player.klhTeamConfig.mercHpThr = player.config.mercHpThr;
+                }
+                if (player.config && player.config.mercHealType !== undefined) {
+                    player.klhTeamConfig.mercHealType = player.config.mercHealType;
                 }
             }
+
+            const mercHpThrEl = document.getElementById('set-merc-hp-thr');
+            const mercHealTypeEl = document.getElementById('set-merc-heal-type');
+            
+            if (mercHpThrEl) {
+                mercHpThrEl.value = player.klhTeamConfig.mercHpThr || "40";
+            }
             if (mercHealTypeEl) {
-                if (player.config.mercHealType !== undefined) {
-                    mercHealTypeEl.value = player.config.mercHealType;
-                } else {
-                    mercHealTypeEl.value = "";
-                    player.config.mercHealType = "";
-                }
+                mercHealTypeEl.value = player.klhTeamConfig.mercHealType || "";
             }
         }
     }
@@ -765,16 +786,17 @@
     if (typeof window.saveGame === 'function' && !window.saveGame.isHookedMerc) {
         const originalSaveGame = window.saveGame;
         window.saveGame = function () {
-            // 1. 存檔前，先將傭兵設定寫入 player.config，確保隨原版 saveGame 一併序列化
-            if (player && player.config) {
+            // 1. 存檔前，先將傭兵設定寫入獨立的 player.klhTeamConfig，避免被原版 saveGame 洗掉
+            if (player) {
+                if (!player.klhTeamConfig) player.klhTeamConfig = {};
                 const mercHpThrEl = document.getElementById('set-merc-hp-thr');
                 const mercHealTypeEl = document.getElementById('set-merc-heal-type');
 
-                player.config.mercHpThr = mercHpThrEl ? mercHpThrEl.value : "40";
-                player.config.mercHealType = mercHealTypeEl ? mercHealTypeEl.value : "";
+                player.klhTeamConfig.mercHpThr = mercHpThrEl ? mercHpThrEl.value : "40";
+                player.klhTeamConfig.mercHealType = mercHealTypeEl ? mercHealTypeEl.value : "";
             }
 
-            // 2. 呼叫原始存檔 (此時 player.config 已包含傭兵設定，會一併寫入 localStorage)
+            // 2. 呼叫原始存檔 (此時 player.klhTeamConfig 會一併寫入 localStorage)
             return originalSaveGame.apply(this, arguments);
         };
         window.saveGame.isHookedMerc = true;
