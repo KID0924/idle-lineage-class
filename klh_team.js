@@ -490,7 +490,7 @@
             let item = player.inv.find(i => i.uid === u);
             if (!item) return originalUseItem.apply(this, arguments);
 
-            let isHealPotion = item.id.includes('potion_heal') || item.id === 'potion_strong' || item.id === 'potion_ult';
+            let isHealPotion = item.id.includes('potion_heal') || item.id === 'potion_strong' || item.id === 'potion_ult' || item.id === 'potion_super_white' || item.id === 'potion_hyper_white';
             let oldPlayerHp = player.hp;
 
             let res = originalUseItem.apply(this, arguments);
