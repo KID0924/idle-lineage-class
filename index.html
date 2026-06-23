@@ -4241,8 +4241,8 @@ d.mr += (baseMr + bonusMr);
         }
     }
     
-    // 騎士：背包中持有的魔法頭盔也授予技能（擁有即可、不需裝備；背包與裝備都沒有對應頭盔時技能才會消失）
-    if (p.cls === 'knight') {
+    // 騎士／王族／戰士：背包中持有的魔法頭盔也授予技能（擁有即可、不需裝備；背包與裝備都沒有對應頭盔時技能才會消失）
+    if (p.cls === 'knight' || p.cls === 'royal' || p.cls === 'warrior') {
         (p.inv || []).forEach(it => {
             let _gd = DB.items[it.id];
             if (_gd && _gd.grantSkills) {
@@ -15337,7 +15337,7 @@ function openSlotSelect(mode){
         let importBtn = `<button onclick="importSave(${n})" class="btn flex-1 min-w-0 py-2 px-2 text-base font-bold bg-indigo-700 hover:bg-indigo-600 border-indigo-500 whitespace-nowrap">匯入進度</button>`;
         let restoreBtn = bak ? `<button onclick="restoreBackup(${n})" title="復原匯入前自動備份的存檔（${bak.cls} Lv.${bak.lv}　${bak.name}）" class="btn flex-1 min-w-0 py-2 px-2 text-sm font-bold bg-amber-700 hover:bg-amber-600 border-amber-500 whitespace-nowrap">↩ 復原備份</button>` : '';
         let actionArea = (mode === 'load') ? `<div class="flex gap-2 shrink-0 w-56">${importBtn}${restoreBtn}</div>` : '';
-        let avatarImg = (sum && sum.avatar) ? `<img src="assets/character/${sum.avatar}.png" alt="" class="shrink-0 h-8 w-8 rounded object-cover object-top -ml-1" onerror="if(this.dataset.fb){this.style.display='none';}else{this.dataset.fb=1;this.src=this.src.slice(0,-4)+'.jpg';}">` : '';   // 👤 依存檔職業性別頭像：先試 .png→失敗改試 .jpg（男騎士/女騎士為 jpg）→皆無則自動隱藏
+        let avatarImg = (sum && sum.avatar) ? `<img src="assets/save/${(sum.avatar||'').replace('黑暗妖精','黑妖').replace('幻術士','幻術師')}.jpg" alt="" class="shrink-0 h-8 w-8 rounded object-cover object-top -ml-1" style="border:1px solid rgba(148,163,184,0.55);box-shadow:inset 0 1px 0 rgba(255,255,255,0.18),0 1px 2px rgba(0,0,0,0.5);" onerror="this.style.display='none';">` : '';   // 👤 存檔圖＝assets/save/<性別職業>.jpg（avatar 對應檔名：黑暗妖精→黑妖、幻術士→幻術師）；細邊框＋微立體陰影；缺檔自動隱藏
         list.innerHTML += `<div class="flex gap-2 w-full">`
             + `<button onclick="chooseSlot(${n})" ${disabled ? 'disabled' : ''} style="${_classicStyle}" class="btn flex-1 min-w-0 py-2 text-lg font-bold flex items-center gap-2 ${disabled ? 'opacity-40' : ''}">${avatarImg}<span class="truncate min-w-0">${label}</span></button>`
             + actionArea
@@ -17686,41 +17686,41 @@ window.onload = () => {
 
 <!-- pp771007 -->
 <!-- 離線掛機外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606231851"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606231927"></script>
 <!-- 手機版介面外掛(可獨立維護;原作者更新後重新加回此行即可) -->      
-<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606231851"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606231927"></script>
 <!-- 怪物/掉落查詢外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606231851"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606231927"></script>
 <!-- 小百科外掛(專精/武器特性/職業魔法;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606231851"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606231927"></script>
 <!-- 通用修正外掛(補原作者坑,桌機/手機通用;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606231851"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606231927"></script>
 <!-- 背景大圖快取 Service Worker 註冊(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606231851"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606231927"></script>
 <!-- 手機 toast 提示(點按鈕的系統日誌訊息浮現;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606231851"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606231927"></script>
 <!-- 統一自製彈窗:全域接管 window.alert(可獨立維護;原作者更新後重新加回此行即可) -->
-<!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v=202606231851"></script-->
+<!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v=202606231927"></script-->
 <!-- 能力值面板補點數分解 始/升/藥/總(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v=202606231851"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v=202606231927"></script>
 
 <!-- KID0924 -->
 <!-- Json雲端模組 -->
-<script src="klh_jsonblob.js?v=202606231851"></script>
+<script src="klh_jsonblob.js?v=202606231927"></script>
 <!-- 潘朵拉抽獎模組 -->
-<script src="klh_GM.js?v=202606231851"></script>
+<script src="klh_GM.js?v=202606231927"></script>
 <!-- 自定義藥水與兌換模組 -->
-<script src="klh_GM2.js?v=202606231851"></script>
+<script src="klh_GM2.js?v=202606231927"></script>
 <!-- 黃金交易所/雲端資源商店模組 -->
-<!--script src="klh_Shop.js?v=202606231851"></script-->
+<!--script src="klh_Shop.js?v=202606231927"></script-->
 <!-- 傭兵生存戰鬥血魔擴充模組 -->
-<script src="klh_team.js?v=202606231851"></script>
+<script src="klh_team.js?v=202606231927"></script>
 <!-- Supabase雲端模組 -->
-<script src="klh_supabase.js?v=202606231851"></script>
+<script src="klh_supabase.js?v=202606231927"></script>
 <!-- 手機觸控卡死修復 -->
-<script src="klh_touch_fix.js?v=202606231851"></script>
+<script src="klh_touch_fix.js?v=202606231927"></script>
 <!-- 電腦版延展介面 -->
-<script src="klh_PC_fix.js?v=202606231851"></script>
+<script src="klh_PC_fix.js?v=202606231927"></script>
 
 <script>
   document.addEventListener("DOMContentLoaded", function() {
@@ -17734,7 +17734,7 @@ window.onload = () => {
       footer.style.marginTop = '10px';
       footer.style.lineHeight = '1.6';
       
-      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/24 02:51';
+      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/24 03:27';
       menu.appendChild(footer);
     } else {
       console.warn("找不到 #main-menu，時間戳記外掛潛水去啦~");
