@@ -1,0 +1,129 @@
+name: 🧪 手動測試版外掛注入
+
+# 🚨 拔掉自動定時，只允許在 GitHub 網頁上「手動點擊」觸發
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      
+      # 1. 複製基地的現有檔案
+      - name: 📥 複製我的基地儲存庫
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      # 2. 🕵️‍♀️ 抓取原作者最新 index.html 作為測試基底
+      - name: 🕵️‍♀️ 抓取原作者最新 index.html
+        run: |
+          git clone --depth=1 https://github.com/shines871/idle-lineage-class.git upstream_check
+          # 💡 關鍵：直接把原作者的乾淨版複製成 index_test.html，完全不蓋掉正式版 index.html
+          cp upstream_check/index.html ./index_test.html
+          rm -rf upstream_check
+          echo "✅ 已成功建立測試基底 index_test.html"
+
+      # 3. 執行 Python 腳本（精準打擊：只注入到 index_test.html）
+      - name: 💉 注入外掛至測試版
+        run: |
+          cat << 'EOF' > inject_test.py
+          import re, time, datetime
+
+          dynamic_v = time.strftime("%Y%m%d%H%M")
+          tw_time = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
+          sync_str = tw_time.strftime("%Y/%m/%d %H:%M")
+
+          # 🚨 這裡改成只讀取 index_test.html
+          with open('index_test.html', 'r', encoding='utf-8') as f:
+              content = f.read()
+
+          inject_code = f'''
+          <!-- pp771007 -->
+          <!-- 離線掛機外掛(可獨立維護;原作者更新後重新加回此行即可) -->
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v={dynamic_v}"></script>
+          <!-- 手機版介面外掛(可獨立維護;原作者更新後重新加回此行即可) -->      
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v={dynamic_v}"></script>
+          <!-- 怪物/掉落查詢外掛(可獨立維護;原作者更新後重新加回此行即可) -->
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v={dynamic_v}"></script>
+          <!-- 小百科外掛(專精/武器特性/職業魔法;可獨立維護,原作者更新後重新加回此行即可) -->
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v={dynamic_v}"></script>
+          <!-- 通用修正外掛(補原作者坑,桌機/手機通用;可獨立維護,原作者更新後重新加回此行即可) -->
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v={dynamic_v}"></script>
+          <!-- 背景大圖快取 Service Worker 註冊(可獨立維護;原作者更新後重新加回此行即可) -->
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v={dynamic_v}"></script>
+          <!-- 手機 toast 提示(點按鈕的系統日誌訊息浮現;可獨立維護,原作者更新後重新加回此行即可) -->
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v={dynamic_v}"></script>
+          <!-- 統一自製彈窗:全域接管 window.alert(可獨立維護;原作者更新後重新加回此行即可) -->
+          <!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v={dynamic_v}"></script-->
+          <!-- 能力值面板補點數分解 始/升/藥/總(可獨立維護;原作者更新後重新加回此行即可) -->
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v={dynamic_v}"></script>
+
+          <!-- KID0924 -->
+          <!-- Json雲端模組 -->
+          <script src="klh_jsonblob.js?v={dynamic_v}"></script>
+          <!-- 潘朵拉抽獎模組 -->
+          <script src="klh_GM.js?v={dynamic_v}"></script>
+          <!-- 自定義藥水與兌換模組 -->
+          <script src="klh_GM2.js?v={dynamic_v}"></script>
+          <!-- 黃金交易所/雲端資源商店模組 -->
+          <!--script src="klh_Shop.js?v={dynamic_v}"></script-->
+          <!-- 傭兵生存戰鬥血魔擴充模組 -->
+          <script src="klh_team.js?v={dynamic_v}"></script>
+          <!-- Supabase雲端模組 -->
+          <script src="klh_supabase.js?v={dynamic_v}"></script>
+          <!-- 手機觸控卡死修復 -->
+          <script src="klh_touch_fix.js?v={dynamic_v}"></script>
+
+          <script>
+            document.addEventListener("DOMContentLoaded", function() {{
+              let menu = document.getElementById('main-menu');
+              if (menu) {{
+                let footer = document.createElement('div');
+                // 💅 貼心小改動：測試版頁尾換成玫瑰紅，字樣也改成測試版，方便妳通靈除錯
+                footer.style.color = '#e11d48'; 
+                footer.style.fontSize = '12px';
+                footer.style.textAlign = 'center';
+                footer.style.marginTop = '10px';
+                footer.style.lineHeight = '1.6';
+                footer.style.fontWeight = 'bold';
+                
+                footer.innerHTML = '⚠️ 測試版網頁 ⚠️ <span style="margin:0 6px;opacity:0.6;">·</span> 同步時間：{sync_str}';
+                menu.appendChild(footer);
+              }}
+            }});
+          </script>
+          '''
+
+          if 'klh_jsonblob.js' not in content:
+              content = content.replace('</body>', inject_code + '\n</body>')
+              # 🚨 這裡改成只寫入 index_test.html
+              with open('index_test.html', 'w', encoding='utf-8') as f:
+                  f.write(content)
+              print(f'✅ 測試版外掛注入成功！')
+          else:
+              print('⚠️ 偵測到外掛已存在，跳過注入。')
+          EOF
+          
+          python3 inject_test.py
+          rm inject_test.py
+
+      # 4. 僅把測試版檔案推回 GitHub
+      - name: 📤 存檔並推回測試檔案
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 🚨 絕對不開地圖砲 git add .！我們只抓測試檔，確保生產線的安全！
+          git add index_test.html
+          
+          if git diff-index --quiet HEAD; then
+            echo "🥱 測試版內容沒有任何變動，收工！"
+            exit 0
+          fi
+          
+          git commit -m "chore(test): 手動觸發更新測試版 index_test.html"
+          git push
