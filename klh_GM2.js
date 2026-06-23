@@ -1,9 +1,14 @@
 /* ============================================================================
  * klh_GM2.js — 高級藥水、神之祝福與掉寶藥水機制 & 克里斯特兌換 & 快速批量賣出 & 轉生系統 & 碧恩席琳附魔說明
  *
- * 設計原則: 完全不改原作者程式碼，只從外面「包住」全域函式 (monkey-patch)。
+ * 設計原則:
+ *   1. 完全不改原作者程式碼 —— 僅透過從外部「包住」全域函式 (Monkey-Patch) 進行擴充。
+ *   2. 優雅降級與安全降載 —— 核心 Hook 皆以 try-catch 沙盒包裹並配備 typeof 存在性檢查，
+ *                         若原作者未來改版導致函式或變數消失，外掛功能會默默安全降級或停用，
+ *                         確保絕對不拋出致命 JS 錯誤，完全保障原版遊戲流程不中斷。
+ *
  * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
- * * <script src="klh_GM2.js?v=20260622"></script>
+ *   <script src="klh_GM2.js?v=20260623"></script>
  *
  * 功能一覽:
  *   1. 發光 CSS 注入     —— 注入屬性詞綴圖示動態光暈特效 (earth3/earth5-glow等)。
@@ -219,23 +224,28 @@
     if (typeof window.getGlowClass === 'function') {
         const originalGetGlowClass = window.getGlowClass;
         window.getGlowClass = function (item, d) {
-            let itemId = (item && item.id) || (d && d.id);
-            if (!itemId && d) {
-                for (let key in DB.items) {
-                    if (DB.items[key] === d) {
-                        itemId = key;
-                        break;
+            try {
+                let itemId = (item && item.id) || (d && d.id);
+                if (!itemId && d) {
+                    for (let key in DB.items) {
+                        if (DB.items[key] === d) {
+                            itemId = key;
+                            break;
+                        }
                     }
                 }
+
+                if (itemId === 'potion_super_white') return 'earth3-glow'; // 崩裂橘黃發光
+                if (itemId === 'potion_hyper_white') return 'earth5-glow'; // 地靈深金琥珀發光
+                if (itemId === 'potion_droprate') return 'bless-glow';     // 黃金祝福發光
+                if (itemId === 'potion_god_bless') return 'bless-glow';    // 黃金祝福發光
+            } catch (e) {
+                console.error("[klh_GM2] getGlowClass hook error:", e);
             }
-
-            if (itemId === 'potion_super_white') return 'earth3-glow'; // 崩裂橘黃發光
-            if (itemId === 'potion_hyper_white') return 'earth5-glow'; // 地靈深金琥珀發光
-            if (itemId === 'potion_droprate') return 'bless-glow';     // 黃金祝福發光
-            if (itemId === 'potion_god_bless') return 'bless-glow';    // 黃金祝福發光
-
             return originalGetGlowClass(item, d);
         };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.getGlowClass，發光特效注入已降級");
     }
 
     // 5. 覆寫 window.getShopItemsForNpc，使所有包含「白色藥水」的雜貨商店皆販售新藥水，且排列於「白色藥水」正下方
@@ -243,326 +253,395 @@
         const originalGetShopItemsForNpc = window.getShopItemsForNpc;
         window.getShopItemsForNpc = function (npcId) {
             let list = originalGetShopItemsForNpc(npcId);
-            let idx = list.indexOf("potion_ult"); // 找到「白色藥水」的位置
-            if (idx !== -1) {
-                // 先過濾掉已存在的自定義藥水 (避免重複寫入)
-                list = list.filter(id => id !== "potion_super_white" && id !== "potion_hyper_white" && id !== "potion_droprate");
-                // 重新定位並插入至白色藥水下方
-                idx = list.indexOf("potion_ult");
-                list.splice(idx + 1, 0, "potion_super_white", "potion_hyper_white", "potion_droprate");
+            try {
+                let idx = list.indexOf("potion_ult"); // 找到「白色藥水」的位置
+                if (idx !== -1) {
+                    // 先過濾掉已存在的自定義藥水 (避免重複寫入)
+                    list = list.filter(id => id !== "potion_super_white" && id !== "potion_hyper_white" && id !== "potion_droprate");
+                    // 重新定位並插入至白色藥水下方
+                    idx = list.indexOf("potion_ult");
+                    list.splice(idx + 1, 0, "potion_super_white", "potion_hyper_white", "potion_droprate");
+                }
+            } catch (e) {
+                console.error("[klh_GM2] getShopItemsForNpc hook error:", e);
             }
             return list;
         };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.getShopItemsForNpc，商店自訂藥水注入已降級");
     }
 
     // 6. 覆寫 window.useItem 實現新藥水效果
-    const originalUseItem = window.useItem;
-    window.useItem = function (u, silent = false) {
-        if (typeof player === 'undefined' || !player) return originalUseItem(u, silent);
-        let item = player.inv.find(i => i.uid === u);
-        if (!item) return originalUseItem(u, silent);
-
-        // 處理濃縮與超級濃縮白水
-        if (item.id === 'potion_super_white' || item.id === 'potion_hyper_white') {
-            if (player.dead) { if (!silent) logSys(`死亡狀態無法使用道具，請先復活。`); return; }
-            if (player.cds.pot > 0) return;
-            let d = DB.items[item.id];
-            let h = Math.floor(d.val * (1 + getConPotionPct(player.d.con) / 100));
-            if (typeof hasMastery === 'function' && hasMastery('k_survive')) h = Math.floor(h * 1.25);
-            player.hp = Math.min(player.mhp, player.hp + h);
-            player.cds.pot = 1;
-            if (!silent) logSys(`飲用 ${d.n}，恢復 ${h} HP。`);
-            consume(item);
-            calcStats();
-            updateUI();
-            if (!silent && !document.getElementById('item-modal').classList.contains('hidden')) {
-                closeModal();
+    if (typeof window.useItem === 'function') {
+        const originalUseItem = window.useItem;
+        window.useItem = function (u, silent = false) {
+            try {
+                if (typeof player !== 'undefined' && player) {
+                    let item = player.inv.find(i => i.uid === u);
+                    if (item) {
+                        // 處理濃縮與超級濃縮白水
+                        if (item.id === 'potion_super_white' || item.id === 'potion_hyper_white') {
+                            if (player.dead) { if (!silent) logSys(`死亡狀態無法使用道具，請先復活。`); return; }
+                            if (player.cds.pot > 0) return;
+                            let d = DB.items[item.id];
+                            let h = Math.floor(d.val * (1 + getConPotionPct(player.d.con) / 100));
+                            if (typeof hasMastery === 'function' && hasMastery('k_survive')) h = Math.floor(h * 1.25);
+                            player.hp = Math.min(player.mhp, player.hp + h);
+                            player.cds.pot = 1;
+                            if (!silent) logSys(`飲用 ${d.n}，恢復 ${h} HP。`);
+                            consume(item);
+                            calcStats();
+                            updateUI();
+                            if (!silent && !document.getElementById('item-modal').classList.contains('hidden')) {
+                                closeModal();
+                            }
+                            return;
+                        }
+                        // 處理掉寶藥水與神之祝福藥水
+                        else if (item.id === 'potion_droprate' || item.id === 'potion_god_bless') {
+                            if (player.dead) { if (!silent) logSys(`死亡狀態無法使用道具，請先復活。`); return; }
+                            let d = DB.items[item.id];
+                            player.buffs[d.eff] = d.dur;
+                            if (!silent) logSys(`使用了 ${d.n}，效果持續 ${d.dur} 秒。`);
+                            consume(item);
+                            calcStats();
+                            updateUI();
+                            if (!silent && !document.getElementById('item-modal').classList.contains('hidden')) {
+                                closeModal();
+                            }
+                            return;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("[klh_GM2] useItem hook error (自定義藥水邏輯失敗):", e);
             }
-            return;
-        }
-        // 處理掉寶藥水與神之祝福藥水
-        else if (item.id === 'potion_droprate' || item.id === 'potion_god_bless') {
-            if (player.dead) { if (!silent) logSys(`死亡狀態無法使用道具，請先復活。`); return; }
-            let d = DB.items[item.id];
-            player.buffs[d.eff] = d.dur;
-            if (!silent) logSys(`使用了 ${d.n}，效果持續 ${d.dur} 秒。`);
-            consume(item);
-            calcStats();
-            updateUI();
-            if (!silent && !document.getElementById('item-modal').classList.contains('hidden')) {
-                closeModal();
-            }
-            return;
-        }
-
-        return originalUseItem(u, silent);
-    };
+            return originalUseItem(u, silent);
+        };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.useItem，自定義藥水使用功能已降級");
+    }
 
     // 7. 覆寫 Krista 兌換系統
-    const originalKristaExchange = window.kristaExchange;
-    const originalRenderKristaExchange = window.renderKristaExchange;
+    if (typeof window.kristaExchange === 'function') {
+        const originalKristaExchange = window.kristaExchange;
+        window.kristaExchange = function (kind) {
+            try {
+                if (kind === 'god_bless_1' || kind === 'god_bless_20') {
+                    let cost = (kind === 'god_bless_1') ? 100000 : 2000000;
+                    let count = (kind === 'god_bless_1') ? 1 : 20;
 
-    window.kristaExchange = function (kind) {
-        if (kind === 'god_bless_1' || kind === 'god_bless_20') {
-            let cost = (kind === 'god_bless_1') ? 100000 : 2000000;
-            let count = (kind === 'god_bless_1') ? 1 : 20;
+                    if ((player.gold || 0) < cost) {
+                        logSys(`<span class="text-red-400">金幣不足（需 ${cost.toLocaleString()}）。</span>`);
+                        return;
+                    }
 
-            if ((player.gold || 0) < cost) {
-                logSys(`<span class="text-red-400">金幣不足（需 ${cost.toLocaleString()}）。</span>`);
-                return;
+                    player.gold -= cost;
+                    gainItem('potion_god_bless', count, true, true);
+                    renderTabs();
+                    updateUI();
+                    saveGame();
+
+                    logSys(`花費 ${cost.toLocaleString()} 金幣，換得 ${count} 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span>。`);
+
+                    let _e = document.getElementById('interaction-content');
+                    if (_e) renderKristaExchange(_e);
+                    return; // 執行完自定義邏輯即返回
+                }
+            } catch (e) {
+                console.error("[klh_GM2] kristaExchange hook error:", e);
             }
+            return originalKristaExchange(kind);
+        };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.kristaExchange，克里斯特神之祝福兌換已降級");
+    }
 
-            player.gold -= cost;
-            gainItem('potion_god_bless', count, true, true);
-            renderTabs();
-            updateUI();
-            saveGame();
-
-            logSys(`花費 ${cost.toLocaleString()} 金幣，換得 ${count} 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span>。`);
-
-            let _e = document.getElementById('interaction-content');
-            if (_e) renderKristaExchange(_e);
-        } else {
-            if (typeof originalKristaExchange === 'function') {
-                originalKristaExchange(kind);
-            }
-        }
-    };
-
-    window.renderKristaExchange = function (el) {
-        if (typeof originalRenderKristaExchange === 'function') {
+    if (typeof window.renderKristaExchange === 'function') {
+        const originalRenderKristaExchange = window.renderKristaExchange;
+        window.renderKristaExchange = function (el) {
             originalRenderKristaExchange(el);
-        }
-
-        let container = el.querySelector('.flex-col');
-        if (container) {
-            let blessRow1 = `
-                <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
-                    <div class="text-sm text-slate-200 leading-relaxed">100,000 金幣 → 1 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
-                    <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_1')">兌換</button>
-                </div>`;
-            let blessRow20 = `
-                <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
-                    <div class="text-sm text-slate-200 leading-relaxed">2,000,000 金幣 → 20 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
-                    <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_20')">兌換</button>
-                </div>`;
-            container.insertAdjacentHTML('beforeend', blessRow1 + blessRow20);
-        }
-    };
+            try {
+                let container = el.querySelector('.flex-col');
+                if (container) {
+                    let blessRow1 = `
+                        <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
+                            <div class="text-sm text-slate-200 leading-relaxed">100,000 金幣 → 1 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
+                            <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_1')">兌換</button>
+                        </div>`;
+                    let blessRow20 = `
+                        <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-3">
+                            <div class="text-sm text-slate-200 leading-relaxed">2,000,000 金幣 → 20 瓶 <span class="text-yellow-300 font-bold">神之祝福藥水</span></div>
+                            <button class="btn bg-purple-800 hover:bg-purple-700 border-purple-500 py-2 px-4 font-bold shrink-0" onclick="kristaExchange('god_bless_20')">兌換</button>
+                        </div>`;
+                    container.insertAdjacentHTML('beforeend', blessRow1 + blessRow20);
+                }
+            } catch (e) {
+                console.error("[klh_GM2] renderKristaExchange hook error:", e);
+            }
+        };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.renderKristaExchange，克里斯特神之祝福兌換介面已降級");
+    }
 
     // 8. 掉寶與神之祝福核心機制 (Monkey Patch 掉落系統)
     let _isMonsterDrop = false;
     let _currentDroppingMob = null;
 
     // 覆寫 window.killMob 捕捉掉落上下文、金幣加倍與掉落倍化
-    const originalKillMob = window.killMob;
-    window.killMob = function (idx) {
-        if (typeof player === 'undefined' || !player) return originalKillMob(idx);
-        let mob = mapState.mobs[idx];
-        if (!mob || mob._dead) return originalKillMob(idx);
+    if (typeof window.killMob === 'function') {
+        const originalKillMob = window.killMob;
+        window.killMob = function (idx) {
+            if (typeof player === 'undefined' || !player) return originalKillMob(idx);
+            let mob = typeof mapState !== 'undefined' && mapState.mobs ? mapState.mobs[idx] : null;
+            if (!mob || mob._dead) return originalKillMob(idx);
 
-        _isMonsterDrop = true;
-        _currentDroppingMob = mob;
+            _isMonsterDrop = true;
+            _currentDroppingMob = mob;
 
-        let originalMobDrops = null;
-        let originalDarkWeaponDrops = null;
-        let originalDarkCrystalDrops = null;
+            let originalMobDrops = null;
+            let originalDarkWeaponDrops = null;
+            let originalDarkCrystalDrops = null;
 
-        // 掉寶藥水：修改資料庫掉率以達成 3倍/2倍 掉落
-        if (player.buffs.droprate > 0) {
-            // 複製並修改 MOB_DROPS
-            if (typeof MOB_DROPS !== 'undefined' && MOB_DROPS[mob.n]) {
-                originalMobDrops = MOB_DROPS[mob.n];
-                MOB_DROPS[mob.n] = originalMobDrops.map(entry => {
-                    let itemId = entry[0];
-                    let rate = entry[1];
-                    let d = DB.items[itemId];
-                    let isEquip = d && (d.type === 'wpn' || d.type === 'arm' || d.type === 'acc');
-                    let mult = isEquip ? 3 : 2;
-                    return [itemId, rate * mult];
-                });
-            }
-            // 複製並修改 DARK_WEAPON_DROPS
-            if (typeof DARK_WEAPON_DROPS !== 'undefined' && DARK_WEAPON_DROPS[mob.n]) {
-                originalDarkWeaponDrops = DARK_WEAPON_DROPS[mob.n];
-                DARK_WEAPON_DROPS[mob.n] = originalDarkWeaponDrops.map(entry => {
-                    let itemId = entry[0];
-                    let rate = entry[1];
-                    let d = DB.items[itemId];
-                    let isEquip = d && (d.type === 'wpn' || d.type === 'arm' || d.type === 'acc');
-                    let mult = isEquip ? 3 : 2;
-                    return [itemId, rate * mult];
-                });
-            }
-            // 複製並修改 DARK_CRYSTAL_DROPS
-            if (typeof DARK_CRYSTAL_DROPS !== 'undefined' && DARK_CRYSTAL_DROPS[mob.n]) {
-                originalDarkCrystalDrops = DARK_CRYSTAL_DROPS[mob.n];
-                DARK_CRYSTAL_DROPS[mob.n] = originalDarkCrystalDrops.map(entry => {
-                    let itemId = entry[0];
-                    let rate = entry[1];
-                    let d = DB.items[itemId];
-                    let isEquip = d && (d.type === 'wpn' || d.type === 'arm' || d.type === 'acc');
-                    let mult = isEquip ? 3 : 2;
-                    return [itemId, rate * mult];
-                });
-            }
-        }
-
-        try {
-            let goldBefore = player.gold || 0;
-            originalKillMob(idx);
-
-            // 掉寶藥水：獲得金幣翻倍 (靜默加錢，不顯示洗頻提示)
-            let goldGained = (player.gold || 0) - goldBefore;
-            if (goldGained > 0 && player.buffs.droprate > 0) {
-                player.gold += goldGained;
-                // logSys(`[掉寶藥水] 額外獲得 <span class="text-yellow-400 font-bold">${goldGained} 金幣</span>。`); // 註解隱藏以防洗頻
-            }
-
-            // 掉寶藥水：處理 hardcoded 非資料庫迴圈掉落項目的二次加成 (達到 2倍 效果)
-            if (player.buffs.droprate > 0) {
-                let _dropMult = mob._grace ? 10 : (mob._sherine ? 3 : 1);
-
-                // 1. 黑魔石額外掉落 (材料 2倍)
-                let _refine = player.skills.includes('sk_dark_refine');
-                if (mapState.current === 'silent_outer') {
-                    if (Math.random() < (_refine ? 0.30 : 0.20)) gainItem('mat_blackstone2', 1);
-                    if (Math.random() < (_refine ? 0.15 : 0.10)) gainItem('mat_blackstone3', 1);
-                } else if (_refine && typeof mapCategoryOf === 'function' && ['wild', 'dungeon'].includes(mapCategoryOf(mapState.current))) {
-                    if (Math.random() < 0.01) gainItem('mat_blackstone2', 1);
-                    if (Math.random() < 0.005) gainItem('mat_blackstone3', 1);
-                    if (Math.random() < 0.001) gainItem('mat_blackstone4', 1);
-                }
-
-                // 2. 銀礦石額外掉落 (材料 2倍)
-                let _oreRates = { '石頭高崙': 100, '鋼鐵高崙': 100, '侏儒': 50, '侏儒戰士': 50, '黑騎士': 50, '哈柏哥布林': 50, '蜥蜴人': 50 };
-                let _or = _oreRates[mob.n];
-                if (_or && Math.random() < _or / 100) gainItem('mat_silverore', 1);
-
-                // 3. 40等以上 Boss 賦予祝福卷軸額外掉落 (材料 2倍)
-                if (mob.boss && mob.lv >= 40 && mapState.current !== 'dream_island' && !isSiegeArea(mapState.current) && !mob.siegeEnemy) {
-                    if (Math.random() < 0.001 * _dropMult) gainItem('new_item_bless_wpn', 1);
-                    if (Math.random() < 0.001 * _dropMult) gainItem('new_item_bless_arm', 1);
-                    if (Math.random() < 0.0001 * _dropMult) gainItem('new_item_bless_acc', 1);
-                }
-
-                // 4. 眠龍/妖森 區域額外掉落 (材料 2倍)
-                if (typeof AREA_BONUS_MAPS !== 'undefined' && AREA_BONUS_MAPS.includes(mapState.current)) {
-                    let bonusRate = (player.skills.includes('sk_elf_worldtree') ? 0.30 : 0.20) * _dropMult;
-                    if (typeof AREA_BONUS_ITEMS !== 'undefined') {
-                        AREA_BONUS_ITEMS.forEach(itemId => {
-                            if (DB.items[itemId] && Math.random() < Math.min(1, bonusRate)) gainItem(itemId, 1);
+            try {
+                // 掉寶藥水：修改資料庫掉率以達成 3倍/2倍 掉落
+                if (player.buffs && player.buffs.droprate > 0) {
+                    // 複製並修改 MOB_DROPS
+                    if (typeof MOB_DROPS !== 'undefined' && MOB_DROPS[mob.n]) {
+                        originalMobDrops = MOB_DROPS[mob.n];
+                        MOB_DROPS[mob.n] = originalMobDrops.map(entry => {
+                            let itemId = entry[0];
+                            let rate = entry[1];
+                            let d = typeof DB !== 'undefined' && DB.items ? DB.items[itemId] : null;
+                            let isEquip = d && (d.type === 'wpn' || d.type === 'arm' || d.type === 'acc');
+                            let mult = isEquip ? 3 : 2;
+                            return [itemId, rate * mult];
+                        });
+                    }
+                    // 複製並修改 DARK_WEAPON_DROPS
+                    if (typeof DARK_WEAPON_DROPS !== 'undefined' && DARK_WEAPON_DROPS[mob.n]) {
+                        originalDarkWeaponDrops = DARK_WEAPON_DROPS[mob.n];
+                        DARK_WEAPON_DROPS[mob.n] = originalDarkWeaponDrops.map(entry => {
+                            let itemId = entry[0];
+                            let rate = entry[1];
+                            let d = typeof DB !== 'undefined' && DB.items ? DB.items[itemId] : null;
+                            let isEquip = d && (d.type === 'wpn' || d.type === 'arm' || d.type === 'acc');
+                            let mult = isEquip ? 3 : 2;
+                            return [itemId, rate * mult];
+                        });
+                    }
+                    // 複製並修改 DARK_CRYSTAL_DROPS
+                    if (typeof DARK_CRYSTAL_DROPS !== 'undefined' && DARK_CRYSTAL_DROPS[mob.n]) {
+                        originalDarkCrystalDrops = DARK_CRYSTAL_DROPS[mob.n];
+                        DARK_CRYSTAL_DROPS[mob.n] = originalDarkCrystalDrops.map(entry => {
+                            let itemId = entry[0];
+                            let rate = entry[1];
+                            let d = typeof DB !== 'undefined' && DB.items ? DB.items[itemId] : null;
+                            let isEquip = d && (d.type === 'wpn' || d.type === 'arm' || d.type === 'acc');
+                            let mult = isEquip ? 3 : 2;
+                            return [itemId, rate * mult];
                         });
                     }
                 }
+            } catch (e) {
+                console.error("[klh_GM2] killMob pre-hook error:", e);
+            }
 
-                // 5. 血盟盟友擊殺掉寶額外判定 (裝備 3倍 -> 額外判定 2 次)
-                if ((mob.wild && mob.race === '血盟') || mob.siegeEnemy) {
-                    if (typeof pledgeBonusDrop === 'function') {
-                        pledgeBonusDrop(mob);
-                        pledgeBonusDrop(mob);
+            try {
+                let goldBefore = player.gold || 0;
+                originalKillMob(idx);
+
+                try {
+                    // 掉寶藥水：獲得金幣翻倍 (靜默加錢，不顯示洗頻提示)
+                    let goldGained = (player.gold || 0) - goldBefore;
+                    if (goldGained > 0 && player.buffs && player.buffs.droprate > 0) {
+                        player.gold += goldGained;
+                        // logSys(`[掉寶藥水] 額外獲得 <span class="text-yellow-400 font-bold">${goldGained} 金幣</span>。`); // 註解隱藏以防洗頻
                     }
-                }
-            }
-        } finally {
-            // 還原 MOB_DROPS 等資料庫
-            if (originalMobDrops) MOB_DROPS[mob.n] = originalMobDrops;
-            if (originalDarkWeaponDrops) DARK_WEAPON_DROPS[mob.n] = originalDarkWeaponDrops;
-            if (originalDarkCrystalDrops) DARK_CRYSTAL_DROPS[mob.n] = originalDarkCrystalDrops;
 
-            _isMonsterDrop = false;
-            _currentDroppingMob = null;
-        }
-    };
+                    // 掉寶藥水：處理 hardcoded 非資料庫迴圈掉落項目的二次加成 (達到 2倍 效果)
+                    if (player.buffs && player.buffs.droprate > 0) {
+                        let _dropMult = mob._grace ? 10 : (mob._sherine ? 3 : 1);
 
-    // 覆寫 window.gainItem 以在怪物掉落裝備時控制神之祝福套裝效果 (2倍)
-    const originalGainItem = window.gainItem;
-    window.gainItem = function (id, cnt = 1, silent = false, forceNormal = false, affixOld = false) {
-        let oldForceSherineSet = typeof _forceSherineSet !== 'undefined' ? _forceSherineSet : false;
-        if (_isMonsterDrop && player && player.buffs.god_bless > 0 && !forceNormal && typeof _sherineLootCtx !== 'undefined' && _sherineLootCtx) {
-            let d = DB.items[id];
-            let _slotOk = d && ((d.type === 'wpn' && !d.isArrow)
-                || (d.type === 'arm' && ['helm', 'armor', 'gloves', 'boots', 'cloak'].includes(d.slot))
-                || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt'));
-            if (_slotOk) {
-                // 額外判定一次席琳套裝效果 (相當於將機率乘 2，若成功則設定 _forceSherineSet 強制賦予)
-                let rate = (_sherineLootCtx.boss ? 0.05 : (_sherineLootCtx.grace ? 0.005 : 0.001));
-                if (Math.random() < rate) {
-                    _forceSherineSet = true;
-                }
-            }
-        }
+                        // 1. 黑魔石額外掉落 (材料 2倍)
+                        let _refine = player.skills && player.skills.includes('sk_dark_refine');
+                        if (typeof mapState !== 'undefined' && mapState.current === 'silent_outer') {
+                            if (Math.random() < (_refine ? 0.30 : 0.20)) gainItem('mat_blackstone2', 1);
+                            if (Math.random() < (_refine ? 0.15 : 0.10)) gainItem('mat_blackstone3', 1);
+                        } else if (_refine && typeof mapCategoryOf === 'function' && typeof mapState !== 'undefined' && ['wild', 'dungeon'].includes(mapCategoryOf(mapState.current))) {
+                            if (Math.random() < 0.01) gainItem('mat_blackstone2', 1);
+                            if (Math.random() < 0.005) gainItem('mat_blackstone3', 1);
+                            if (Math.random() < 0.001) gainItem('mat_blackstone4', 1);
+                        }
 
-        try {
-            return originalGainItem(id, cnt, silent, forceNormal, affixOld);
-        } finally {
-            if (typeof _forceSherineSet !== 'undefined') {
-                _forceSherineSet = oldForceSherineSet;
-            }
-        }
-    };
+                        // 2. 銀礦石額外掉落 (材料 2倍)
+                        let _oreRates = { '石頭高崙': 100, '鋼鐵高崙': 100, '侏儒': 50, '侏儒戰士': 50, '黑騎士': 50, '哈柏哥布林': 50, '蜥蜴人': 50 };
+                        let _or = _oreRates[mob.n];
+                        if (_or && Math.random() < _or / 100) gainItem('mat_silverore', 1);
 
-    // 覆寫 rollAffixesNew / rollAffixesOld 以在怪物掉落裝備時將祝福機率乘以 3
-    const originalRollAffixesNew = window.rollAffixesNew;
-    if (typeof originalRollAffixesNew === 'function') {
-        window.rollAffixesNew = function () {
-            let res = originalRollAffixesNew();
-            if (_isMonsterDrop && player && player.buffs.god_bless > 0) {
-                // 祝福機率乘 3。若原本失敗，則額外判定 2 次
-                if (!res.bless) {
-                    let m = (typeof _sherineLootCtx !== 'undefined' && _sherineLootCtx) ? 3 : 1;
-                    let blessChance = 0.01 * m;
-                    if (Math.random() < blessChance || Math.random() < blessChance) {
-                        res.bless = true;
+                        // 3. 40等以上 Boss 賦予祝福卷軸額外掉落 (材料 2倍)
+                        if (mob.boss && mob.lv >= 40 && typeof mapState !== 'undefined' && mapState.current !== 'dream_island' && (typeof isSiegeArea !== 'function' || !isSiegeArea(mapState.current)) && !mob.siegeEnemy) {
+                            if (Math.random() < 0.001 * _dropMult) gainItem('new_item_bless_wpn', 1);
+                            if (Math.random() < 0.001 * _dropMult) gainItem('new_item_bless_arm', 1);
+                            if (Math.random() < 0.0001 * _dropMult) gainItem('new_item_bless_acc', 1);
+                        }
+
+                        // 4. 眠龍/妖森 區域額外掉落 (材料 2倍)
+                        if (typeof AREA_BONUS_MAPS !== 'undefined' && typeof mapState !== 'undefined' && AREA_BONUS_MAPS.includes(mapState.current)) {
+                            let bonusRate = (player.skills && player.skills.includes('sk_elf_worldtree') ? 0.30 : 0.20) * _dropMult;
+                            if (typeof AREA_BONUS_ITEMS !== 'undefined') {
+                                AREA_BONUS_ITEMS.forEach(itemId => {
+                                    if (typeof DB !== 'undefined' && DB.items && DB.items[itemId] && Math.random() < Math.min(1, bonusRate)) gainItem(itemId, 1);
+                                });
+                            }
+                        }
+
+                        // 5. 血盟盟友擊殺掉寶額外判定 (裝備 3倍 -> 額外判定 2 次)
+                        if ((mob.wild && mob.race === '血盟') || mob.siegeEnemy) {
+                            if (typeof pledgeBonusDrop === 'function') {
+                                pledgeBonusDrop(mob);
+                                pledgeBonusDrop(mob);
+                            }
+                        }
                     }
+                } catch (e) {
+                    console.error("[klh_GM2] killMob post-hook error:", e);
                 }
+            } finally {
+                // 還原 MOB_DROPS 等資料庫
+                if (originalMobDrops && typeof MOB_DROPS !== 'undefined') MOB_DROPS[mob.n] = originalMobDrops;
+                if (originalDarkWeaponDrops && typeof DARK_WEAPON_DROPS !== 'undefined') DARK_WEAPON_DROPS[mob.n] = originalDarkWeaponDrops;
+                if (originalDarkCrystalDrops && typeof DARK_CRYSTAL_DROPS !== 'undefined') DARK_CRYSTAL_DROPS[mob.n] = originalDarkCrystalDrops;
+
+                _isMonsterDrop = false;
+                _currentDroppingMob = null;
             }
-            return res;
         };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.killMob，掉寶藥水加倍與怪物掉寶擴充功能已降級");
     }
 
-    const originalRollAffixesOld = window.rollAffixesOld;
-    if (typeof originalRollAffixesOld === 'function') {
-        window.rollAffixesOld = function () {
-            let res = originalRollAffixesOld();
-            if (_isMonsterDrop && player && player.buffs.god_bless > 0) {
-                // 祝福機率乘 3。若原本失敗，則額外判定 2 次
-                if (!res.bless) {
-                    let m = (typeof _sherineLootCtx !== 'undefined' && _sherineLootCtx) ? 3 : 1;
-                    let blessChance = 0.01 * m;
-                    if (Math.random() < blessChance || Math.random() < blessChance) {
-                        res.bless = true;
+    // 覆寫 window.gainItem 以在怪物掉落裝備時控制神之祝福套裝效果 (2倍)
+    if (typeof window.gainItem === 'function') {
+        const originalGainItem = window.gainItem;
+        window.gainItem = function (id, cnt = 1, silent = false, forceNormal = false, affixOld = false) {
+            let oldForceSherineSet = typeof _forceSherineSet !== 'undefined' ? _forceSherineSet : false;
+            try {
+                if (_isMonsterDrop && player && player.buffs && player.buffs.god_bless > 0 && !forceNormal && typeof _sherineLootCtx !== 'undefined' && _sherineLootCtx) {
+                    let d = typeof DB !== 'undefined' && DB.items ? DB.items[id] : null;
+                    let _slotOk = d && ((d.type === 'wpn' && !d.isArrow)
+                        || (d.type === 'arm' && ['helm', 'armor', 'gloves', 'boots', 'cloak'].includes(d.slot))
+                        || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt'));
+                    if (_slotOk) {
+                        // 額外判定一次席琳套裝效果 (相當於將機率乘 2，若成功則設定 _forceSherineSet 強制賦予)
+                        let rate = (_sherineLootCtx.boss ? 0.05 : (_sherineLootCtx.grace ? 0.005 : 0.001));
+                        if (Math.random() < rate) {
+                            _forceSherineSet = true;
+                        }
                     }
                 }
+            } catch (e) {
+                console.error("[klh_GM2] gainItem hook error:", e);
+            }
+
+            try {
+                return originalGainItem(id, cnt, silent, forceNormal, affixOld);
+            } finally {
+                if (typeof _forceSherineSet !== 'undefined') {
+                    _forceSherineSet = oldForceSherineSet;
+                }
+            }
+        };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.gainItem，神之祝福裝備掉落特效加成已降級");
+    }
+
+    // 覆寫 rollAffixesNew / rollAffixesOld 以在怪物掉落裝備時將祝福機率乘以 3
+    if (typeof window.rollAffixesNew === 'function') {
+        const originalRollAffixesNew = window.rollAffixesNew;
+        window.rollAffixesNew = function () {
+            let res = originalRollAffixesNew();
+            try {
+                if (_isMonsterDrop && player && player.buffs && player.buffs.god_bless > 0) {
+                    // 祝福機率乘 3。若原本失敗，則額外判定 2 次
+                    if (!res.bless) {
+                        let m = (typeof _sherineLootCtx !== 'undefined' && _sherineLootCtx) ? 3 : 1;
+                        let blessChance = 0.01 * m;
+                        if (Math.random() < blessChance || Math.random() < blessChance) {
+                            res.bless = true;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("[klh_GM2] rollAffixesNew hook error:", e);
             }
             return res;
         };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.rollAffixesNew，神之祝福機率提升功能已降級");
+    }
+
+    if (typeof window.rollAffixesOld === 'function') {
+        const originalRollAffixesOld = window.rollAffixesOld;
+        window.rollAffixesOld = function () {
+            let res = originalRollAffixesOld();
+            try {
+                if (_isMonsterDrop && player && player.buffs && player.buffs.god_bless > 0) {
+                    // 祝福機率乘 3。若原本失敗，則額外判定 2 次
+                    if (!res.bless) {
+                        let m = (typeof _sherineLootCtx !== 'undefined' && _sherineLootCtx) ? 3 : 1;
+                        let blessChance = 0.01 * m;
+                        if (Math.random() < blessChance || Math.random() < blessChance) {
+                            res.bless = true;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("[klh_GM2] rollAffixesOld hook error:", e);
+            }
+            return res;
+        };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.rollAffixesOld，神之祝福機率提升功能已降級");
     }
 
     // 9. 覆寫 window.saveGame 以儲存新設定
     if (typeof window.saveGame === 'function') {
         const originalSaveGame = window.saveGame;
         window.saveGame = function () {
-            if (typeof player !== 'undefined' && player && player.config) {
-                let chkDroprate = document.getElementById('set-droprate');
-                let chkAutoBuyDroprate = document.getElementById('set-auto-buy-droprate');
-                let chkGodBless = document.getElementById('set-god-bless');
+            try {
+                if (typeof player !== 'undefined' && player && player.config) {
+                    let chkDroprate = document.getElementById('set-droprate');
+                    let chkAutoBuyDroprate = document.getElementById('set-auto-buy-droprate');
+                    let chkGodBless = document.getElementById('set-god-bless');
 
-                player.config.setDroprate = chkDroprate ? chkDroprate.checked : false;
-                player.config.setAutoBuyDroprate = chkAutoBuyDroprate ? chkAutoBuyDroprate.checked : false;
-                player.config.setGodBless = chkGodBless ? chkGodBless.checked : false;
+                    player.config.setDroprate = chkDroprate ? chkDroprate.checked : false;
+                    player.config.setAutoBuyDroprate = chkAutoBuyDroprate ? chkAutoBuyDroprate.checked : false;
+                    player.config.setGodBless = chkGodBless ? chkGodBless.checked : false;
+                }
+            } catch (e) {
+                console.error("[klh_GM2] saveGame hook error:", e);
             }
             return originalSaveGame();
         };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.saveGame，設定存檔功能已降級");
     }
 
     // 10. 覆寫 window.loadGame 載入設定，並支援即時還原
     if (typeof window.loadGame === 'function') {
         const originalLoadGame = window.loadGame;
         window.loadGame = function () {
-            originalLoadGame();
-            restoreCustomSettings();
+            let res = originalLoadGame();
+            try {
+                restoreCustomSettings();
+            } catch (e) {
+                console.error("[klh_GM2] loadGame hook error:", e);
+            }
+            return res;
         };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.loadGame，設定讀取功能已降級");
     }
 
     // 11. 恢復與載入自定義設定的輔助函式
@@ -585,39 +664,46 @@
     if (typeof window.autoActions === 'function') {
         const originalAutoActions = window.autoActions;
         window.autoActions = function () {
-            originalAutoActions();
+            let res = originalAutoActions();
 
-            if (typeof player === 'undefined' || !player || player.dead) return;
+            try {
+                if (typeof player === 'undefined' || !player || player.dead) return res;
 
-            // 12-1. 掉寶藥水自動化
-            let chkDroprate = document.getElementById('set-droprate');
-            if (chkDroprate && chkDroprate.checked && (player.buffs.droprate || 0) <= 0) {
-                let item = player.inv.find(i => i.id === 'potion_droprate');
-                if (item) {
-                    useItem(item.uid, true);
-                } else {
-                    let chkAutoBuyDroprate = document.getElementById('set-auto-buy-droprate');
-                    if (chkAutoBuyDroprate && chkAutoBuyDroprate.checked) {
-                        let price = DB.items['potion_droprate'].p;
-                        if (player.gold >= price) {
-                            player.gold -= price;
-                            gainItem('potion_droprate', 1, true, true);
-                            let newItem = player.inv.find(i => i.id === 'potion_droprate');
-                            if (newItem) useItem(newItem.uid, true);
+                // 12-1. 掉寶藥水自動化
+                let chkDroprate = document.getElementById('set-droprate');
+                if (chkDroprate && chkDroprate.checked && (player.buffs.droprate || 0) <= 0) {
+                    let item = player.inv.find(i => i.id === 'potion_droprate');
+                    if (item) {
+                        useItem(item.uid, true);
+                    } else {
+                        let chkAutoBuyDroprate = document.getElementById('set-auto-buy-droprate');
+                        if (chkAutoBuyDroprate && chkAutoBuyDroprate.checked) {
+                            let price = typeof DB !== 'undefined' && DB.items && DB.items['potion_droprate'] ? DB.items['potion_droprate'].p : 0;
+                            if (price > 0 && player.gold >= price) {
+                                player.gold -= price;
+                                gainItem('potion_droprate', 1, true, true);
+                                let newItem = player.inv.find(i => i.id === 'potion_droprate');
+                                if (newItem) useItem(newItem.uid, true);
+                            }
                         }
                     }
                 }
-            }
 
-            // 12-2. 神之祝福藥水自動化 (無自動購買)
-            let chkGodBless = document.getElementById('set-god-bless');
-            if (chkGodBless && chkGodBless.checked && (player.buffs.god_bless || 0) <= 0) {
-                let item = player.inv.find(i => i.id === 'potion_god_bless');
-                if (item) {
-                    useItem(item.uid, true);
+                // 12-2. 神之祝福藥水自動化 (無自動購買)
+                let chkGodBless = document.getElementById('set-god-bless');
+                if (chkGodBless && chkGodBless.checked && (player.buffs.god_bless || 0) <= 0) {
+                    let item = player.inv.find(i => i.id === 'potion_god_bless');
+                    if (item) {
+                        useItem(item.uid, true);
+                    }
                 }
+            } catch (e) {
+                console.error("[klh_GM2] autoActions hook error:", e);
             }
+            return res;
         };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.autoActions，自動吃藥水功能已降級");
     }
 
     // ============================================================================
@@ -1023,16 +1109,20 @@
     };
 
     // 互斥處理：覆寫 window.toggleQuickEnhance，點擊快速強化時主動關閉批量賣出與加鎖/解鎖
-    const originalToggleQuickEnhance = window.toggleQuickEnhance;
-    if (typeof originalToggleQuickEnhance === 'function') {
+    if (typeof window.toggleQuickEnhance === 'function') {
+        const originalToggleQuickEnhance = window.toggleQuickEnhance;
         window.toggleQuickEnhance = function (type) {
-            if (window.quickSell && window.quickSell[type]) {
-                window.quickSell[type].active = false;
-                window.quickSell[type].sel = {};
-            }
-            if (window.quickLock && window.quickLock[type]) {
-                window.quickLock[type].active = false;
-                window.quickLock[type].sel = {};
+            try {
+                if (window.quickSell && window.quickSell[type]) {
+                    window.quickSell[type].active = false;
+                    window.quickSell[type].sel = {};
+                }
+                if (window.quickLock && window.quickLock[type]) {
+                    window.quickLock[type].active = false;
+                    window.quickLock[type].sel = {};
+                }
+            } catch (e) {
+                console.error("[klh_GM2] toggleQuickEnhance hook error:", e);
             }
             originalToggleQuickEnhance(type);
         };
@@ -1701,18 +1791,32 @@ function startupGM2() {
     if (typeof window.interactNPC === 'function' && !window.interactNPC.__klhRebirthWrapped) {
         const originalInteractNPC = window.interactNPC;
         window.interactNPC = function (npcId, townId) {
-            if (npcId === "npc_rebirth") {
-                window._activePanel = null;
-                document.getElementById('town-npc-container').classList.add('hidden');
-                document.getElementById('town-interaction-container').classList.remove('hidden');
-                document.getElementById('town-interaction-container').classList.add('flex');
+            try {
+                if (npcId === "npc_rebirth") {
+                    window._activePanel = null;
+                    let townNpcContainer = document.getElementById('town-npc-container');
+                    if (townNpcContainer) townNpcContainer.classList.add('hidden');
+                    
+                    let interactionContainer = document.getElementById('town-interaction-container');
+                    if (interactionContainer) {
+                        interactionContainer.classList.remove('hidden');
+                        interactionContainer.classList.add('flex');
+                    }
 
-                document.getElementById('interaction-npc-name').innerText = "時光使者";
-                document.getElementById('interaction-npc-title').innerText = "[轉生系統]";
+                    let npcName = document.getElementById('interaction-npc-name');
+                    if (npcName) npcName.innerText = "時光使者";
+                    
+                    let npcTitle = document.getElementById('interaction-npc-title');
+                    if (npcTitle) npcTitle.innerText = "[轉生系統]";
 
-                let contentDiv = document.getElementById('interaction-content');
-                renderRebirthNPC(contentDiv);
-                return;
+                    let contentDiv = document.getElementById('interaction-content');
+                    if (contentDiv && typeof renderRebirthNPC === 'function') {
+                        renderRebirthNPC(contentDiv);
+                    }
+                    return;
+                }
+            } catch (e) {
+                console.error("[klh_GM2] interactNPC hook error:", e);
             }
             originalInteractNPC(npcId, townId);
         };
@@ -1726,29 +1830,39 @@ function startupGM2() {
             // 計算吃蠟燭前，玩家「應有」的總升級與轉生點數
             // alloc 是玩家已經點上去的點數，bonus 是還沒點的點數
             let currentTotalPoints = 0;
-            if (player) {
-                if (player.alloc) {
-                    currentTotalPoints += (player.alloc.str || 0);
-                    currentTotalPoints += (player.alloc.dex || 0);
-                    currentTotalPoints += (player.alloc.con || 0);
-                    currentTotalPoints += (player.alloc.int || 0);
-                    currentTotalPoints += (player.alloc.wis || 0);
-                    currentTotalPoints += (player.alloc.cha || 0);
+            try {
+                if (typeof player !== 'undefined' && player) {
+                    if (player.alloc) {
+                        currentTotalPoints += (player.alloc.str || 0);
+                        currentTotalPoints += (player.alloc.dex || 0);
+                        currentTotalPoints += (player.alloc.con || 0);
+                        currentTotalPoints += (player.alloc.int || 0);
+                        currentTotalPoints += (player.alloc.wis || 0);
+                        currentTotalPoints += (player.alloc.cha || 0);
+                    }
+                    currentTotalPoints += (player.bonus || 0);
                 }
-                currentTotalPoints += (player.bonus || 0);
+            } catch (e) {
+                console.error("[klh_GM2] resetStatsCandle pre-hook error:", e);
             }
 
             // 執行原版的吃蠟燭 (這會把 alloc 歸零，並把 bonus 洗成 創角加成 + (lv-49))
             originalResetStatsCandle();
 
             // 蓋掉原版的計算，直接把玩家吃蠟燭前持有的「總點數量」原封不動還給他！
-            if (player) {
-                // 由於重置後 player.alloc 是 0，所以把吃蠟燭前的所有點數都塞回 player.bonus
-                player.bonus = currentTotalPoints;
-                
-                if (typeof updateUI === 'function') {
-                    updateUI();
+            try {
+                if (typeof player !== 'undefined' && player) {
+                    // 由於重置後 player.alloc 是 0，所以把吃蠟燭前的所有點數都塞回 player.bonus
+                    if (currentTotalPoints > 0) {
+                        player.bonus = currentTotalPoints;
+                    }
+                    
+                    if (typeof updateUI === 'function') {
+                        updateUI();
+                    }
                 }
+            } catch (e) {
+                console.error("[klh_GM2] resetStatsCandle post-hook error:", e);
             }
         };
         window.resetStatsCandle.__klhRebirthWrapped = true;
@@ -1775,50 +1889,56 @@ function startupGM2() {
         window.openModal = function (item, isEq, slot) {
             originalOpenModal(item, isEq, slot);
 
-            let d = DB.items[item.id];
-            if (!d) return;
+            try {
+                let d = DB.items[item.id];
+                if (!d) return;
 
-            // 檢查是否是支援席琳注入的裝備
-            let isSherine = (d.type === 'wpn' && !d.isArrow)
-                || (d.type === 'arm' && ['helm', 'armor', 'gloves', 'boots', 'cloak'].includes(d.slot))
-                || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
+                // 檢查是否是支援席琳注入的裝備
+                let isSherine = (d.type === 'wpn' && !d.isArrow)
+                    || (d.type === 'arm' && ['helm', 'armor', 'gloves', 'boots', 'cloak'].includes(d.slot))
+                    || ((d.type === 'acc' || d.type === 'arm') && d.slot === 'belt');
 
-            if (isSherine) {
-                let actEl = document.getElementById('modal-actions');
-                if (actEl) {
-                    let sc = player.inv.find(i => i.id === 'sherine_crystal');
-                    let scCount = sc ? sc.cnt : 0;
+                if (isSherine) {
+                    let actEl = document.getElementById('modal-actions');
+                    if (actEl) {
+                        let sc = player.inv.find(i => i.id === 'sherine_crystal');
+                        let scCount = sc ? sc.cnt : 0;
 
-                    let btn = document.createElement('button');
-                    let _cursed = item.bless === 'cursed';
+                        let btn = document.createElement('button');
+                        let _cursed = item.bless === 'cursed';
 
-                    if (_cursed) {
-                        btn.className = `col-span-2 w-full btn border-slate-600 bg-slate-700 text-slate-400 py-3 text-lg font-bold cursor-not-allowed mt-2`;
-                        btn.disabled = true;
-                        btn.innerHTML = `🔒 席琳注入（詛咒中無法施加）`;
-                    } else {
-                        btn.className = `col-span-2 w-full btn border-emerald-700 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 py-3 text-lg font-bold mt-2`;
-                        btn.innerHTML = `💎 席琳注入（消耗 席琳結晶*1，擁有: ${scCount}）`;
-                        btn.onclick = function () {
-                            executeModalSherine(item, isEq, slot);
-                        };
-                    }
-
-                    // 尋找「強化」按鈕並插在它下方，若無則插在「標記為廢品」上方或最底下
-                    let enhanceBtn = Array.from(actEl.querySelectorAll('button')).find(b => b.getAttribute('onclick')?.includes('showEnhanceOptions'));
-                    if (enhanceBtn) {
-                        enhanceBtn.parentNode.insertBefore(btn, enhanceBtn.nextSibling);
-                    } else {
-                        let junkLabel = actEl.querySelector('label');
-                        if (junkLabel) {
-                            junkLabel.parentNode.insertBefore(btn, junkLabel);
+                        if (_cursed) {
+                            btn.className = `col-span-2 w-full btn border-slate-600 bg-slate-700 text-slate-400 py-3 text-lg font-bold cursor-not-allowed mt-2`;
+                            btn.disabled = true;
+                            btn.innerHTML = `🔒 席琳注入（詛咒中無法施加）`;
                         } else {
-                            actEl.appendChild(btn);
+                            btn.className = `col-span-2 w-full btn border-emerald-700 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 py-3 text-lg font-bold mt-2`;
+                            btn.innerHTML = `💎 席琳注入（消耗 席琳結晶*1，擁有: ${scCount}）`;
+                            btn.onclick = function () {
+                                executeModalSherine(item, isEq, slot);
+                            };
+                        }
+
+                        // 尋找「強化」按鈕並插在它下方，若無則插在「標記為廢品」上方或最底下
+                        let enhanceBtn = Array.from(actEl.querySelectorAll('button')).find(b => b.getAttribute('onclick')?.includes('showEnhanceOptions'));
+                        if (enhanceBtn) {
+                            enhanceBtn.parentNode.insertBefore(btn, enhanceBtn.nextSibling);
+                        } else {
+                            let junkLabel = actEl.querySelector('label');
+                            if (junkLabel) {
+                                junkLabel.parentNode.insertBefore(btn, junkLabel);
+                            } else {
+                                actEl.appendChild(btn);
+                            }
                         }
                     }
                 }
+            } catch (e) {
+                console.error("[klh_GM2] openModal hook error:", e);
             }
         };
+    } else {
+        console.warn("[klh_GM2] 找不到 window.openModal，席琳注入按鈕擴充已降級");
     }
 
     // 執行 Modal 專屬的席琳注入邏輯
@@ -1976,7 +2096,17 @@ function startupGM2() {
         const originalSellAllJunk = window.sellAllJunk;
         window.originalSellAllJunk = originalSellAllJunk;
         window.sellAllJunk = function () {
-            window.openJunkListModal();
+            try {
+                if (typeof window.openJunkListModal === 'function') {
+                    window.openJunkListModal();
+                    return;
+                }
+            } catch (e) {
+                console.error("[klh_GM2] sellAllJunk hook error:", e);
+            }
+            if (typeof window.originalSellAllJunk === 'function') {
+                window.originalSellAllJunk();
+            }
         };
         window.sellAllJunk.__klhJunkWrapped = true;
     }
@@ -1994,15 +2124,27 @@ function startupGM2() {
         const originalUpdateUI = window.updateUI;
         window.updateUI = function () {
             originalUpdateUI();
-            initJunkButton();
+            try {
+                initJunkButton();
+            } catch (e) {
+                console.error("[klh_GM2] updateUI hook error:", e);
+            }
         };
         window.updateUI.__klhJunkBtnWrapped = true;
     }
 }
 
 // 註冊 DOM 載入與即時啟動
-document.addEventListener('DOMContentLoaded', startupGM2);
+function safeStartupGM2() {
+    try {
+        startupGM2();
+    } catch (e) {
+        console.error("[klh_GM2] startup error:", e);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', safeStartupGM2);
 if (document.readyState === 'interactive' || document.readyState === 'complete') {
-    startupGM2();
+    safeStartupGM2();
 }
 }) ();

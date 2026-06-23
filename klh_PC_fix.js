@@ -1,33 +1,30 @@
 /* ============================================================================
- * klh_PC_fix.js — 電腦版寬螢幕延展模式切換外掛
+ * klh_PC_fix.js — 電腦版寬螢幕延展與高度自由調整外掛
  *
- * 設計原則: 完全不改原作者程式碼，僅透過 CSS 覆寫與浮動按鈕實現寬螢幕切換。
+ * 設計原則:
+ *   1. 完全不改原作者程式碼 —— 僅透過動態 CSS 注入與浮動按鈕實現介面控制。
+ *   2. 優雅降級與安全降載 —— 初始化與核心操作皆以 try-catch 沙盒包裹，且嚴格驗證 DOM
+ *                         結構（如驗證 #game-screen 是否存在），若原作者未來進行大改版，
+ *                         外掛會默默安全停用，確保不拋出致命 JS 錯誤以防破壞遊戲執行。
+ *   3. 防呆與極限拉扯防護 —— 面板拖曳高度在執行期間受「視窗底部 40px 安全區」保護，把手
+ *                         絕不落入螢幕外；載入時若高度損壞會自動限縮；並配備右鍵/雙擊
+ *                         📐 按鈕的緊急全域重設歸位機制。
+ *
  * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
  *   <script src="klh_PC_fix.js?v=20260623"></script>
  *
  * 功能一覽:
- *   1. 寬螢幕延展模式  —— 解除 #game-screen 的 max-w-[1600px] 限制，
- *                         讓三欄（左側狀態/中間地圖日誌/右側裝備清單）自動延展
- *                         至整個瀏覽器視窗寬度，善用 1920/2560/3840 等大螢幕空間。
- *   2. 浮動切換按鈕    —— 在遊戲畫面右下角注入一個小型圓形切換按鈕（📐），
- *                         位於 GM 商店按鈕下方（bottom: 20px），雙開時不互相遮擋。
- *   3. 使用者偏好記憶  —— 將延展模式開關狀態存入 localStorage，重新整理後自動套用。
- *   4. 手機用戶保護    —— 透過 UA + pointer + 螢幕寬度三重偵測，手機/平板環境下
- *                         完全不注入按鈕與樣式，零影響原有觸控體驗。
- *   5. 面板高度自由調整 —— 桌機用戶可拖曳每個 .panel 底部的調整把手，自訂面板高度。
- *                         偏好高度自動存入 localStorage，重整後自動還原。
- *                         雙擊把手可重設該面板回預設高度。
- *
- * 延展模式修改清單:
- *   - #game-screen: 移除 max-width 限制
- *   - #col-left:    寬度微增至 360px（給狀態面板更多呼吸空間）
- *   - #col-center:  維持 flex-1（自動填滿剩餘空間）
- *   - #col-right:   寬度微增至 420px（裝備/能力面板更舒適）
- *   - body padding:  增加左右邊距（大螢幕視覺居中更舒服）
+ *   1. 寬螢幕延展模式  —— 解除 #game-screen 的 max-w-[1600px] 限制，自動延展三欄
+ *                         至整個視窗寬度，大螢幕怪物卡牌限寬 160px 置中保持 RPG 比例。
+ *   2. 浮動切換按鈕    —— 在畫面右下角注入切換按鈕（📐），雙開時不與 GM 按鈕遮擋。
+ *   3. 面板高度自由調整 —— 桌機用戶可上下拖曳調整面板高度，自動排除右欄 tab-content-panel，
+ *                         地圖面板僅在「村莊狀態」下啟用並套用高度，打怪時自動折疊。
+ *   4. 使用者偏好記憶  —— 寬螢幕狀態與面板高度自訂值皆存入 localStorage，重整後自動還原。
+ *   5. 手機/平板環境保護 —— 透過 UA + fine-pointer + 螢幕寬度三重偵測，非桌機下完全不載入。
  *
  * 效能影響：趨近於零
  *   - 純 CSS class 切換，無 setInterval / 定時輪詢
- *   - 手機環境完全跳過初始化
+ *   - 手機/平板環境完全跳過初始化
  * ========================================================================== */
 (function () {
     'use strict';
@@ -76,6 +73,13 @@
         'body.klh-widescreen {',
         '    padding-left: 18px !important;',
         '    padding-right: 18px !important;',
+        '}',
+        // 限制怪物卡片最大寬度並居中，避免在大螢幕下扁平變形
+        'body.klh-widescreen .mob-target {',
+        '    max-width: 160px !important;',
+        '}',
+        'body.klh-widescreen #mob-list {',
+        '    justify-content: center !important;',
         '}',
 
         // ── 被設定了自訂高度的面板：覆蓋 flex 讓高度生效 ──
@@ -206,15 +210,45 @@
 
         var btn = document.createElement('button');
         btn.id = 'klh-pc-widescreen-btn';
-        btn.setAttribute('title', '切換寬螢幕延展模式');
+        btn.setAttribute('title', '左鍵：切換寬螢幕延展\n右鍵/雙擊：重設所有面板高度');
         btn.innerHTML = '<span style="font-size: 17px;">📐</span>' +
-                         '<span class="klh-btn-tooltip">寬螢幕延展模式</span>';
+                         '<span class="klh-btn-tooltip" style="text-align: right; line-height: 1.4;">左鍵：切換寬螢幕<br>右鍵/雙擊：重設面板高度</span>';
 
         btn.addEventListener('click', function () {
             toggleWidescreen();
         });
 
+        // 雙擊或右鍵點擊按鈕重設所有面板高度（防呆/緊急救援機制）
+        btn.addEventListener('dblclick', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            resetAllPanelHeights();
+        });
+
+        btn.addEventListener('contextmenu', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            resetAllPanelHeights();
+        });
+
         document.body.appendChild(btn);
+    }
+
+    // ── 3.5 全域重設面板高度 ──
+    function resetAllPanelHeights() {
+        localStorage.removeItem(RESIZE_STORAGE_KEY);
+        var panels = document.querySelectorAll('.panel');
+        panels.forEach(function (panel) {
+            panel.style.height = '';
+            panel.classList.remove('klh-resized');
+        });
+        if (typeof syncMapPanelHeight === 'function') {
+            syncMapPanelHeight();
+        }
+        if (typeof window.showToast === 'function') {
+            window.showToast('已重設所有面板至預設高度', 'info');
+        }
+        console.log('[klh_PC_fix] 已清除 localStorage 並重設所有面板高度。');
     }
 
     // ── 4. 切換延展模式 ──
@@ -312,12 +346,21 @@
         }
 
         function onMouseMove(e) {
-            if (!dragging) return;
-            var diff = e.clientY - startY;
-            var newH = Math.max(80, startH + diff);  // 最小 80px
-            panel.style.height = newH + 'px';
-            if (!panel.classList.contains('klh-resized')) {
-                panel.classList.add('klh-resized');
+            if (!dragging || !panel || !panel.parentNode) return;
+            try {
+                var diff = e.clientY - startY;
+
+                // ── 防呆限制：面板底部 Y 座標不得超過「視窗高度 - 40px」，防把手拉出螢幕 ──
+                var panelTop = panel.getBoundingClientRect().top;
+                var maxH = Math.max(80, window.innerHeight - 40 - panelTop);
+                var newH = Math.max(80, Math.min(maxH, startH + diff));
+
+                panel.style.height = newH + 'px';
+                if (!panel.classList.contains('klh-resized')) {
+                    panel.classList.add('klh-resized');
+                }
+            } catch (err) {
+                onMouseUp();
             }
         }
 
@@ -355,7 +398,11 @@
             if (isMapPanel) {
                 // 地圖面板交由 syncMapPanelHeight() 根據目前是村莊還是打怪來決定是否還原
             } else {
-                panel.style.height = saved[key] + 'px';
+                var restoredH = saved[key];
+                // 防呆限制：載入時若自訂高度太大（大於視窗高度 - 100px），自動限縮為安全高度
+                var maxRestored = Math.max(80, window.innerHeight - 100);
+                var finalH = Math.min(maxRestored, restoredH);
+                panel.style.height = finalH + 'px';
                 panel.classList.add('klh-resized');
             }
         }
@@ -392,7 +439,10 @@
         if (isTown) {
             // 在村莊狀態：套用自訂高度（如果有的話）
             if (savedH) {
-                mapPanel.style.height = savedH + 'px';
+                // 防呆限制：載入時若自訂高度太大（大於視窗高度 - 100px），自動限縮為安全高度
+                var maxRestored = Math.max(80, window.innerHeight - 100);
+                var finalH = Math.min(maxRestored, savedH);
+                mapPanel.style.height = finalH + 'px';
                 mapPanel.classList.add('klh-resized');
             }
             // 顯示拖曳把手
@@ -411,33 +461,44 @@
     // ══════════════════════════════════════════════════════════════════════
 
     function init() {
-        createToggleButton();
+        try {
+            // 驗證核心 DOM 結構是否存在，避免原作者改版造成破圖或 JS 崩潰
+            var gameScreen = document.getElementById('game-screen');
+            if (!gameScreen) {
+                console.warn('[klh_PC_fix] 找不到 #game-screen 元素，可能原作者已重構介面。本外掛已安全停用（優雅降級）。');
+                return;
+            }
 
-        // 讀取上次的偏好
-        var saved = localStorage.getItem(STORAGE_KEY);
-        if (saved === '1') {
-            document.body.classList.add('klh-widescreen');
-            var btn = document.getElementById('klh-pc-widescreen-btn');
-            if (btn) btn.classList.add('active');
-            console.log('[klh_PC_fix] 自動套用上次的寬螢幕延展模式偏好。');
-        }
+            createToggleButton();
 
-        // 啟用面板高度拖曳
-        initResizablePanels();
+            // 讀取上次的偏好
+            var saved = localStorage.getItem(STORAGE_KEY);
+            if (saved === '1') {
+                document.body.classList.add('klh-widescreen');
+                var btn = document.getElementById('klh-pc-widescreen-btn');
+                if (btn) btn.classList.add('active');
+                console.log('[klh_PC_fix] 自動套用上次的寬螢幕延展模式偏好。');
+            }
 
-        // ── 7. 地圖面板專屬：監聽村莊/戰鬥狀態切換 ──
-        var townView = document.getElementById('town-view');
-        if (townView) {
-            // 初始化同步一次
-            syncMapPanelHeight();
-            // 監聽 class 變化
-            var observer = new MutationObserver(function () {
+            // 啟用面板高度拖曳
+            initResizablePanels();
+
+            // ── 7. 地圖面板專屬：監聽村莊/戰鬥狀態切換 ──
+            var townView = document.getElementById('town-view');
+            if (townView) {
+                // 初始化同步一次
                 syncMapPanelHeight();
-            });
-            observer.observe(townView, { attributes: true, attributeFilter: ['class'] });
-        }
+                // 監聽 class 變化
+                var observer = new MutationObserver(function () {
+                    syncMapPanelHeight();
+                });
+                observer.observe(townView, { attributes: true, attributeFilter: ['class'] });
+            }
 
-        console.log('[klh_PC_fix] 電腦版寬螢幕延展外掛已啟用（按鈕位於右下角 📐）');
+            console.log('[klh_PC_fix] 電腦版寬螢幕延展外掛已啟用（按鈕位於右下角 📐）');
+        } catch (error) {
+            console.error('[klh_PC_fix] 初始化時發生錯誤，已自動安全停用（優雅降級）：', error);
+        }
     }
 
     // ── 啟動 ──

@@ -1,32 +1,33 @@
 /* ============================================================================
  * klh_jsonblob.js — 雲端存檔、難度自訂、數值擴充 & 創角優化
  *
- * 設計原則: 完全不改原作者程式碼，只從外面「包住」全域函式 (monkey-patch)。
+ * 設計原則:
+ *   1. 完全不改原作者程式碼 —— 僅透過從外部「包住」全域函式 (Monkey-Patch) 進行擴充。
+ *   2. 優雅降級與安全降載 —— 核心 Hook 皆以 try-catch 沙盒包裹並配備 typeof 存在性檢查，
+ *                         若原作者未來改版導致函式或變數消失，外掛功能會默默安全降級或停用，
+ *                         確保絕對不拋出致命 JS 錯誤，完全保障原版遊戲流程不中斷。
+ *   3. 存檔安全機制 (雙引擎) —— 具有本地 / 雲端雙備份引擎，當偵測到本地存檔異常遺失或為 null 時，
+ *                         能精確攔截防止洗白雲端數據，確保金鑰隔離與特權安全。
+ *
  * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
- * * <script src="klh_jsonblob.js?v=20260622"></script>
+ *   <script src="klh_jsonblob.js?v=20260623"></script>
  *
  * 功能一覽:
- *   1. 雲端存檔 (JSONBlob) —— 透過 JSONBlob API 讀寫最多 4 格存檔 + 倉庫，
- *                             支援直接連線或自訂 CORS 代理備援。
- *   2. 創角數值優化       —— 初始屬性翻倍 (x2)，可分配點數雙倍 (x2)，
- *                             創角上限各屬性 +20，長按按鈕連續分配點數。
+ *   1. 雲端存檔 (JSONBlob) —— 透過 JSONBlob API 讀寫最多 4 格存檔 + 倉庫，支援直接連線或自訂 CORS 代理備援。
+ *   2. 創角數值優化       —— 初始屬性翻倍 (x2)，可分配點數雙倍 (x2)，創角上限各屬性 +20，長按按鈕連續分配點數。
  *   3. 空存檔預填         —— 新存檔自動填入女騎士初始存檔，防止進入空白畫面。
- *   4. 多難度系統         —— 地獄/惡夢/標準/祝福/天堂五段難度，
- *                             影響怪物強度、掉寶率、金幣量、藥水效力、出怪延遲。
- *   5. 數值 Patch 對接    —— 透過字串替換 patch 原生函式 (tick/killMob/
- *                             recomputeStats/spawnMob等)，嵌入難度乘數運算。
- *   6. 屬性查表擴充       —— 力量/敏捷/智力/體質/精神 等六大屬性查表延伸至 70-120 級距，
- *                             上限 120，並動態覆蓋遊戲原生查表函式。
- *   7. 遊戲內配點優化     —— 遊戲內配點上限 +20，萬能藥上限 +20，
- *                             加入長按連續配點功能。
- *   8. 存檔槽整合         —— 重實作 openSlotSelect/chooseSlot/slotSummary，
- *                             整合難度顯示，防止特權金鑰覆蓋存檔。
+ *   4. 多難度系統         —— 地獄/惡夢/標準/祝福/天堂五段難度，影響怪物強度、掉寶率、金幣量、藥水效力、出怪延遲。
+ *   5. 數值 Patch 對接    —— 透過字串替換 patch 原生函式 (tick/killMob/recomputeStats/spawnMob等)，嵌入難度乘數運算。
+ *   6. 屬性查表擴充       —— 力量/敏捷/智力/體質/精神 等六大屬性查表延伸至 70-120 級距，上限 120，並動態覆蓋遊戲原生查表函式。
+ *   7. 遊戲內配點優化     —— 遊戲內配點上限 +20，萬能藥上限 +20，加入長按連續配點功能。
+ *   8. 存檔槽整合         —— 重實作 openSlotSelect/chooseSlot/slotSummary，整合難度顯示，防止特權金鑰覆蓋存檔。
  *   9. 更新說明面板       —— 在創角畫面注入可折疊的「與原版差異更新說明」面板。
  *  10. 登出安全與遮罩防呆 —— 攔截手機版登出確認，並在雲端上傳/下載期間顯示全域阻擋遮罩（禁止點擊取消），確保資料同步完整。
  *  11. Toast / 進度條     —— 全域通知 Toast 與讀取動畫進度條 UI 元件，降低等待焦慮。
- *  12. 特權金鑰保護       —— 預設保留特定公用金鑰槽（天后/宙斯），
- *                             禁止該金鑰覆蓋或清除存檔。
+ *  12. 特權金鑰保護       —— 預設保留特定公用金鑰槽（天后/宙斯），禁止該金鑰覆蓋或清除存檔。
  *  13. 鍵盤輸入錯位修復   —— 解決 iOS 鍵盤彈起時 fixed 元素錯位及輸入框自動放大網頁等 UI UX 問題。
+ *  14. Storage Proxy 代理防爆 —— Hook Storage 原生方法，在讀寫異常時自動安全 fallback 使用原生 key 讀取。
+ *  15. Null 覆蓋災難攔截 —— 在 uploadToCloud 上傳前，檢測本地 activeSlot 若為 null 但雲端有存檔時強制攔截上傳，避免洗白。
  * ========================================================================== */
 
 (function () {
@@ -139,15 +140,30 @@
         Storage.prototype.__originalRemoveItem = originalRemoveItem;
 
         Storage.prototype.getItem = function (key) {
-            return originalGetItem.call(this, getRedirectedKey(key));
+            try {
+                return originalGetItem.call(this, getRedirectedKey(key));
+            } catch (e) {
+                console.error("[KLH] Storage.getItem override error:", e);
+                return originalGetItem.call(this, key);
+            }
         };
 
         Storage.prototype.setItem = function (key, value) {
-            return originalSetItem.call(this, getRedirectedKey(key), value);
+            try {
+                return originalSetItem.call(this, getRedirectedKey(key), value);
+            } catch (e) {
+                console.error("[KLH] Storage.setItem override error:", e);
+                return originalSetItem.call(this, key, value);
+            }
         };
 
         Storage.prototype.removeItem = function (key) {
-            return originalRemoveItem.call(this, getRedirectedKey(key));
+            try {
+                return originalRemoveItem.call(this, getRedirectedKey(key));
+            } catch (e) {
+                console.error("[KLH] Storage.removeItem override error:", e);
+                return originalRemoveItem.call(this, key);
+            }
         };
     }
 
@@ -835,6 +851,18 @@
                                 }
                             }
                         }
+
+                        // 防禦 Null 覆寫雲端災難 (與 klh_supabase 相同機制)
+                        if (activeSlot !== null && activeSlot !== skipSlot) {
+                            const cloudActiveVal = cloudData['save_' + activeSlot] || cloudData['lineage_idle_save_' + activeSlot];
+                            const localActiveVal = payload['save_' + activeSlot];
+                            if (cloudActiveVal !== undefined && cloudActiveVal !== null && !localActiveVal) {
+                                if (isManual && typeof window.showToast === 'function') {
+                                    window.showToast('雲端存檔同步失敗：偵測到本地存檔異常遺失，已攔截雲端覆寫！', 'error');
+                                }
+                                throw new Error("CRITICAL_NULL_OVERWRITE: 偵測到本地存檔異常遺失，已攔截雲端覆寫！");
+                            }
+                        }
                     }
                 } else {
                     throw new Error('HTTP ' + res.status);
@@ -1385,17 +1413,25 @@
 
             // 🚀 開關開啟時，在寫檔前清理協力傭兵的背包與過濾設定以精簡存檔
             let originalAllies = null;
-            if (window.CLEAN_ALLY_DATA_ON_SAVE && player && player.allies) {
-                originalAllies = JSON.parse(JSON.stringify(player.allies));
-                player.allies.forEach(ally => {
-                    if (ally) {
-                        ally.inv = [];
-                        ally.junkPrefs = {};
-                    }
-                });
+            try {
+                if (window.CLEAN_ALLY_DATA_ON_SAVE && player && player.allies) {
+                    originalAllies = JSON.parse(JSON.stringify(player.allies));
+                    player.allies.forEach(ally => {
+                        if (ally) {
+                            ally.inv = [];
+                            ally.junkPrefs = {};
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("[KLH] saveGame ally cleanup error:", e);
             }
 
-            originalSaveGame();
+            try {
+                originalSaveGame();
+            } catch (e) {
+                console.error("[KLH] originalSaveGame error:", e);
+            }
 
             // 🚀 寫檔後立刻在記憶體中還原原本的傭兵背包與設定，確保對運行中的遊戲完全無副作用
             if (originalAllies && player) {
@@ -1441,7 +1477,11 @@
         window.__klh_save_warehouse_wrapped = true;
         const originalSaveWarehouse = window.saveWarehouse;
         window.saveWarehouse = async function (w) {
-            originalSaveWarehouse(w);
+            try {
+                originalSaveWarehouse(w);
+            } catch (e) {
+                console.error("[KLH] originalSaveWarehouse error:", e);
+            }
 
             const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
             if (storageMode === 'cloud') {
@@ -1472,7 +1512,11 @@
         }
 
         window.gameDifficulty = finalDiff;
-        originalLoadGame();
+        try {
+            originalLoadGame();
+        } catch (e) {
+            console.error("[KLH] originalLoadGame error:", e);
+        }
 
         // 載入完成後，立刻將最新的最終決定難度同步寫回 LocalStorage 以便保存
         let s = localStorage.getItem('lineage_idle_save_' + currentSlot);
@@ -1681,7 +1725,11 @@
 
     const originalShowCreation = window.showCreation;
     window.showCreation = function () {
-        originalShowCreation();
+        try {
+            originalShowCreation();
+        } catch (e) {
+            console.error("[KLH] originalShowCreation error:", e);
+        }
         attachHoldEventsToStatButtons();
     };
 
@@ -2125,7 +2173,11 @@
 
     const originalUpdateUI = window.updateUI;
     window.updateUI = function () {
-        originalUpdateUI();
+        try {
+            originalUpdateUI();
+        } catch (e) {
+            console.error("[KLH] originalUpdateUI error:", e);
+        }
         window.updateDifficultyDisplay();
         attachHoldEventsToInGameStatButtons();
     };
@@ -2198,7 +2250,12 @@
         const prevBurnDmg = player.statuses.burnDmg;
         const prevScaldDmg = player.statuses.scaldDmg;
 
-        originalApplyMobMagic(mob, sk);
+        try {
+            originalApplyMobMagic(mob, sk);
+        } catch (e) {
+            console.error("[KLH] originalApplyMobMagic error:", e);
+            return;
+        }
 
         const ds = DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard;
         const mp = ds.mobPower;
@@ -2217,7 +2274,12 @@
     // D. 怪物生命值隨難度縮放 (spawnMob)
     const originalSpawnMob = window.spawnMob;
     window.spawnMob = function (idx) {
-        originalSpawnMob(idx);
+        try {
+            originalSpawnMob(idx);
+        } catch (e) {
+            console.error("[KLH] originalSpawnMob error:", e);
+            return;
+        }
         let mob = mapState.mobs[idx];
         if (mob) {
             const ds = DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard;

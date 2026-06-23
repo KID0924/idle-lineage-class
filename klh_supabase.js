@@ -1,23 +1,26 @@
 /* ============================================================================
  * klh_supabase.js — Supabase 雲端存檔同步系統
  *
- * 設計原則: 完全不改原作者程式碼，透過 monkey-patch 方式攔截/擴充功能。
+ * 設計原則:
+ *   1. 完全不改原作者程式碼 —— 僅透過從外部「包住」全域函式 (Monkey-Patch) 進行擴充。
+ *   2. 優雅降級與安全降載 —— 核心 Hook 皆以 try-catch 沙盒包裹並配備 typeof 存在性檢查，
+ *                         若原作者未來改版導致函式或變數消失，外掛功能會默默安全降級或停用，
+ *                         確保絕對不拋出致命 JS 錯誤，完全保障原版遊戲流程不中斷。
+ *   3. 存檔安全機制 (雙引擎) —— 具有本地 / 雲端雙備份引擎，當偵測到本地存檔異常遺失或為 null 時，
+ *                         能精確攔截防止洗白雲端數據，確保金鑰隔離與特權安全。
+ *
  * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
- * * <script src="klh_supabase.js?v=20260622"></script>
+ *   <script src="klh_supabase.js?v=20260623"></script>
  *
  * 功能一覽:
  *   1. 雲端存檔 (Supabase)  —— 透過 Supabase Database API 儲存最多 4 格存檔與倉庫。
- *   2. 儲存隔離代理        —— 代理 Storage.prototype，在 Supabase 模式下自動重新導向
- *                             本機存檔鍵 (lineage_idle_save_ / lineage_idle_warehouse)
- *                             至雲端快取鍵 + 金鑰後綴，防止多帳號資料互相污染。
- *   3. 存檔合併同步        —— 上傳時自動讀取雲端最新資料並進行非目前槽位存檔的合併，
- *                             防止覆蓋其他存檔位，並於寫入/讀取時提供全域 Loading 遮罩。
- *   4. 本機金鑰過期防護     —— 當偵測到本機金鑰在雲端已失效（久未登入被清理）時，
- *                             自動為本機重新生成新金鑰並上傳同步，防止存檔遺失。
- *   5. iOS 鍵盤彈起修復    —— 偵測 focusin/focusout 並設定 m-keyboard-open，
- *                             改善手機版 virtualViewport 縮放與底部選單錯位問題。
- *   6. 儲存模式切換 UI     —— 於主選單注入本地/Supabase/Jsonblob 模式切換按鈕，
- *                             並支援快速切換六大公用金鑰。
+ *   2. 儲存隔離代理        —— 代理 Storage.prototype，在 Supabase 模式下自動重新導向本機存檔鍵 (lineage_idle_save_ / lineage_idle_warehouse) 至雲端快取鍵 + 金鑰後綴，防止多帳號資料互相污染。
+ *   3. 存檔合併同步        —— 上傳時自動讀取雲端最新資料並進行非目前槽位存檔的合併，防止覆蓋其他存檔位，並於寫入/讀取時提供全域 Loading 遮罩。
+ *   4. 本機金鑰過期防護     —— 當偵測到本機金鑰在雲端已失效（久未登入被清理）時，自動為本機重新生成新金鑰並上傳同步，防止存檔遺失。
+ *   5. iOS 鍵盤彈起修復    —— 偵測 focusin/focusout 並設定 m-keyboard-open，改善手機版 virtualViewport 縮放與底部選單錯位問題。
+ *   6. 儲存模式切換 UI     —— 於主選單注入本地/Supabase/Jsonblob 模式切換按鈕，並支援快速切換六大公用金鑰。
+ *   7. Storage Proxy 代理防爆 —— Hook Storage 原生方法，在讀寫異常時自動安全 fallback 使用原生 key 讀取。
+ *   8. Null 覆蓋災難攔截 —— 在 uploadToSupabase 上傳前，檢測本地 activeSlot 若為 null 但雲端有存檔時強制攔截上傳，避免洗白。
  * ========================================================================== */
 (function () {
     'use strict';
@@ -536,52 +539,83 @@
         Storage.prototype.__originalRemoveItem = originalRemoveItem;
 
         Storage.prototype.getItem = function (key) {
-            return originalGetItem.call(this, getRedirectedKey(key));
+            try {
+                return originalGetItem.call(this, getRedirectedKey(key));
+            } catch (e) {
+                console.error("[KLH] Storage.getItem override error:", e);
+                return originalGetItem.call(this, key);
+            }
         };
 
         Storage.prototype.setItem = function (key, value) {
-            return originalSetItem.call(this, getRedirectedKey(key), value);
+            try {
+                return originalSetItem.call(this, getRedirectedKey(key), value);
+            } catch (e) {
+                console.error("[KLH] Storage.setItem override error:", e);
+                return originalSetItem.call(this, key, value);
+            }
         };
 
         Storage.prototype.removeItem = function (key) {
-            return originalRemoveItem.call(this, getRedirectedKey(key));
-        };
-    }
-
-    // 攔截 saveGame() / saveWarehouse() / loadGame()
-    if (!window.__klh_save_game_wrapped) {
-        window.__klh_save_game_wrapped = true;
-        const originalSaveGame = window.saveGame;
-        window.saveGame = async function () {
-            if (player && player.dead) return;
-            originalSaveGame();
-            const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
-            if (storageMode === 'supabase') {
-                if (typeof window.uploadToSupabase === 'function') {
-                    return await window.uploadToSupabase();
-                }
-            } else if (storageMode === 'cloud') {
-                if (typeof window.uploadToCloud === 'function') {
-                    return await window.uploadToCloud();
-                }
+            try {
+                return originalRemoveItem.call(this, getRedirectedKey(key));
+            } catch (e) {
+                console.error("[KLH] Storage.removeItem override error:", e);
+                return originalRemoveItem.call(this, key);
             }
         };
     }
 
-    if (!window.__klh_save_warehouse_wrapped) {
+    // 攔截 saveGame() / saveWarehouse() / loadGame()
+    if (typeof window.saveGame === 'function' && !window.__klh_save_game_wrapped) {
+        window.__klh_save_game_wrapped = true;
+        const originalSaveGame = window.saveGame;
+        window.saveGame = async function () {
+            if (typeof player !== 'undefined' && player && player.dead) return;
+            try {
+                originalSaveGame();
+            } catch (e) {
+                console.error("[KLH] originalSaveGame error:", e);
+            }
+            try {
+                const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
+                if (storageMode === 'supabase') {
+                    if (typeof window.uploadToSupabase === 'function') {
+                        return await window.uploadToSupabase();
+                    }
+                } else if (storageMode === 'cloud') {
+                    if (typeof window.uploadToCloud === 'function') {
+                        return await window.uploadToCloud();
+                    }
+                }
+            } catch (e) {
+                console.error("[KLH] saveGame post-hook upload error:", e);
+            }
+        };
+    }
+
+    if (typeof window.saveWarehouse === 'function' && !window.__klh_save_warehouse_wrapped) {
         window.__klh_save_warehouse_wrapped = true;
         const originalSaveWarehouse = window.saveWarehouse;
         window.saveWarehouse = async function (w) {
-            originalSaveWarehouse(w);
-            const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
-            if (storageMode === 'supabase') {
-                if (typeof window.uploadToSupabase === 'function') {
-                    return await window.uploadToSupabase();
+            try {
+                originalSaveWarehouse(w);
+            } catch (e) {
+                console.error("[KLH] originalSaveWarehouse error:", e);
+            }
+            try {
+                const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
+                if (storageMode === 'supabase') {
+                    if (typeof window.uploadToSupabase === 'function') {
+                        return await window.uploadToSupabase();
+                    }
+                } else if (storageMode === 'cloud') {
+                    if (typeof window.uploadToCloud === 'function') {
+                        return await window.uploadToCloud();
+                    }
                 }
-            } else if (storageMode === 'cloud') {
-                if (typeof window.uploadToCloud === 'function') {
-                    return await window.uploadToCloud();
-                }
+            } catch (e) {
+                console.error("[KLH] saveWarehouse post-hook upload error:", e);
             }
         };
     }
@@ -860,11 +894,21 @@
     }
 
     // 1. 生成 12 位元隨機小寫英數亂碼 (例如: 0012k1i6d224)
+    //    優先使用 crypto.getRandomValues() (CSPRNG)，若瀏覽器太舊不支援則自動回退至 Math.random()
     function generatePlayerID() {
         const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
         let result = '';
-        for (let i = 0; i < 12; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+            const arr = new Uint8Array(12);
+            crypto.getRandomValues(arr);
+            for (let i = 0; i < 12; i++) {
+                result += chars.charAt(arr[i] % chars.length);
+            }
+        } else {
+            // 安全回退機制
+            for (let i = 0; i < 12; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
         }
         return result;
     }
@@ -930,6 +974,18 @@
                             } else {
                                 payload['save_' + n] = null;
                             }
+                        }
+                    }
+                    
+                    // 防禦 Null 覆寫雲端災難 (與 klh_jsonblob 相同機制)
+                    if (activeSlot !== null && activeSlot !== skipSlot) {
+                        const cloudActiveVal = cloudData['save_' + activeSlot];
+                        const localActiveVal = payload['save_' + activeSlot];
+                        if (cloudActiveVal !== undefined && cloudActiveVal !== null && !localActiveVal) {
+                            if (isManual && typeof window.showToast === 'function') {
+                                window.showToast('雲端存檔同步失敗：偵測到本地存檔異常遺失，已攔截雲端覆寫！', 'error');
+                            }
+                            throw new Error("CRITICAL_NULL_OVERWRITE: 偵測到本地存檔異常遺失，已攔截雲端覆寫！");
                         }
                     }
                     
