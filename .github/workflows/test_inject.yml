@@ -78,6 +78,11 @@ jobs:
           <!-- 手機觸控卡死修復 -->
           <script src="klh_touch_fix.js?v={dynamic_v}"></script>
 
+          <!-- 測試 -->
+          <!-- 電腦版延展介面 -->
+          <script src="klh_PC_fix.js?v=20260623"></script>
+
+
           <script>
             document.addEventListener("DOMContentLoaded", function() {{
               let menu = document.getElementById('main-menu');
