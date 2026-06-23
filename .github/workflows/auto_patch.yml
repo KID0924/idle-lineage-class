@@ -63,40 +63,20 @@ jobs:
               content = f.read()
 
           inject_code = f'''
-          <!-- pp771007 -->
-          <!-- 離線掛機外掛(可獨立維護;原作者更新後重新加回此行即可) -->
           <script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v={dynamic_v}"></script>
-          <!-- 手機版介面外掛(可獨立維護;原作者更新後重新加回此行即可) -->      
           <script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v={dynamic_v}"></script>
-          <!-- 怪物/掉落查詢外掛(可獨立維護;原作者更新後重新加回此行即可) -->
           <script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v={dynamic_v}"></script>
-          <!-- 小百科外掛(專精/武器特性/職業魔法;可獨立維護,原作者更新後重新加回此行即可) -->
           <script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v={dynamic_v}"></script>
-          <!-- 通用修正外掛(補原作者坑,桌機/手機通用;可獨立維護,原作者更新後重新加回此行即可) -->
           <script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v={dynamic_v}"></script>
-          <!-- 背景大圖快取 Service Worker 註冊(可獨立維護;原作者更新後重新加回此行即可) -->
           <script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v={dynamic_v}"></script>
-          <!-- 手機 toast 提示(點按鈕的系統日誌訊息浮現;可獨立維護,原作者更新後重新加回此行即可) -->
           <script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v={dynamic_v}"></script>
-          <!-- 統一自製彈窗:全域接管 window.alert(可獨立維護;原作者更新後重新加回此行即可) -->
-          <!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v={dynamic_v}"></script-->
-          <!-- 能力值面板補點數分解 始/升/藥/總(可獨立維護;原作者更新後重新加回此行即可) -->
           <script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v={dynamic_v}"></script>
 
-          <!-- KID0924 -->
-          <!-- Json雲端模組 -->
           <script src="klh_jsonblob.js?v={dynamic_v}"></script>
-          <!-- 潘朵拉抽獎模組 -->
           <script src="klh_GM.js?v={dynamic_v}"></script>
-          <!-- 自定義藥水與兌換模組 -->
           <script src="klh_GM2.js?v={dynamic_v}"></script>
-          <!-- 黃金交易所/雲端資源商店模組 -->
-          <!--script src="klh_Shop.js?v={dynamic_v}"></script-->
-          <!-- 傭兵生存戰鬥血魔擴充模組 -->
           <script src="klh_team.js?v={dynamic_v}"></script>
-          <!-- Supabase雲端模組 -->
           <script src="klh_supabase.js?v={dynamic_v}"></script>
-          <!-- 手機觸控卡死修復 -->
           <script src="klh_touch_fix.js?v={dynamic_v}"></script>
 
           <script>
@@ -149,6 +129,10 @@ jobs:
           
           python3 inject.py
           rm inject.py
+          
+          # ✨ 這裡就是幫妳加的新步驟：複製一份一模一樣的 index_test.html 供測試
+          cp index.html index_test.html
+          echo "🧪 測試版 index_test.html 複製完成！"
 
       # 4. 把組裝完成的程式碼推回 GitHub
       - name: 📤 存檔並推回我的 GitHub 倉庫
@@ -167,7 +151,7 @@ jobs:
           ADDED_COUNT=$(git diff --cached --name-status | grep -iE '^A.*\.(png|jpg|jpeg|gif|webp)$' | wc -l | tr -d ' ')
           MODIFIED_COUNT=$(git diff --cached --name-status | grep -iE '^M.*\.(png|jpg|jpeg|gif|webp)$' | wc -l | tr -d ' ')
           
-          COMMIT_MSG="chore(sync): 自動同步原作者最新 index.html(新增 $ADDED_COUNT 張、更新 $MODIFIED_COUNT 張)"
+          COMMIT_MSG="chore(sync): 自動同步原作者最新 index.html(新增 $ADDED_COUNT 張、更新 $MODIFIED_COUNT 張) 包含測試版"
           
           echo "🔥 準備送出的 Commit 訊息：$COMMIT_MSG"
           git commit -m "$COMMIT_MSG"
