@@ -549,6 +549,24 @@
 
         Storage.prototype.setItem = function (key, value) {
             try {
+                // 🚀 當切換 Supabase 金鑰時，自動清除前一個金鑰的本地存檔快取，釋放空間
+                if (key === 'klh_supabase_key') {
+                    const oldKey = originalGetItem.call(this, 'klh_supabase_key');
+                    const newKey = (value || '').trim();
+                    if (oldKey && newKey && oldKey !== newKey) {
+                        const suffix = '_' + oldKey.trim();
+                        const maxSlots = (typeof getMaxSaveSlot === 'function') ? getMaxSaveSlot() : 6;
+                        for (let n = 1; n <= maxSlots; n++) {
+                            originalRemoveItem.call(this, 'klh_cloud_save_' + n + suffix);
+                            originalRemoveItem.call(this, 'klh_cloud_save_' + n + '_empty_flag' + suffix);
+                        }
+                        originalRemoveItem.call(this, 'klh_cloud_warehouse' + suffix);
+                        originalRemoveItem.call(this, 'afk_ts' + suffix);
+                        originalRemoveItem.call(this, 'afk_map' + suffix);
+                        originalRemoveItem.call(this, 'afk_pride' + suffix);
+                        console.log("[Supabase] 已自動清除上一個金鑰的本地快取:", oldKey);
+                    }
+                }
                 return originalSetItem.call(this, getRedirectedKey(key), value);
             } catch (e) {
                 console.error("[KLH] Storage.setItem override error:", e);

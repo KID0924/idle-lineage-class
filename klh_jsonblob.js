@@ -13,14 +13,14 @@
  *   <script src="klh_jsonblob.js?v=20260623"></script>
  *
  * 功能一覽:
- *   1. 雲端存檔 (JSONBlob) —— 透過 JSONBlob API 讀寫最多 4 格存檔 + 倉庫，支援直接連線或自訂 CORS 代理備援。
+ *   1. 雲端存檔 (JSONBlob) —— 透過 JSONBlob API 讀寫全部存檔槽 + 倉庫，支援直接連線或自訂 CORS 代理備援（動態偵測存檔格數）。
  *   2. 創角數值優化       —— 初始屬性翻倍 (x2)，可分配點數雙倍 (x2)，創角上限各屬性 +20，長按按鈕連續分配點數。
  *   3. 空存檔預填         —— 新存檔自動填入女騎士初始存檔，防止進入空白畫面。
  *   4. 多難度系統         —— 地獄/惡夢/標準/祝福/天堂五段難度，影響怪物強度、掉寶率、金幣量、藥水效力、出怪延遲。
  *   5. 數值 Patch 對接    —— 透過字串替換 patch 原生函式 (tick/killMob/recomputeStats/spawnMob等)，嵌入難度乘數運算。
  *   6. 屬性查表擴充       —— 力量/敏捷/智力/體質/精神 等六大屬性查表延伸至 70-120 級距，上限 120，並動態覆蓋遊戲原生查表函式。
  *   7. 遊戲內配點優化     —— 遊戲內配點上限 +20，萬能藥上限 +20，加入長按連續配點功能。
- *   8. 存檔槽整合         —— 重實作 openSlotSelect/chooseSlot/slotSummary，整合難度顯示，防止特權金鑰覆蓋存檔。
+ *   8. 存檔槽整合         —— Hook 劫持 openSlotSelect/chooseSlot/slotSummary，在原版渲染基礎上整合難度顯示，防止特權金鑰覆蓋存檔。
  *   9. 更新說明面板       —— 在創角畫面注入可折疊的「與原版差異更新說明」面板。
  *  10. 登出安全與遮罩防呆 —— 攔截手機版登出確認，並在雲端上傳/下載期間顯示全域阻擋遮罩（禁止點擊取消），確保資料同步完整。
  *  11. Toast / 進度條     —— 全域通知 Toast 與讀取動畫進度條 UI 元件，降低等待焦慮。
@@ -28,6 +28,7 @@
  *  13. 鍵盤輸入錯位修復   —— 解決 iOS 鍵盤彈起時 fixed 元素錯位及輸入框自動放大網頁等 UI UX 問題。
  *  14. Storage Proxy 代理防爆 —— Hook Storage 原生方法，在讀寫異常時自動安全 fallback 使用原生 key 讀取。
  *  15. Null 覆蓋災難攔截 —— 在 uploadToCloud 上傳前，檢測本地 activeSlot 若為 null 但雲端有存檔時強制攔截上傳，避免洗白。
+ *  16. 傭兵存檔精簡       —— 存檔時自動清理協力傭兵背包（inv）以縮減存檔體積。若未來原作者新增「可移水/卷軸給傭兵消耗的功能」，請將【第 253 行】附近的 window.CLEAN_ALLY_DATA_ON_SAVE = true 改為 false，以防背包物品被清空。
  * ========================================================================== */
 
 (function () {
@@ -150,6 +151,24 @@
 
         Storage.prototype.setItem = function (key, value) {
             try {
+                // 🚀 當切換 Supabase 金鑰時，自動清除前一個金鑰的本地存檔快取，釋放空間
+                if (key === 'klh_supabase_key') {
+                    const oldKey = originalGetItem.call(this, 'klh_supabase_key');
+                    const newKey = (value || '').trim();
+                    if (oldKey && newKey && oldKey !== newKey) {
+                        const suffix = '_' + oldKey.trim();
+                        const maxSlots = (typeof getMaxSaveSlot === 'function') ? getMaxSaveSlot() : 6;
+                        for (let n = 1; n <= maxSlots; n++) {
+                            originalRemoveItem.call(this, 'klh_cloud_save_' + n + suffix);
+                            originalRemoveItem.call(this, 'klh_cloud_save_' + n + '_empty_flag' + suffix);
+                        }
+                        originalRemoveItem.call(this, 'klh_cloud_warehouse' + suffix);
+                        originalRemoveItem.call(this, 'afk_ts' + suffix);
+                        originalRemoveItem.call(this, 'afk_map' + suffix);
+                        originalRemoveItem.call(this, 'afk_pride' + suffix);
+                        console.log("[Supabase] 已自動清除上一個金鑰的本地快取:", oldKey);
+                    }
+                }
                 return originalSetItem.call(this, getRedirectedKey(key), value);
             } catch (e) {
                 console.error("[KLH] Storage.setItem override error:", e);
@@ -1532,28 +1551,32 @@
     };
 
     // 重新實作 slotSummary，讀取難度欄位並整合於摘要
+    const originalSlotSummary = window.slotSummary;
     window.slotSummary = function (n) {
         // 🚀 不在此處自動預填空存檔，以保持與雲端一致的真實狀態
         // checkAndPrepopulateSlots();
-        let s = localStorage.getItem('lineage_idle_save_' + n);
-        if (!s) return null;
-        try {
-            let d = JSON.parse(s);
-            let p = d.p;
-            let clsName = { knight: '騎士', mage: '法師', elf: '妖精', dark: '黑暗妖精' }[p.cls] || p.cls;
-            let diff = d.difficulty || 'standard';
-            let diffName = DIFFICULTY_SETTINGS[diff] ? DIFFICULTY_SETTINGS[diff].name : '標準';
-            return {
-                name: p.name || '未命名',
-                cls: clsName,
-                lv: p.lv || 1,
-                gold: p.gold || 0,
-                difficulty: diff,
-                difficultyName: diffName
-            };
-        } catch (e) {
-            return null;
+        let sum = null;
+        if (typeof originalSlotSummary === 'function') {
+            sum = originalSlotSummary(n);
         }
+        if (!sum) return null;
+
+        // 讀取存檔中的難度欄位並整合進來
+        let s = localStorage.getItem('lineage_idle_save_' + n);
+        let diff = 'standard';
+        if (s) {
+            try {
+                let d = JSON.parse(s);
+                if (d.difficulty) {
+                    diff = d.difficulty;
+                }
+            } catch (e) {}
+        }
+        let diffName = DIFFICULTY_SETTINGS[diff] ? DIFFICULTY_SETTINGS[diff].name : '標準';
+
+        sum.difficulty = diff;
+        sum.difficultyName = diffName;
+        return sum;
     };
 
 
@@ -1971,15 +1994,17 @@
     };
 
     // 重新實作 openSlotSelect
+    const originalOpenSlotSelect = window.openSlotSelect;
     window.openSlotSelect = function (mode) {
         window._slotMode = mode;
         try { _slotMode = mode; } catch (e) { }
-        document.getElementById('main-menu').classList.add('hidden');
-        document.getElementById('creation-panel').classList.add('hidden');
-        document.getElementById('slot-select-panel').classList.remove('hidden');
-        document.getElementById('slot-select-title').innerText = (mode === 'new') ? '選擇存檔位（創建角色）' : '選擇存檔位（載入進度）';
 
-        // 難度面板注入
+        // 1. 呼叫原作者的 openSlotSelect，完成基本存檔列表與按鈕渲染
+        if (typeof originalOpenSlotSelect === 'function') {
+            originalOpenSlotSelect(mode);
+        }
+
+        // 2. 難度面板注入
         let diffPanel = document.getElementById('difficulty-selection-block');
         if (!diffPanel) {
             const titleEl = document.getElementById('slot-select-title');
@@ -1997,16 +2022,17 @@
                 </div>
                 <div id="diff-desc" class="w-full max-w-md text-xs text-slate-300 text-center border border-slate-800 bg-slate-950/40 rounded p-3 leading-relaxed"></div>
             `;
-            titleEl.parentNode.insertBefore(diffPanel, titleEl.nextSibling);
+            if (titleEl) {
+                titleEl.parentNode.insertBefore(diffPanel, titleEl.nextSibling);
+            }
         }
 
         // 延用當前難度與手動選擇標記，防止因非同步同步刷新而重置難度
         window.selectDifficulty(window.gameDifficulty || 'standard', window.difficultyManuallySelected);
 
-        let list = document.getElementById('slot-list'); list.innerHTML = '';
-
         // 🚀 如果目前正在非同步下載/同步雲端存檔中，顯示同步提示並中斷渲染，防止載入到舊的快取存檔
-        if (window.isCloudSyncing) {
+        let list = document.getElementById('slot-list');
+        if (window.isCloudSyncing && list) {
             list.innerHTML = `<div class="w-full text-center py-8 text-indigo-400 font-bold flex flex-col items-center gap-3">
                 <div class="klh-loading-spinner" style="width:36px; height:36px; border-top-color:#818cf8; border-left-color:rgba(129,140,248,0.1); border-right-color:rgba(129,140,248,0.1); border-bottom-color:rgba(129,140,248,0.1);"></div>
                 <span>正在同步雲端存檔中，請稍候...</span>
@@ -2014,46 +2040,57 @@
             return;
         }
 
-        // 🚀 為了確保與雲端伺服器誠實一致，我們不在此處自動預填空存檔
-        // checkAndPrepopulateSlots();
+        // 3. 在原作者渲染的基礎上，僅在最後修改難度顯示與新增 GM 單獨刪除按鈕
+        if (list) {
+            const maxSlots = getMaxSaveSlot();
+            const rows = list.children;
+            for (let i = 0; i < Math.min(rows.length, maxSlots); i++) {
+                const n = i + 1;
+                const row = rows[i];
+                if (!row) continue;
 
-        const maxSlots = getMaxSaveSlot();
-        for (let n = 1; n <= maxSlots; n++) {
-            let sum = slotSummary(n);
-            let label;
-            if (sum) {
-                label = `<div style="display: flex; flex-direction: column; width: 100%; gap: 4px; padding: 0 12px; box-sizing: border-box;">`
-                    + `<div style="display: flex; width: 100%;">`
-                    + `<span style="flex: 1; text-align: left;">存檔 ${n}</span>`
-                    + `<span style="flex: 1; text-align: center;">${sum.cls}</span>`
-                    + `<span style="flex: 1; text-align: right;">Lv.${sum.lv}</span>`
-                    + `</div>`
-                    + `<div style="display: flex; width: 100%;">`
-                    + `<span style="flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sum.name}</span>`
-                    + `<span style="flex: 1; text-align: right;">[${sum.difficultyName}]</span>`
-                    + `</div>`
-                    + `</div>`;
-            } else {
-                label = `存檔 ${n}　（空）`;
-            }
-            let disabled = (mode === 'load' && !sum);
-            let bak = (mode === 'load') ? slotBackupSummary(n) : null;
-            let importBtn = `<button onclick="importSave(${n})" class="btn flex-1 min-w-0 py-4 px-1 text-sm font-bold bg-indigo-700 hover:bg-indigo-600 border-indigo-500 whitespace-nowrap">匯入</button>`;
-            let restoreBtn = bak ? `<button onclick="restoreBackup(${n})" title="復原匯入前自動備份的存檔（${bak.cls} Lv.${bak.lv}　${bak.name}）" class="btn flex-1 min-w-0 py-4 px-1 text-sm font-bold bg-amber-700 hover:bg-amber-600 border-amber-500 whitespace-nowrap">復原</button>` : '';
-            let deleteBtn = (sum && typeof window.openGMShop === 'function') ? `<button onclick="deleteSingleSave(${n})" class="btn py-4 px-2 text-sm font-bold bg-red-700 hover:bg-red-600 border-red-500 whitespace-nowrap" style="width: 50px; flex-shrink: 0;">刪除</button>` : '';
+                const sum = slotSummary(n);
+                if (sum) {
+                    // 找到存檔按鈕中的文字 span，插入 [難度]
+                    const btn = row.children[0];
+                    if (btn) {
+                        const span = btn.querySelector('span');
+                        if (span) {
+                            let text = span.innerText;
+                            if (text.includes('（經典）')) {
+                                text = text.replace('（經典）', ` [${sum.difficultyName}]（經典）`);
+                            } else {
+                                text = text + ` [${sum.difficultyName}]`;
+                            }
+                            span.innerText = text;
+                        }
+                    }
 
-            let actionArea = '';
-            if (mode === 'load') {
-                actionArea = `<div class="flex gap-1 shrink-0 w-56">${importBtn}${restoreBtn}${deleteBtn}</div>`;
-            } else {
-                if (sum && typeof window.openGMShop === 'function') {
-                    actionArea = `<div class="flex gap-1 shrink-0 w-14">${deleteBtn}</div>`;
+                    // 如果是 GM 模式且有 GM 商店功能，則加上單獨刪除按鈕
+                    if (typeof window.openGMShop === 'function') {
+                        let actionArea = row.children[1];
+                        if (mode === 'load' && actionArea) {
+                            const deleteBtn = document.createElement('button');
+                            deleteBtn.onclick = function () { window.deleteSingleSave(n); };
+                            deleteBtn.className = 'btn py-2 px-2 text-base font-bold bg-red-700 hover:bg-red-600 border-red-500 whitespace-nowrap';
+                            deleteBtn.style.cssText = 'width: 50px; flex-shrink: 0;';
+                            deleteBtn.innerText = '刪除';
+                            actionArea.appendChild(deleteBtn);
+                        } else if (mode === 'new') {
+                            // new 模式下原作者沒有 actionArea，我們自己創立一個
+                            let actionArea = document.createElement('div');
+                            actionArea.className = 'flex gap-2 shrink-0 w-14';
+                            const deleteBtn = document.createElement('button');
+                            deleteBtn.onclick = function () { window.deleteSingleSave(n); };
+                            deleteBtn.className = 'btn py-2 px-2 text-base font-bold bg-red-700 hover:bg-red-600 border-red-500 whitespace-nowrap';
+                            deleteBtn.style.cssText = 'width: 50px; flex-shrink: 0;';
+                            deleteBtn.innerText = '刪除';
+                            actionArea.appendChild(deleteBtn);
+                            row.appendChild(actionArea);
+                        }
+                    }
                 }
             }
-            list.innerHTML += `<div class="flex gap-2 w-full">`
-                + `<button onclick="chooseSlot(${n})" ${disabled ? 'disabled' : ''} class="btn flex-1 min-w-0 py-4 text-lg font-bold ${disabled ? 'opacity-40' : ''}">${label}</button>`
-                + actionArea
-                + `</div>`;
         }
 
         // 清除所有存檔按鈕注入與特權金鑰隱藏邏輯
