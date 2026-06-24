@@ -813,7 +813,9 @@
     };
 
     let lastAutoUploadTime = 0;
+    let lastManualUploadTime = 0;
     const AUTO_UPLOAD_DEBOUNCE_MS = 60000; // 60秒自動存檔上傳節流
+    const MANUAL_UPLOAD_DEBOUNCE_MS = 10000; // 10秒手動存檔上傳節流
 
     window.addEventListener('beforeunload', () => {
         window.__klh_is_unloading = true;
@@ -821,13 +823,23 @@
 
     // 異步上傳至雲端
     window.uploadToCloud = async function (isManual = false, forceFullOverwrite = false, skipMergeSlot = null) {
-        // 自動上傳節流：若非手動且非強制全覆寫，且頁面沒有在關閉中，限制 60 秒內只上傳一次
-        if (!isManual && !forceFullOverwrite && !window.__klh_is_unloading) {
-            const now = Date.now();
-            if (now - lastAutoUploadTime < AUTO_UPLOAD_DEBOUNCE_MS) {
-                return;
+        const now = Date.now();
+        // 節流判斷：若非強制全覆寫且非頁面關閉中
+        if (!forceFullOverwrite && !window.__klh_is_unloading) {
+            if (isManual) {
+                // 手動或登出存檔上傳：冷卻 10 秒
+                if (now - lastManualUploadTime < MANUAL_UPLOAD_DEBOUNCE_MS) {
+                    console.log("[JSONBlob] 手動/登出上傳冷卻中，略過 (10秒限制)...");
+                    return;
+                }
+                lastManualUploadTime = now;
+            } else {
+                // 自動存檔上傳：冷卻 60 秒
+                if (now - lastAutoUploadTime < AUTO_UPLOAD_DEBOUNCE_MS) {
+                    return;
+                }
+                lastAutoUploadTime = now;
             }
-            lastAutoUploadTime = now;
         }
 
         if (!window.isValidUuid(window.activeKey)) {
@@ -1427,7 +1439,7 @@
     if (!window.__klh_save_game_wrapped) {
         window.__klh_save_game_wrapped = true;
         const originalSaveGame = window.saveGame;
-        window.saveGame = async function () {
+        window.saveGame = async function (isManual = false) {
             if (player && player.dead) return;
 
             // 🚀 開關開啟時，在寫檔前清理協力傭兵的背包與過濾設定以精簡存檔
@@ -1482,14 +1494,26 @@
             const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
             if (storageMode === 'cloud') {
                 if (typeof window.uploadToCloud === 'function') {
-                    return await window.uploadToCloud();
+                    return await window.uploadToCloud(isManual);
                 }
             } else if (storageMode === 'supabase') {
                 if (typeof window.uploadToSupabase === 'function') {
-                    return await window.uploadToSupabase();
+                    return await window.uploadToSupabase(isManual);
                 }
             }
         };
+    }
+
+    // 動態將「儲存遊戲」按鈕的 onclick 改為帶 isManual=true，
+    // 讓手動存檔走 5 秒冷卻而非 60 秒自動冷卻，不需修改 index.html。
+    try {
+        document.querySelectorAll('button').forEach(btn => {
+            if (btn.textContent.trim() === '儲存遊戲') {
+                btn.setAttribute('onclick', 'saveGame(true)');
+            }
+        });
+    } catch (e) {
+        console.error("[KLH] 儲存按鈕重綁定失敗:", e);
     }
 
     if (!window.__klh_save_warehouse_wrapped) {
@@ -2851,7 +2875,7 @@
 
                 try {
                     if (typeof window.saveGame === 'function') {
-                        await window.saveGame();
+                        await window.saveGame(true);
                     }
                 } catch (err) {
                     console.error("Logout save failed:", err);

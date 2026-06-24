@@ -622,7 +622,7 @@
             } catch (e) {
                 console.error("[klh_GM2] saveGame hook error:", e);
             }
-            return originalSaveGame();
+            return originalSaveGame.apply(this, arguments);
         };
     } else {
         console.warn("[klh_GM2] 找不到 window.saveGame，設定存檔功能已降級");

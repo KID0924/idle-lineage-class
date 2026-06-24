@@ -812,13 +812,6 @@
             `;
             // 插入至治癒魔法選擇框下方
             healSkillSelect.parentNode.insertBefore(mercHealContainer, healSkillSelect.nextSibling);
-
-            document.getElementById('set-merc-hp-thr').addEventListener('change', () => {
-                if (typeof saveGame === 'function') saveGame();
-            });
-            document.getElementById('set-merc-heal-type').addEventListener('change', () => {
-                if (typeof saveGame === 'function') saveGame();
-            });
         }
     }
 

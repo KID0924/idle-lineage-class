@@ -588,10 +588,10 @@
     if (typeof window.saveGame === 'function' && !window.__klh_save_game_wrapped) {
         window.__klh_save_game_wrapped = true;
         const originalSaveGame = window.saveGame;
-        window.saveGame = async function () {
+        window.saveGame = async function (isManual = false) {
             if (typeof player !== 'undefined' && player && player.dead) return;
             try {
-                originalSaveGame();
+                await originalSaveGame(isManual);
             } catch (e) {
                 console.error("[KLH] originalSaveGame error:", e);
             }
@@ -599,11 +599,11 @@
                 const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
                 if (storageMode === 'supabase') {
                     if (typeof window.uploadToSupabase === 'function') {
-                        return await window.uploadToSupabase();
+                        return await window.uploadToSupabase(isManual);
                     }
                 } else if (storageMode === 'cloud') {
                     if (typeof window.uploadToCloud === 'function') {
-                        return await window.uploadToCloud();
+                        return await window.uploadToCloud(isManual);
                     }
                 }
             } catch (e) {
@@ -932,7 +932,9 @@
     }
 
     let lastAutoUploadTime = 0;
+    let lastManualUploadTime = 0;
     const AUTO_UPLOAD_DEBOUNCE_MS = 60000; // 60秒自動存檔上傳節流
+    const MANUAL_UPLOAD_DEBOUNCE_MS = 10000; // 10秒手動存檔上傳節流
 
     window.addEventListener('beforeunload', () => {
         window.__klh_is_unloading = true;
@@ -942,13 +944,23 @@
     window.uploadToSupabase = async function (isManual = false, forceFullOverwrite = false, skipMergeSlot = null) {
         if (!supabase) return;
 
-        // 自動上傳節流：若非手動且非強制全覆寫，且頁面沒有在關閉中，限制 60 秒內只上傳一次
-        if (!isManual && !forceFullOverwrite && !window.__klh_is_unloading) {
-            const now = Date.now();
-            if (now - lastAutoUploadTime < AUTO_UPLOAD_DEBOUNCE_MS) {
-                return;
+        const now = Date.now();
+        // 節流判斷：若非強制全覆寫且非頁面關閉中
+        if (!forceFullOverwrite && !window.__klh_is_unloading) {
+            if (isManual) {
+                // 手動或登出存檔上傳：冷卻 10 秒
+                if (now - lastManualUploadTime < MANUAL_UPLOAD_DEBOUNCE_MS) {
+                    console.log("[Supabase] 手動/登出上傳冷卻中，略過 (10秒限制)...");
+                    return;
+                }
+                lastManualUploadTime = now;
+            } else {
+                // 自動存檔上傳：冷卻 60 秒
+                if (now - lastAutoUploadTime < AUTO_UPLOAD_DEBOUNCE_MS) {
+                    return;
+                }
+                lastAutoUploadTime = now;
             }
-            lastAutoUploadTime = now;
         }
 
         const key = (localStorage.getItem('klh_supabase_key') || '').trim();
@@ -1008,7 +1020,10 @@
                     }
                     
                     const cloudWarehouse = cloudData.warehouse;
-                    if (activeSlot !== 5 && cloudWarehouse !== undefined && cloudWarehouse !== null) {
+                    // 防禦 Null 覆寫雲端災難：若本地倉庫為空，且雲端倉庫有資料，則以雲端為主避免洗白
+                    const isLocalWarehouseEmpty = !payload.warehouse || payload.warehouse === 'null' || payload.warehouse === 'undefined' || payload.warehouse === '{}' || payload.warehouse === '{"items":[],"gold":0}';
+                    const isCloudWarehouseValid = cloudWarehouse !== undefined && cloudWarehouse !== null && cloudWarehouse !== 'null' && cloudWarehouse !== '{}' && cloudWarehouse !== '{"items":[],"gold":0}';
+                    if (isLocalWarehouseEmpty && isCloudWarehouseValid) {
                         payload.warehouse = (typeof cloudWarehouse === 'object') ? JSON.stringify(cloudWarehouse) : cloudWarehouse;
                     }
                 }
