@@ -82,6 +82,9 @@ jobs:
           <!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v={dynamic_v}"></script-->
           <!-- 能力值面板補點數分解 始/升/藥/總(可獨立維護;原作者更新後重新加回此行即可) -->
           <script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v={dynamic_v}"></script>
+          <!-- 外掛自動購買:肉 / 魔法屏障卷軸(可獨立維護;原作者更新後重新加回此行即可) -->
+          <script src="https://pp771007.github.io/idle-lineage-class/afk-autobuy.js?v={dynamic_v}"></script>
+
 
           <!-- KID0924 -->
           <!-- Json雲端模組 -->
