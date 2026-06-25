@@ -81,6 +81,54 @@
         'body.klh-widescreen #mob-list {',
         '    justify-content: center !important;',
         '}',
+        // 寬螢幕下或拉伸模式下強制背景圖與 #battle-view 寬高完全吻合（拉伸且不固定長寬比）
+        'body.klh-widescreen #battle-view.has-bg,',
+        '.klh-resized #battle-view.has-bg {',
+        '    background-size: 100% 100% !important;',
+        '    background-repeat: no-repeat !important;',
+        '    background-position: center !important;',
+        '}',
+        // 寬螢幕下未拉動高度時的預設最大高度限制，防止 aspect-ratio 等比撐高擠壓日誌
+        'body.klh-widescreen .panel:not(.klh-resized) #battle-view.area-fit {',
+        '    max-height: 230px !important;',
+        '}',
+        // 配合拉桿：當地圖面板被調整高度時（父面板有 .klh-resized），強制戰鬥畫面滿版
+        '.klh-resized #battle-view.area-fit,',
+        '.klh-resized #battle-view {',
+        '    aspect-ratio: auto !important;',
+        '    max-height: none !important;',
+        '    flex: 1 1 0% !important;',
+        '    min-height: 0 !important;',
+        '    height: auto !important;',
+        '}',
+        // 當高度被調整時，讓怪物卡片與圖片等比例縮放以填滿新高度
+        '.klh-resized #battle-view #mob-list {',
+        '    height: 100% !important;',
+        '}',
+        '.klh-resized #battle-view .mob-target {',
+        '    height: 100% !important;',
+        '    min-height: 0 !important;',
+        '}',
+        '.klh-resized #battle-view .mob-img-wrap {',
+        '    flex: 1 1 auto !important;',
+        '    min-height: 0 !important;',
+        '    align-items: flex-end !important;',
+        '}',
+        '.klh-resized #battle-view .mob-img-inner {',
+        '    position: relative !important;',
+        '    height: 100% !important;',
+        '    display: inline-flex !important;',
+        '    align-items: flex-end !important;',
+        '    justify-content: center !important;',
+        '}',
+        '.klh-resized #battle-view .mob-img-wrap img {',
+        '    height: 100% !important;',
+        '    width: auto !important;',
+        '    max-width: 100% !important;',
+        '    max-height: 100% !important;',
+        '    position: relative !important;',
+        '    z-index: 1 !important;',
+        '}',
 
         // ── 被設定了自訂高度的面板：覆蓋 flex 讓高度生效 ──
         '.klh-resized {',
@@ -422,7 +470,7 @@
         console.log('[klh_PC_fix] 面板高度拖曳調整已啟用（拖曳底部把手 / 雙擊重設）');
     }
 
-    // ── 5e. 同步地圖面板高度（只在村莊時套用自訂高度，打怪時自動折疊） ──
+    // ── 5e. 同步地圖面板高度（不論村莊或戰鬥狀態皆套用自訂高度並顯示拖曳把手） ──
     function syncMapPanelHeight() {
         var townView = document.getElementById('town-view');
         if (!townView) return;
@@ -433,27 +481,21 @@
         var saved = loadPanelHeights();
         var savedH = saved[key];
 
-        var isTown = !townView.classList.contains('hidden');
         var handle = mapPanel.querySelector('.klh-resize-handle');
 
-        if (isTown) {
-            // 在村莊狀態：套用自訂高度（如果有的話）
-            if (savedH) {
-                // 防呆限制：載入時若自訂高度太大（大於視窗高度 - 100px），自動限縮為安全高度
-                var maxRestored = Math.max(80, window.innerHeight - 100);
-                var finalH = Math.min(maxRestored, savedH);
-                mapPanel.style.height = finalH + 'px';
-                mapPanel.classList.add('klh-resized');
-            }
-            // 顯示拖曳把手
-            if (handle) handle.style.display = '';
+        if (savedH) {
+            // 防呆限制：載入時若自訂高度太大（大於視窗高度 - 100px），自動限縮為安全高度
+            var maxRestored = Math.max(80, window.innerHeight - 100);
+            var finalH = Math.min(maxRestored, savedH);
+            mapPanel.style.height = finalH + 'px';
+            mapPanel.classList.add('klh-resized');
         } else {
-            // 在打怪狀態：清除自訂高度，讓其自動折疊
+            // 無自訂高度時恢復預設自適應折疊
             mapPanel.style.height = '';
             mapPanel.classList.remove('klh-resized');
-            // 隱藏拖曳把手
-            if (handle) handle.style.display = 'none';
         }
+        // 任何狀態下皆顯示拖曳把手
+        if (handle) handle.style.display = '';
     }
 
     // ══════════════════════════════════════════════════════════════════════

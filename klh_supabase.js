@@ -517,6 +517,45 @@
     const SUPABASE_ANON_KEY = "sb_publishable_W9Nu6MCy33wzEb3VKv7emg_ZWvkCCyP";
     let supabase = null;
 
+    if (typeof window.__klh_cloud_sync_success === 'undefined') {
+        window.__klh_cloud_sync_success = false;
+    }
+
+    if (typeof window.showNetworkErrorScreen !== 'function') {
+        window.showNetworkErrorScreen = function (message) {
+            const existing = document.getElementById('klh-network-lock-overlay');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'klh-network-lock-overlay';
+            overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(10px); z-index: 9999999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #f1f5f9; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; text-align: center; box-sizing: border-box;';
+            
+            overlay.innerHTML = `
+                <div style="background: rgba(30, 41, 59, 0.9); border: 2px solid #ef4444; border-radius: 16px; padding: 30px; max-width: 450px; width: 100%; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); box-sizing: border-box;">
+                    <div style="font-size: 64px; margin-bottom: 20px; display: inline-block;">🌐</div>
+                    <h2 style="font-size: 20px; font-weight: bold; color: #f87171; margin-top: 0; margin-bottom: 12px; line-height: 1.4;">連線失敗！已鎖定遊戲以防存檔洗白</h2>
+                    <p style="font-size: 13px; color: #cbd5e1; line-height: 1.6; margin-bottom: 24px; text-align: left;">
+                        ${message || '系統未能成功下載您的雲端最新存檔。為避免自動存檔系統將您的<b>新手/空進度</b>上傳並覆蓋掉雲端的滿級舊存檔，我們已自動啟用「絕對防禦」鎖定畫面。<br><br>請嘗試重新整理網頁，或點選下方按鈕切換回本地儲存模式。'}
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                        <button id="klh-lock-reload-btn" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.4);">🔄 重新整理網頁</button>
+                        <button id="klh-lock-local-btn" style="background: rgba(71, 85, 105, 0.5); color: #cbd5e1; border: 1px solid #475569; padding: 10px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s;">🏠 切換回本地模式</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(overlay);
+            
+            document.getElementById('klh-lock-reload-btn').addEventListener('click', function() {
+                location.reload();
+            });
+            document.getElementById('klh-lock-local-btn').addEventListener('click', function() {
+                localStorage.setItem('klh_storage_mode', 'local');
+                location.reload();
+            });
+        };
+    }
+
     // ==========================================
     // 共享輔助函式與 UI 宣告 (與 klh_jsonblob.js 共用/相容)
     // ==========================================
@@ -935,15 +974,25 @@
     const originalGetItem = Storage.prototype.__originalGetItem || Storage.prototype.getItem;
     const originalSetItem = Storage.prototype.__originalSetItem || Storage.prototype.setItem;
     const originalRemoveItem = Storage.prototype.__originalRemoveItem || Storage.prototype.removeItem;
+    const originalClear = Storage.prototype.__originalClear || Storage.prototype.clear;
+
+    // 初始化全域共享快取，以防雙外掛或 console 造成資料不同步
+    if (!window.__klh_storage_cache) {
+        window.__klh_storage_cache = {
+            mode: originalGetItem.call(localStorage, 'klh_storage_mode') || 'local',
+            supabaseKey: originalGetItem.call(localStorage, 'klh_supabase_key') || '',
+            jsonblobUrl: originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '019ed445-679f-7ae4-9f05-f887591d1266'
+        };
+    }
 
     function getRedirectedKey(key) {
-        const mode = originalGetItem.call(localStorage, 'klh_storage_mode') || 'local';
+        const mode = window.__klh_storage_cache.mode;
         if (mode === 'cloud' || mode === 'supabase') {
             let activeKey;
             if (mode === 'supabase') {
-                activeKey = originalGetItem.call(localStorage, 'klh_supabase_key') || '';
+                activeKey = window.__klh_storage_cache.supabaseKey;
             } else {
-                activeKey = window.activeKey || originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '019ed445-679f-7ae4-9f05-f887591d1266';
+                activeKey = window.activeKey || window.__klh_storage_cache.jsonblobUrl;
             }
             if (activeKey) {
                 const suffix = '_' + activeKey.trim();
@@ -975,8 +1024,12 @@
 
         Storage.prototype.setItem = function (key, value) {
             try {
-                // 🚀 當切換 Supabase 金鑰時，自動清除前一個金鑰的本地存檔快取，釋放空間
-                if (key === 'klh_supabase_key') {
+                // 同步更新快取值
+                if (key === 'klh_storage_mode') {
+                    window.__klh_storage_cache.mode = value || 'local';
+                } else if (key === 'klh_supabase_key') {
+                    window.__klh_storage_cache.supabaseKey = (value || '').trim();
+                    // 🚀 當切換 Supabase 金鑰時，自動清除前一個金鑰的本地存檔快取，釋放空間
                     const oldKey = originalGetItem.call(this, 'klh_supabase_key');
                     const newKey = (value || '').trim();
                     if (oldKey && newKey && oldKey !== newKey) {
@@ -992,6 +1045,8 @@
                         originalRemoveItem.call(this, 'afk_pride' + suffix);
                         console.log("[Supabase] 已自動清除上一個金鑰的本地快取:", oldKey);
                     }
+                } else if (key === 'lineage_idle_jsonblob_url') {
+                    window.__klh_storage_cache.jsonblobUrl = (value || '').trim();
                 }
                 return originalSetItem.call(this, getRedirectedKey(key), value);
             } catch (e) {
@@ -1002,10 +1057,35 @@
 
         Storage.prototype.removeItem = function (key) {
             try {
+                if (key === 'klh_storage_mode') {
+                    window.__klh_storage_cache.mode = 'local';
+                } else if (key === 'klh_supabase_key') {
+                    window.__klh_storage_cache.supabaseKey = '';
+                } else if (key === 'lineage_idle_jsonblob_url') {
+                    window.__klh_storage_cache.jsonblobUrl = '';
+                }
                 return originalRemoveItem.call(this, getRedirectedKey(key));
             } catch (e) {
                 console.error("[KLH] Storage.removeItem override error:", e);
                 return originalRemoveItem.call(this, key);
+            }
+        };
+    }
+
+    if (!Storage.prototype.__klh_clear_patched) {
+        Storage.prototype.__klh_clear_patched = true;
+        Storage.prototype.__originalClear = originalClear;
+        Storage.prototype.clear = function () {
+            try {
+                if (window.__klh_storage_cache) {
+                    window.__klh_storage_cache.mode = 'local';
+                    window.__klh_storage_cache.supabaseKey = '';
+                    window.__klh_storage_cache.jsonblobUrl = '019ed445-679f-7ae4-9f05-f887591d1266';
+                }
+                return originalClear.call(this);
+            } catch (e) {
+                console.error("[KLH] Storage.clear override error:", e);
+                return originalClear.call(this);
             }
         };
     }
@@ -1137,6 +1217,9 @@
                     <span>目前存檔模式：</span>
                     <span id="current-storage-mode-text" class="font-bold text-green-400">本地模式</span>
                 </div>
+                <div class="text-[11px] text-amber-400 font-bold leading-relaxed bg-amber-950/40 p-2 rounded border border-amber-900/50">
+                    ⚠️ 注意：使用雲端同步請勿雙開遊戲！儲存後請務必回首頁或登出，以防存檔覆寫！
+                </div>
                 
                 <div class="flex gap-1.5 w-full">
                     ${buttonsHtml}
@@ -1172,8 +1255,8 @@
 
             const inputEl = document.getElementById('jsonblob-input');
             const readBtn = document.getElementById('btn-cloud-read');
-            // const quickKeysHeader = document.getElementById('klh-quick-keys-header');
-            // const quickKeysList = document.getElementById('klh-quick-keys-list');
+            const quickKeysHeader = document.getElementById('klh-quick-keys-header');
+            const quickKeysList = document.getElementById('klh-quick-keys-list');
 
             if (modeTextEl) {
                 if (mode === 'cloud') {
@@ -1359,8 +1442,8 @@
 
     let lastAutoUploadTime = 0;
     let lastManualUploadTime = 0;
-    const AUTO_UPLOAD_DEBOUNCE_MS = 660000; // 11分鐘自動存檔上傳節流
-    const MANUAL_UPLOAD_DEBOUNCE_MS = 15000; // 15秒手動存檔上傳節流
+    const AUTO_UPLOAD_DEBOUNCE_MS = 300000; // 5分鐘自動存檔上傳節流
+    const MANUAL_UPLOAD_DEBOUNCE_MS = 5000; // 5秒手動存檔上傳節流
 
     window.addEventListener('beforeunload', () => {
         window.__klh_is_unloading = true;
@@ -1368,22 +1451,31 @@
 
     // 2. 異步上傳至 Supabase
     window.uploadToSupabase = async function (isManual = false, forceFullOverwrite = false, skipMergeSlot = null) {
-        if (!supabase) return;
+        if (!supabase) return false;
+
+        // 安全防禦鎖：若本階段未成功自雲端下載過存檔，禁止寫入雲端
+        if (!window.__klh_cloud_sync_success) {
+            console.error("[Supabase] 雲端存檔未成功載入，拒絕寫入雲端以防覆寫洗白！");
+            if (isManual && typeof window.showToast === 'function') {
+                window.showToast('同步失敗：尚未成功下載雲端最新存檔，已攔截上傳以防覆寫！請重新整理網頁並確保網路正常。', 'error');
+            }
+            return false;
+        }
 
         const now = Date.now();
         // 節流判斷：若非強制全覆寫且非頁面關閉中
         if (!forceFullOverwrite && !window.__klh_is_unloading) {
             if (isManual) {
-                // 手動或登出存檔上傳：冷卻 10 秒
+                // 手動或登出存檔上傳：冷卻 5 秒
                 if (now - lastManualUploadTime < MANUAL_UPLOAD_DEBOUNCE_MS) {
-                    console.log("[Supabase] 手動/登出上傳冷卻中，略過 (10秒限制)...");
-                    return;
+                    console.log("[Supabase] 手動/登出上傳冷卻中，略過 (5秒限制)...");
+                    return true;
                 }
                 lastManualUploadTime = now;
             } else {
-                // 自動存檔上傳：冷卻 60 秒
+                // 自動存檔上傳：冷卻 5 分鐘
                 if (now - lastAutoUploadTime < AUTO_UPLOAD_DEBOUNCE_MS) {
-                    return;
+                    return true;
                 }
                 lastAutoUploadTime = now;
             }
@@ -1392,7 +1484,7 @@
         const key = (localStorage.getItem('klh_supabase_key') || '').trim();
         if (!key) {
             if (isManual) window.showToast('雲端金鑰不存在，無法執行寫入！', 'error');
-            return;
+            return false;
         }
 
         const maxSlots = getMaxSaveSlot();
@@ -1405,64 +1497,15 @@
 
         const activeSlot = (typeof window.currentSlot !== 'undefined') ? parseInt(window.currentSlot, 10) : null;
 
-        // 合併雲端其他槽位的存檔
-        if (!forceFullOverwrite && activeSlot >= 1 && activeSlot <= maxSlots) {
-            if (isManual) {
-                window.showLoadingOverlay('正在讀取並合併雲端存檔...');
-            }
-            try {
-                const { data: rawData, error } = await supabase
-                    .rpc('load_player_save', { player_id: key, client_version: 'compressed' });
-
-                if (error) {
-                    throw error;
+        // 本地空值防禦：如果當前玩的槽位本地資料為空，則拒絕上傳以防覆蓋洗白雲端
+        if (activeSlot >= 1 && activeSlot <= maxSlots) {
+            const localActiveVal = payload['save_' + activeSlot];
+            if (!localActiveVal) {
+                if (isManual && typeof window.showToast === 'function') {
+                    window.showToast('雲端存檔同步失敗：偵測到本地當前槽位存檔為空，已攔截雲端覆寫！', 'error');
                 }
-
-                if (rawData) {
-                    const cloudData = decompressSupabasePayload(rawData);
-                    const skipSlot = (skipMergeSlot !== null) ? parseInt(skipMergeSlot, 10) : null;
-
-                    for (let n = 1; n <= maxSlots; n++) {
-                        if (n !== activeSlot && n !== skipSlot) {
-                            const cloudSlotVal = cloudData['save_' + n];
-                            if (cloudSlotVal !== undefined && cloudSlotVal !== null) {
-                                payload['save_' + n] = (typeof cloudSlotVal === 'object') ? JSON.stringify(cloudSlotVal) : cloudSlotVal;
-                            } else {
-                                payload['save_' + n] = null;
-                            }
-                        }
-                    }
-                    
-                    // 防禦 Null 覆寫雲端災難 (與 klh_jsonblob 相同機制)
-                    if (activeSlot !== null && activeSlot !== skipSlot) {
-                        const cloudActiveVal = cloudData['save_' + activeSlot];
-                        const localActiveVal = payload['save_' + activeSlot];
-                        if (cloudActiveVal !== undefined && cloudActiveVal !== null && !localActiveVal) {
-                            if (isManual && typeof window.showToast === 'function') {
-                                window.showToast('雲端存檔同步失敗：偵測到本地存檔異常遺失，已攔截雲端覆寫！', 'error');
-                            }
-                            throw new Error("CRITICAL_NULL_OVERWRITE: 偵測到本地存檔異常遺失，已攔截雲端覆寫！");
-                        }
-                    }
-                    
-                    const cloudWarehouse = cloudData.warehouse;
-                    // 防禦 Null 覆寫雲端災難：若本地倉庫為空，且雲端倉庫有資料，則以雲端為主避免洗白
-                    const isLocalWarehouseEmpty = !payload.warehouse || payload.warehouse === 'null' || payload.warehouse === 'undefined' || payload.warehouse === '{}' || payload.warehouse === '{"items":[],"gold":0}';
-                    const isCloudWarehouseValid = cloudWarehouse !== undefined && cloudWarehouse !== null && cloudWarehouse !== 'null' && cloudWarehouse !== '{}' && cloudWarehouse !== '{"items":[],"gold":0}';
-                    if (isLocalWarehouseEmpty && isCloudWarehouseValid) {
-                        payload.warehouse = (typeof cloudWarehouse === 'object') ? JSON.stringify(cloudWarehouse) : cloudWarehouse;
-                    }
-                }
-            } catch (e) {
-                console.error("[Supabase] 讀取並合併存檔失敗:", e);
-                if (isManual) {
-                    window.showToast('雲端存檔同步失敗：無法取得最新狀態，已取消同步！', 'error');
-                }
-                return;
-            } finally {
-                if (isManual) {
-                    window.hideLoadingOverlay();
-                }
+                console.error("[Supabase] 偵測到本地當前槽位存檔為空，已攔截雲端覆寫！");
+                return false;
             }
         }
 
@@ -1486,13 +1529,15 @@
             if (error) throw error;
 
             if (isManual) {
-                window.showToast('成功將本機進度同步至雲端！', 'success');
+                window.showToast('成功將本機進度同步至雲端！ ⚠️注意：雲端儲存成功！請勿雙開遊戲。按完儲存後請務必回首頁或登出！', 'success');
             }
+            return true;
         } catch (err) {
             console.error('Error syncing to Supabase:', err);
             if (isManual) {
                 window.showToast('上傳雲端存檔失敗，請檢查網路連線。', 'error');
             }
+            return false;
         } finally {
             if (isManual) {
                 window.hideLoadingOverlay();
@@ -1557,6 +1602,7 @@
                         // 寫入本機設定，本機金鑰與當前金鑰同步
                         localStorage.setItem('klh_supabase_key', newKey);
                         localStorage.setItem('klh_supabase_local_key', newKey);
+                        window.__klh_cloud_sync_success = true; // 設置安全鎖為 true，允許新金鑰寫入
 
                         // 同步本地快取並上傳
                         if (typeof window.copyLocalSavesToCloudCache === 'function') {
@@ -1609,6 +1655,8 @@
                 localStorage.removeItem('lineage_idle_warehouse');
             }
 
+            window.__klh_cloud_sync_success = true; // 成功下載並解析完畢，釋放安全鎖
+
             if (isManual) window.showToast('雲端存檔同步成功！', 'success');
 
             if (typeof window.refreshLoadBtnVisibility === 'function') {
@@ -1616,7 +1664,14 @@
             }
         } catch (err) {
             console.error('[Supabase] 讀取失敗:', err);
-            if (isManual) window.showToast('讀取雲端存檔失敗：' + err.message, 'error');
+            if (isManual) {
+                window.showToast('讀取雲端存檔失敗：' + err.message, 'error');
+            } else {
+                // 背景載入失敗，啟動連線失敗鎖定畫面
+                if (typeof window.showNetworkErrorScreen === 'function') {
+                    window.showNetworkErrorScreen('系統未能成功下載您的雲端最新存檔（錯誤：' + err.message + '）。為避免自動存檔系統將您的<b>新手/空進度</b>上傳並覆蓋掉雲端的舊存檔，我們已自動鎖定畫面。<br><br>請確保網路暢通，並重新整理網頁！');
+                }
+            }
         } finally {
             window.isCloudSyncing = false;
             if (typeof window.updateLoadButtonState === 'function') {
@@ -1640,10 +1695,11 @@
     window.switchToSupabaseMode = async function () {
         localStorage.setItem('klh_storage_mode', 'supabase');
 
+        let currentKey = (localStorage.getItem('klh_supabase_key') || '').trim();
         let localKey = (localStorage.getItem('klh_supabase_local_key') || '').trim();
 
-        // 直接套用本機專屬金鑰
-        if (localKey) {
+        // 僅在當前金鑰為空時，才套用本機專屬金鑰進行初始化
+        if (!currentKey && localKey) {
             localStorage.setItem('klh_supabase_key', localKey);
         }
         let key = (localStorage.getItem('klh_supabase_key') || '').trim();
@@ -1679,6 +1735,8 @@
                 key = newKey;
                 localStorage.setItem('klh_supabase_key', key);
                 localStorage.setItem('klh_supabase_local_key', key);
+                
+                window.__klh_cloud_sync_success = true; // 成功註冊並初始化雲端金鑰，解除安全鎖
 
                 // 同步本地快取並上傳
                 if (typeof window.copyLocalSavesToCloudCache === 'function') {

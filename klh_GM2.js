@@ -28,7 +28,6 @@
  *  14. 轉生系統       —— 「時光使者」 NPC ，75 等以上可轉生重置等級，保留擁有屬性點數並依當前等級（經驗衰減難度）計算獲得額外屬性點，並加入轉生前匯出存檔之防範提醒。
  *  15. 回憶蠟燭保護   —— Hook resetStatsCandle ，防止轉生點數被回憶蠟燭消耗。
  *  16. 席琳裝備注入   —— Hook openModal 於裝備介面新增「席琳注入」按鈕（消耗 1 顆席琳結晶），為特定部位裝備隨機注入強力的席琳混沌套裝效果。
- *  17. 象牙塔 NPC 碧恩 —— 覆寫 renderBianBless，僅保留祝福與解詛咒，並在最下方附屬性/遠古/席琳套裝效果卡片對照。
  * ========================================================================== */
 
 (function () {
@@ -1128,319 +1127,110 @@
         };
     }
 
-    // 試圖動態提取原版 renderTabs 的配置，以防止未來原版更新 slots、_sig 或等級鎖定時失效
-    let originalSlots = null;
-    let getOriginalSig = null;
-    let getRlvLimit = function (slotKey, player) {
-        if (slotKey === 'ring3') return 55;
-        if (slotKey === 'ring4') return 65;
-        return 0;
-    };
+    // ==========================================
+    // 13. renderTabs 動態代理 Hook 與 DOM 後處理
+    // ==========================================
+    let lastGM2Sig = "";
+    const originalRenderTabs = window.renderTabs;
 
-    if (typeof window.renderTabs === 'function') {
-        const str = window.renderTabs.toString();
-
-        // 1. 提取 slots 陣列
-        const slotsMatch = str.match(/(?:const|let)?\s*slots\s*=\s*(\[[\s\S]*?\])\s*;/);
-        if (slotsMatch) {
-            try {
-                originalSlots = new Function("return " + slotsMatch[1])();
-            } catch (e) {
-                console.error("Failed to parse slots from original renderTabs", e);
-            }
-        }
-
-        // 2. 提取 _sig 函數內部邏輯
-        const sigMatch = str.match(/_sig\s*=\s*\(function\s*\(\)\s*\{([\s\S]*?)\}\)\(\);/);
-        if (sigMatch) {
-            try {
-                getOriginalSig = new Function(sigMatch[1]);
-            } catch (e) {
-                console.error("Failed to parse _sig from original renderTabs", e);
-            }
-        }
-
-        // 3. 提取 _rlv 運算式，轉為等級限制函數
-        const rlvMatch = str.match(/_rlv\s*=\s*(.*?)\s*;/);
-        if (rlvMatch) {
-            try {
-                const expr = rlvMatch[1].replace(/s\.k/g, 'slotKey').replace(/player\.lv/g, 'player.lv');
-                getRlvLimit = new Function('slotKey', 'player', `return ${expr}`);
-            } catch (e) {
-                console.error("Failed to parse _rlv limit from original renderTabs", e);
-            }
-        }
-    }
-
-    const fallbackSlots = [
-        { k: 'wpn', n: '武器' }, { k: 'shield', n: '盾牌' }, { k: 'helm', n: '頭盔' },
-        { k: 'armor', n: '盔甲' }, { k: 'tshirt', n: 'T恤' }, { k: 'cloak', n: '斗篷' },
-        { k: 'gloves', n: '手套' }, { k: 'boots', n: '長靴' }, { k: 'amulet', n: '項鍊' },
-        { k: 'ring1', n: '戒指' }, { k: 'ring2', n: '戒指' }, { k: 'ring3', n: '戒指' },
-        { k: 'ring4', n: '戒指' }, { k: 'belt', n: '腰帶' }, { k: 'pet', n: '寵物裝備' },
-        { k: 'arrow', n: '箭矢' }
-    ];
-
-    const slots = originalSlots || fallbackSlots;
-
-    if (!getOriginalSig) {
-        getOriginalSig = function () {
-            let inv = player.inv.map(i => itemSig(i) + '.' + (i.cnt || 1) + '.' + (i.lock ? 1 : 0) + '.' + (i.junk ? 1 : 0)).join(';');
-            let eq = Object.keys(player.eq).map(k => { let e = player.eq[k]; return e ? `${k}:${itemSig(e)}.${e.cnt || 0}` : k + ':'; }).join(',');
-            let dd = player.d;
-            return `${inv}#${eq}#${(player.skills || []).join(',')}#${(player.grantedSkills || []).join(',')}#${player.cls}#${player.lv}#${player.elfEle || ''}#${dd.str + dd.dex + dd.con + dd.int + dd.wis}`;
-        };
-    }
-
-    // 覆寫 window.renderTabs 整合快速強化、批量賣出、加鎖與解鎖
     window.renderTabs = function (force) {
-        if (state.ff) return; // 補跑期間不刷新畫面
+        if (typeof state !== 'undefined' && state.ff) return; // 補跑期間不刷新畫面
+
         // 🛡 保護 1: 使用者正按住分頁面板（點擊中）→延後重建，避免按鈕被重繪掉而點擊失效
-        if (!force && typeof _tabPointerDown !== 'undefined' && _tabPointerDown) { _tabRebuildPending = true; return; }
+        if (!force && typeof _tabPointerDown !== 'undefined' && _tabPointerDown) {
+            _tabRebuildPending = true;
+            return;
+        }
         // 🛡 保護 2: 戰鬥 tick 內節流，降低怪物受傷/死亡時高頻重建造成的按鈕閃爍與輸入框失焦
         if (!force && typeof state !== 'undefined' && state.inTick) {
             var _throttleMs = (typeof TAB_REBUILD_THROTTLE_MS !== 'undefined') ? TAB_REBUILD_THROTTLE_MS : 250;
             if (!_tabThrottleTimer) {
-                _tabThrottleTimer = setTimeout(function () { _tabThrottleTimer = null; renderTabs(); }, _throttleMs);
+                _tabThrottleTimer = setTimeout(function () {
+                    _tabThrottleTimer = null;
+                    renderTabs();
+                }, _throttleMs);
             }
             return;
         }
-        if (typeof _tabThrottleTimer !== 'undefined' && _tabThrottleTimer) { clearTimeout(_tabThrottleTimer); _tabThrottleTimer = null; }
-        // ===== 內容簽章：背包/裝備/技能等實際內容沒變時直接跳過重建 =====
-        let _sig = (function () {
-            let baseSig = getOriginalSig();
+        if (typeof _tabThrottleTimer !== 'undefined' && _tabThrottleTimer) {
+            clearTimeout(_tabThrottleTimer);
+            _tabThrottleTimer = null;
+        }
+
+        // 1. 計算自定義功能簽章，狀態有變時強制重繪
+        let currentGM2Sig = (function() {
             let qsActive = window.quickSell ? (window.quickSell.wpn.active + '.' + window.quickSell.arm.active + '.' + window.quickSell.item.active) : '';
             let qsSel = window.quickSell ? (Object.keys(window.quickSell.wpn.sel).join(',') + ';' + Object.keys(window.quickSell.arm.sel).join(',') + ';' + Object.keys(window.quickSell.item.sel).join(',')) : '';
-            let qeActive = typeof quickEnh !== 'undefined' ? (quickEnh.wpn.active + '.' + quickEnh.arm.active) : '';
-            let qeSel = typeof quickEnh !== 'undefined' ? (Object.keys(quickEnh.wpn.sel).join(',') + ';' + Object.keys(quickEnh.arm.sel).join(',')) : '';
             let qlActive = window.quickLock ? (window.quickLock.wpn.active + '.' + window.quickLock.arm.active + '.' + window.quickLock.item.active) : '';
             let qlSel = window.quickLock ? (Object.keys(window.quickLock.wpn.sel).join(',') + ';' + Object.keys(window.quickLock.arm.sel).join(',') + ';' + Object.keys(window.quickLock.item.sel).join(',')) : '';
-            return `${baseSig}#${qsActive}#${qsSel}#${qeActive}#${qeSel}#${qlActive}#${qlSel}`;
+            let qjActive = window.quickJunk ? (window.quickJunk.wpn.active + '.' + window.quickJunk.arm.active + '.' + window.quickJunk.item.active) : '';
+            let qjSel = window.quickJunk ? (Object.keys(window.quickJunk.wpn.sel).join(',') + ';' + Object.keys(window.quickJunk.arm.sel).join(',') + ';' + Object.keys(window.quickJunk.item.sel).join(',')) : '';
+            return `${qsActive}#${qsSel}#${qlActive}#${qlSel}#${qjActive}#${qjSel}`;
         })();
-        if (!force && _sig === window.renderTabs._sig) return;
-        window.renderTabs._sig = _sig;
+        let needForce = force || (currentGM2Sig !== lastGM2Sig);
+        lastGM2Sig = currentGM2Sig;
 
-        // 真的要重建時，先記住各分頁的捲動位置，重建後還原（避免跳回頂端）
+        // 2. 記住捲動位置與模糊搜尋焦點狀態
         let _scroll = {};
-        ['tab-items', 'tab-weapons', 'tab-armors', 'tab-equip', 'tab-skill'].forEach(id => { let el = document.getElementById(id); if (el) _scroll[id] = el.scrollTop; });
+        ['tab-items', 'tab-weapons', 'tab-armors', 'tab-equip', 'tab-skill'].forEach(id => {
+            let el = document.getElementById(id);
+            if (el) _scroll[id] = el.scrollTop;
+        });
 
-        // 🔧 保存模糊搜尋輸入框的值與焦點狀態，避免 innerHTML='' 銷毀後遺失
         let _fuzzyState = {};
         ['wpn', 'arm', 'item'].forEach(function (t) {
             let inp = document.getElementById('fuzzy-sell-input-' + t);
             if (inp) {
-                _fuzzyState[t] = { value: inp.value, focused: document.activeElement === inp, selStart: inp.selectionStart, selEnd: inp.selectionEnd };
+                _fuzzyState[t] = {
+                    value: inp.value,
+                    focused: document.activeElement === inp,
+                    selStart: inp.selectionStart,
+                    selEnd: inp.selectionEnd
+                };
             }
         });
 
-        let eDiv = document.getElementById('tab-equip'); eDiv.innerHTML = '';
-        { let _wd = player.d || {}; let _t = _wd.loadTier || 0; let _hdr = document.createElement('div'); _hdr.className = 'text-center py-0.5 mb-1 rounded bg-slate-900/60 border border-slate-700 text-sm font-bold leading-tight' + (_t >= 1 ? ' cursor-help' : ''); if (_t >= 1) { _hdr.title = _t === 1 ? '負重50%↑：HP/MP不自然恢復' : (_t === 2 ? '負重82%↑：HP/MP不自然恢復、停自動施法、攻速變慢' : '負重100%↑：HP/MP不自然恢復、停自動施法、攻速大幅變慢'); } _hdr.innerHTML = `<span class="text-slate-400">負重 </span><span class="${getLoadColor(_t)}">${_wd.weightPct || 0}%</span>`; eDiv.appendChild(_hdr); }
+        // 3. 掛接動態標記攔截器
+        let lastCreatedDiv = null;
+        const originalCreateElement = document.createElement;
+        const originalGetItemFullName = window.getItemFullName;
 
-        let setCheck = {}, _setSeen = {};
-        for (let k in player.eq) {
-            let e = player.eq[k];
-            if (e) {
-                let ed = DB.items[e.id];
-                if (ed.set && !_setSeen[e.id]) { _setSeen[e.id] = true; setCheck[ed.set] = (setCheck[ed.set] || 0) + 1; }
+        document.createElement = function(tagName) {
+            const el = originalCreateElement.apply(this, arguments);
+            if (tagName === 'div') {
+                lastCreatedDiv = el;
             }
-        }
-        let activeSets = [];
-        if (setCheck['leather'] >= 4) activeSets.push('leather');
-        if (setCheck['bone'] >= 3) activeSets.push('bone');
-        if (setCheck['dk'] >= 4) activeSets.push('dk');
-        if (setCheck['silver'] >= 4) activeSets.push('silver');
-        if (setCheck['oasis'] >= 4) activeSets.push('oasis');
-        if (setCheck['gnome'] >= 3) activeSets.push('gnome');
-        if (setCheck['mage'] >= 2) activeSets.push('mage');
-        if (setCheck['kurt'] >= 4) activeSets.push('kurt');
-        if (setCheck['mr'] >= 2) activeSets.push('mr');
-        if (setCheck['guard'] >= 3) activeSets.push('guard');
-        if (setCheck['steel'] >= 5) activeSets.push('steel');
-        if (setCheck['kinglord'] >= 4) activeSets.push('kinglord');
-
-        slots.forEach(s => {
-            let eq = player.eq[s.k];
-            let isSetActive = false;
-            if (eq && DB.items[eq.id].set && activeSets.includes(DB.items[eq.id].set)) isSetActive = true;
-            let isSherineActive = !!(eq && eq.seteff && player._sherineSetCnt && (player._sherineSetCnt[eq.seteff.slice(0, 2)] || 0) >= 2);
-
-            let el = document.createElement('div');
-            el.className = `list-item text-base rounded mb-1 ${isSherineActive
-                ? 'bg-green-900 border border-green-400 ring-1 ring-green-400/60 shadow-[0_0_10px_rgba(74,222,128,0.6)]'
-                : (isSetActive ? 'bg-amber-900 border border-amber-400 ring-1 ring-amber-400/60 shadow-[0_0_10px_rgba(245,158,11,0.55)]' : 'bg-slate-800')}`;
-            if (eq) {
-                let d = DB.items[eq.id];
-                let imgUrl = getIconUrl(d);
-                let glowClass = getGlowClass(eq, d);
-                let imgHtml = `<img src="${imgUrl}" onerror="this.style.opacity='0';" class="w-6 h-6 ml-2 object-contain pointer-events-none ${glowClass}">`;
-                el.innerHTML = `<span class="text-slate-400 w-12">${s.n}</span><div class="flex items-center justify-end flex-1"><span class="${getItemColor(eq)} text-right font-bold">${getItemFullName(eq)}</span>${imgHtml}</div>`;
-                el.onclick = () => openModal(eq, true, s.k);
-            } else {
-                let _rlv = getRlvLimit(s.k, player);
-                let _locked = _rlv && player.lv < _rlv;
-                el.innerHTML = `<span class="text-slate-400 w-12">${s.n}</span><span class="${_locked ? 'text-red-400' : 'text-slate-600'}">${_locked ? '需 Lv' + _rlv : '- 空 -'}</span>`;
-            }
-            eDiv.appendChild(el);
-        });
-
-        let wDiv = document.getElementById('tab-weapons'); wDiv.innerHTML = '';
-        let aDiv = document.getElementById('tab-armors'); aDiv.innerHTML = '';
-        let iDiv = document.getElementById('tab-items'); iDiv.innerHTML = '';
-
-        // ⚡ 快速強化與批量賣出頭部
-        wDiv.appendChild(buildQuickEnhanceHeader('wpn'));
-        wDiv.appendChild(buildQuickSellHeader('wpn'));
-
-        aDiv.appendChild(buildQuickEnhanceHeader('arm'));
-        aDiv.appendChild(buildQuickSellHeader('arm'));
-
-        iDiv.appendChild(buildQuickSellHeader('item'));
-
-        player.inv.forEach(i => {
-            if (!DB.items[i.id]) return;
-            let d = DB.items[i.id];
-
-            // 解決 BUG-6: 快速強化開啟時，在武器分頁過濾掉無法強化的箭矢，以免使用者困惑
-            if (d.type === 'wpn' && d.isArrow && typeof quickEnh !== 'undefined' && quickEnh.wpn.active) return;
-
-            let statusTag = '';
-            let itemBg = 'bg-slate-800';
-
-            if (d.type === 'skillbk') {
-                let sk = DB.skills[d.sk];
-                let isClsPossible = skillReqLv(sk, d.sk) !== undefined;
-
-                if (player.skills.includes(d.sk)) {
-                    statusTag = '<span class="text-slate-500 text-[10px] font-bold">[已學習]</span>';
-                    itemBg = 'bg-slate-900 opacity-70';
-                } else if (!isClsPossible) {
-                    statusTag = '<span class="text-red-500 text-[10px] font-bold">[無法學習]</span>';
-                    itemBg = 'bg-red-950/40';
-                }
-            }
-            else if (d.type === 'wpn' || d.type === 'arm' || d.type === 'acc') {
-                let canEquip = checkCanEquip(i);
-                if (!canEquip) {
-                    statusTag = '<span class="text-red-500 text-[10px] font-bold">[無法裝備]</span>';
-                    itemBg = 'bg-red-950/40';
-                }
-            }
-
-            let el = document.createElement('div');
-            el.className = `list-item text-base ${itemBg} rounded mb-1 ${i.lock ? 'border-red-900 border-2' : ''}`;
-
-            let imgUrl = getIconUrl(d);
-            let glowClass = getGlowClass(i, d);
-            let imgHtml = `<img src="${imgUrl}" onerror="this.style.opacity='0';" class="w-6 h-6 object-contain pointer-events-none ${glowClass}">`;
-
-            let _rowInner = `<div class="flex items-center gap-2">${imgHtml}<span class="${getItemColor(i)} font-bold">${getItemFullName(i)}</span> ${statusTag} ${i.lock ? '<span class="text-xs text-red-500">[🔒]</span>' : ''} ${(i.junk && !i.lock) ? '<span class="text-xs text-amber-400 font-bold">[廢]</span>' : ''}</div>`;
-
-            // ⚡ 快速強化 / 批量賣出 / 批量加鎖與解鎖模式切換與渲染
-            let _qeType = (d.type === 'wpn' && !d.isArrow) ? 'wpn' : ((d.type === 'arm' || d.type === 'acc') ? 'arm' : null);
-            let _qsType = (d.type === 'wpn') ? 'wpn' : ((d.type === 'arm' || d.type === 'acc') ? 'arm' : 'item');
-            let _qlType = (d.type === 'wpn') ? 'wpn' : ((d.type === 'arm' || d.type === 'acc') ? 'arm' : 'item');
-
-            if (_qeType && quickEnh[_qeType].active && !i.lock) {
-                let _checked = !!quickEnh[_qeType].sel[i.uid];
-                el.innerHTML = `<div class="flex items-center justify-between gap-2">${_rowInner}<input type="checkbox" class="pointer-events-none w-4 h-4 mr-1 flex-shrink-0" ${_checked ? 'checked' : ''}></div>`;
-                if (_checked) el.className += ' ring-2 ring-blue-500/70';
-                el.onclick = () => toggleQuickItem(_qeType, i.uid);
-            }
-            else if (_qsType && window.quickSell[_qsType].active && !i.lock) {
-                let _checked = !!window.quickSell[_qsType].sel[i.uid];
-                el.innerHTML = `<div class="flex items-center justify-between gap-2">${_rowInner}<input type="checkbox" class="pointer-events-none w-4 h-4 mr-1 flex-shrink-0" ${_checked ? 'checked' : ''}></div>`;
-                if (_checked) el.className += ' ring-2 ring-amber-500/70';
-                el.onclick = () => toggleQuickSellItem(_qsType, i.uid);
-            }
-            else if (_qlType && window.quickLock && window.quickLock[_qlType].active) {
-                let st = window.quickLock[_qlType];
-                let _checked = !!st.sel[i.uid];
-                el.innerHTML = `<div class="flex items-center justify-between gap-2">${_rowInner}<input type="checkbox" class="pointer-events-none w-4 h-4 mr-1 flex-shrink-0" ${_checked ? 'checked' : ''}></div>`;
-                if (_checked) el.className += ' ring-2 ring-blue-500/70';
-                el.onclick = () => toggleQuickLockItem(_qlType, i.uid);
-            }
-            else {
-                el.innerHTML = _rowInner;
-                el.onclick = () => openModal(i, false);
-            }
-
-            if (d.type === 'wpn') {
-                wDiv.appendChild(el);
-            } else if (d.type === 'arm' || d.type === 'acc') {
-                aDiv.appendChild(el);
-            } else {
-                iDiv.appendChild(el);
-            }
-        });
-
-        let sDiv = document.getElementById('tab-skill'); sDiv.innerHTML = '';
-        let sortedSkills = [...player.skills].sort((a,b) => (DB.skills[a].tier||0) - (DB.skills[b].tier||0));
-
-        // 🎨 已學技能：固定大小 ICON 排版；階級文字置左、4 欄格(至少 4×2)置右
-        // 🔮 依「學習來源」分區：魔法書／技術書／精靈水晶／黑暗精靈水晶 各自獨立，即使同階也分開；裝備授予(sk_helm_*)歸「裝備授予」
-        if (!renderTabs._skillSrc) {   // 由 skillbk 物品名稱前綴建表（一次性快取）：sk → 來源組名（split('(') 避免「黑暗精靈水晶」⊃「精靈水晶」誤判）
-            renderTabs._skillSrc = {};
-            for (let k in DB.items) { let it = DB.items[k]; if (it && it.type === 'skillbk' && it.sk) renderTabs._skillSrc[it.sk] = String(it.n || '').split('(')[0]; }
-        }
-        let _SKILL_SRC = renderTabs._skillSrc;
-        const _CELL = 'width:46px;height:46px;';
-
-        // 分組：來源 → 階級 → [技能id]
-        let _grp = {};
-        sortedSkills.forEach(sid => {
-            let sk = DB.skills[sid]; if (!sk) return;
-            let src = _SKILL_SRC[sid] || '裝備授予';
-            let tier = (sk.tier === undefined || sk.tier === null || sk.tier === '') ? '_' : sk.tier;
-            (_grp[src] = _grp[src] || {});
-            (_grp[src][tier] = _grp[src][tier] || []).push(sid);
-        });
-        // 來源顯示順序：固定序（不分職業）魔法書→精靈水晶→黑暗精靈水晶→技術書，裝備授予最後
-        let _srcOrder = ['魔法書', '精靈水晶', '黑暗精靈水晶', '技術書', '裝備授予'];
-
-        let _renderCell = (sid) => {
-            let sk = DB.skills[sid];
-            let isAvail = true;
-            let __granted = player.grantedSkills && player.grantedSkills.includes(sid);
-            let needLv = skillReqLv(sk, sid);   // 🏅 集中化：含魔導精通特例
-            if(!__granted && (needLv === undefined || player.lv < needLv)) isAvail = false;
-            if(!__granted && sk.reqEle && player.elfEle !== sk.reqEle) isAvail = false;
-            if(!__granted && sk.reqEleAny && !player.elfEle) isAvail = false;
-            let imgUrl = getIconUrl(sk, true);
-            let _bd = !isAvail ? 'border-slate-600 opacity-50'
-                : (sk.type === 'manual' ? 'border-amber-500'
-                : (sk.type === 'atk' ? 'border-cyan-500'
-                : (sk.type === 'heal' ? 'border-green-500' : 'border-purple-500')));
-            let _img = `<img src="${imgUrl}" onerror="this.style.display='none';" class="object-contain pointer-events-none" style="width:36px;height:36px;">`;
-            if(sk.type === 'manual') {
-                // 手動施放技能：ICON 本身可點擊施放（右下角「施」標記）；保留 id/data-unavail 供 updateSummonLock 控制(迷魅)
-                return `<button id="manual-btn-${sid}" data-tip-skill="${sid}" data-unavail="${isAvail?'0':'1'}" onclick="manualCast('${sid}')" ${isAvail?'':'disabled'} title="${sk.n}"
-                    class="tip-host relative flex items-center justify-center rounded border ${_bd} bg-slate-900/40 ${isAvail?'hover:bg-amber-900/40 cursor-pointer':'cursor-not-allowed'}" style="${_CELL}">${_img}<span class="absolute right-0 -bottom-px text-[9px] leading-none font-bold text-amber-300 pointer-events-none">施</span></button>`;
-            }
-            return `<div data-tip-skill="${sid}" title="${sk.n}" class="tip-host flex items-center justify-center rounded border ${_bd} bg-slate-900/40" style="${_CELL}">${_img}</div>`;
+            return el;
         };
 
-        _srcOrder.forEach(src => {
-            let byTier = _grp[src]; if (!byTier) return;
-            let _tiers = Object.keys(byTier).sort((a,b) => (a === '_' ? 999 : +a) - (b === '_' ? 999 : +b));
-            _tiers.forEach(t => {
-                let list = byTier[t];
-                let _tierLabel = (t === '_') ? '其他' : (t + ' 階');
-                let cells = list.map(_renderCell).join('');
-                // 補空白格至 4 的倍數、且至少 8 格（4×2），維持 4×2 區塊版型
-                let _pad = Math.max(8, Math.ceil(list.length / 4) * 4);
-                for(let i = list.length; i < _pad; i++) cells += `<div class="rounded border border-slate-800/40 bg-slate-900/20" style="${_CELL}"></div>`;
-                let section = document.createElement('div');
-                // 階級文字置左、4×2 ICON 置右；區塊間以細分隔線區隔（首區不畫上邊線）
-                let _sepCls = sDiv.children.length ? ' border-t border-slate-700/50' : '';
-                section.className = 'flex items-center gap-2 py-2' + _sepCls;
-                section.innerHTML = `<div class="flex flex-col justify-center shrink-0" style="width:82px;"><div class="text-sm font-bold text-slate-300 leading-tight">${_tierLabel}</div><div class="text-[11px] text-slate-500 leading-tight">${src}</div></div><div class="grid gap-1.5 shrink-0" style="grid-template-columns:repeat(4,46px);">${cells}</div>`;
-                sDiv.appendChild(section);
-            });
+        window.getItemFullName = function(i) {
+            if (lastCreatedDiv) {
+                lastCreatedDiv.__klh_item = i;
+                lastCreatedDiv = null;
+            }
+            return originalGetItemFullName.apply(this, arguments);
+        };
+
+        // 4. 呼叫官方原版 renderTabs
+        try {
+            if (typeof originalRenderTabs === 'function') {
+                originalRenderTabs(needForce);
+            }
+        } finally {
+            // 還原系統函式，避免對後續操作產生副作用
+            document.createElement = originalCreateElement;
+            window.getItemFullName = originalGetItemFullName;
+        }
+
+        // 5. 進行 DOM 注入後處理
+        patchRenderedTabs();
+
+        // 6. 還原捲動位置與模糊搜尋框狀態
+        ['tab-items', 'tab-weapons', 'tab-armors', 'tab-equip', 'tab-skill'].forEach(id => {
+            let el = document.getElementById(id);
+            if (el && _scroll[id] !== undefined) el.scrollTop = _scroll[id];
         });
 
-        ['tab-items', 'tab-weapons', 'tab-armors', 'tab-equip', 'tab-skill'].forEach(id => { let el = document.getElementById(id); if (el && _scroll[id] != null) el.scrollTop = _scroll[id]; });
-
-        // 🔧 還原模糊搜尋輸入框的值與焦點
         ['wpn', 'arm', 'item'].forEach(function (t) {
             let saved = _fuzzyState[t];
             if (saved) {
@@ -1449,14 +1239,97 @@
                     inp.value = saved.value;
                     if (saved.focused) {
                         inp.focus();
-                        try { inp.setSelectionRange(saved.selStart, saved.selEnd); } catch (e) {}
+                        try {
+                            inp.setSelectionRange(saved.selStart, saved.selEnd);
+                        } catch (e) {}
                     }
                 }
             }
         });
 
-        updateSummonLock();
+        if (typeof updateSummonLock === 'function') {
+            updateSummonLock();
+        }
     };
+
+    function patchRenderedTabs() {
+        const divs = [
+            { type: 'wpn', el: document.getElementById('tab-weapons') },
+            { type: 'arm', el: document.getElementById('tab-armors') },
+            { type: 'item', el: document.getElementById('tab-items') }
+        ];
+
+        divs.forEach(({ type, el }) => {
+            if (!el) return;
+
+            // A. 處理表頭注入
+            patchHeaders(type, el);
+
+            // B. 處理物品列注入
+            const children = Array.from(el.children);
+            children.forEach(child => {
+                const i = child.__klh_item;
+                if (!i) return;
+
+                // 批量賣出模式
+                if (window.quickSell && window.quickSell[type].active && !i.lock) {
+                    let _checked = !!window.quickSell[type].sel[i.uid];
+                    let inner = child.querySelector('.flex.items-center.gap-2') || child.firstChild;
+                    if (inner) {
+                        child.innerHTML = `<div class="flex items-center justify-between gap-2 w-full">${inner.outerHTML}<input type="checkbox" class="pointer-events-none w-4 h-4 mr-1 flex-shrink-0" ${_checked ? 'checked' : ''}></div>`;
+                    }
+                    if (_checked) child.className += ' ring-2 ring-amber-500/70';
+                    child.onclick = () => toggleQuickSellItem(type, i.uid);
+                }
+                // 批量加鎖模式
+                else if (window.quickLock && window.quickLock[type].active) {
+                    let _checked = !!window.quickLock[type].sel[i.uid];
+                    let inner = child.querySelector('.flex.items-center.gap-2') || child.firstChild;
+                    if (inner) {
+                        child.innerHTML = `<div class="flex items-center justify-between gap-2 w-full">${inner.outerHTML}<input type="checkbox" class="pointer-events-none w-4 h-4 mr-1 flex-shrink-0" ${_checked ? 'checked' : ''}></div>`;
+                    }
+                    if (_checked) child.className += ' ring-2 ring-blue-500/70';
+                    child.onclick = () => toggleQuickLockItem(type, i.uid);
+                }
+            });
+        });
+    }
+
+    function patchHeaders(type, div) {
+        // 尋找原版快速表頭（具有 sticky 類別的元素）
+        let origHeader = div.querySelector('.sticky');
+        
+        // 移除之前外掛建立的舊表頭，避免重複堆疊
+        const oldCustomHeaders = div.querySelectorAll('.klh-custom-header');
+        oldCustomHeaders.forEach(h => h.remove());
+
+        if (!origHeader) return;
+
+        const sellActive = window.quickSell && window.quickSell[type].active;
+        const lockActive = window.quickLock && window.quickLock[type].active;
+
+        if (sellActive || lockActive) {
+            // 隱藏原版快速表頭 (防止快速強化或快速廢品按鈕出現造成混淆)
+            origHeader.style.display = 'none';
+
+            // 建立並插入批量操作表頭（包含取消/確認/全選等）
+            if (typeof window.buildQuickSellHeader === 'function') {
+                const customHdr = window.buildQuickSellHeader(type);
+                customHdr.classList.add('klh-custom-header');
+                div.insertBefore(customHdr, origHeader.nextSibling);
+            }
+        } else {
+            // 顯示原版快速表頭（包含快速強化與 2.25 新版快速廢品）
+            origHeader.style.display = '';
+
+            // 建立並在原版快速表頭下方插入「批量賣出 / 批量鎖定 / 模糊搜尋」控制面板
+            if (typeof window.buildQuickSellHeader === 'function') {
+                const customHdr = window.buildQuickSellHeader(type);
+                customHdr.classList.add('klh-custom-header');
+                div.insertBefore(customHdr, origHeader.nextSibling);
+            }
+        }
+    }
 
     // 15. GM 模組初始化與注入
 
@@ -1968,126 +1841,6 @@ function startupGM2() {
         // 重新整理 Modal 顯示以呈現最新狀態
         openModal(item, isEq, slot);
     }
-
-    // 覆寫碧恩介面渲染，加入最下方故事介紹
-    window.renderBianBless = function (el) {
-        let slots = [{ k: 'wpn', n: '武器' }, { k: 'shield', n: '盾牌' }, { k: 'helm', n: '頭盔' }, { k: 'armor', n: '盔甲' }, { k: 'tshirt', n: 'T恤' }, { k: 'cloak', n: '斗篷' }, { k: 'gloves', n: '手套' }, { k: 'boots', n: '長靴' }, { k: 'amulet', n: '項鍊' }, { k: 'ring1', n: '戒指' }, { k: 'ring2', n: '戒指' }, { k: 'ring3', n: '戒指' }, { k: 'ring4', n: '戒指' }, { k: 'belt', n: '腰帶' }];
-        let cnt = id => pledgeCountItem(id);
-        let rows = slots.map(sl => {
-            let it = player.eq[sl.k];
-            let name = it ? getItemFullName(it) : '<span class="text-slate-500">（未裝備）</span>';
-            let _cursed = !!(it && it.bless === 'cursed');
-            let _uncurse = _cursed ? `<button class="btn py-1 px-2 text-sm font-bold shrink-0 bg-cyan-800 border-cyan-500 text-cyan-100" onclick="doBianUncurse('${sl.k}')">解除詛咒</button>` : '';
-
-            // 🔧 詛咒裝備：祝福按鈕變灰禁用
-            let _blessBtn = (it && !_cursed)
-                ? `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-purple-800 border-purple-500 text-purple-100 shrink-0" onclick="doBianBless('${sl.k}')">祝福${sl.n}</button>`
-                : `<button class="btn py-1 px-2 text-sm font-bold w-24 text-center bg-slate-700 border-slate-600 text-slate-400 cursor-not-allowed shrink-0" disabled title="${_cursed ? '被詛咒的裝備需先解除詛咒' : ''}">${_cursed ? '🔒 詛咒中' : '祝福' + sl.n}</button>`;
-
-            return `<div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-600 rounded p-2 text-sm">
-                    <span class="truncate"><b class="text-amber-300">${sl.n}</b>：${name}</span>
-                    <div class="flex items-center gap-1 shrink-0">${_uncurse}${_blessBtn}</div>
-                </div>`;
-        }).join('');
-
-        el.innerHTML = `
-                <div class="flex flex-col gap-2 p-1 max-h-[85vh] overflow-y-auto">
-                    <div class="text-slate-300 text-sm leading-relaxed">碧恩：我能為你的裝備灌注力量。每次祝福會在「屬性 / 遠古系 / 祝福」三者中平均抽一個詞綴，隨機<b>附加、取代或消除</b>（只影響該詞綴）。</div>
-                    <div class="text-xs text-slate-400">武器用 賦予武器祝福卷軸(持有 ${cnt('new_item_bless_wpn')})；防具用 賦予盔甲祝福卷軸(持有 ${cnt('new_item_bless_arm')})；飾品用 賦予飾品祝福卷軸(持有 ${cnt('new_item_bless_acc')})。<br>含詛咒的裝備可用 解除詛咒的卷軸(持有 ${cnt('new_item_uncurse')}) 移除詛咒。</div>
-                    <div class="flex flex-col gap-1.5">${rows}</div>
-                    
-                    <!-- 天堂口吻之祝福與席琳介紹區塊 -->
-                    <div class="mt-4 border-t border-slate-700 pt-3 flex flex-col gap-3">
-                        <!-- 卡片一：✨ 殷海薩的祝福 -->
-                        <div class="bg-slate-800/60 border border-yellow-600/40 rounded p-3 text-xs leading-relaxed flex flex-col gap-2 shadow-[0_0_8px_rgba(234,179,8,0.15)]">
-                            <div class="text-yellow-400 font-bold text-sm">✨ 殷海薩的祝福傳奇</div>
-                            <div class="text-slate-300 italic">「當創造之神殷海薩的光芒灑落，平凡的鐵器也將昇華為聖物。」</div>
-                            <div class="text-slate-400 border-t border-slate-700/60 pt-2 flex flex-col gap-1">
-                                <div class="font-bold text-slate-300">⚔️ 聖力祝福加成 (與詛咒負值對稱)</div>
-                                <div>• <b>武器</b>：<span class="c-blessed font-bold">祝福的</span> (外傷+1/外命+1/魔量+2) ｜ <span class="c-cursed font-bold">詛咒的</span> (外傷-1/外命-1/魔量-2)</div>
-                                <div>• <b>防具</b>：<span class="c-blessed font-bold">祝福的</span> (AC-1/傷減+1) ｜ <span class="c-cursed font-bold">詛咒的</span> (AC+1/傷減-1)</div>
-                                <div>• <b>飾品</b>：<span class="c-blessed font-bold">祝福的</span> (AC-1/魔防+1) ｜ <span class="c-cursed font-bold">詛咒的</span> (AC+1/魔防-1)</div>
-                            </div>
-                        </div>
-
-                        <!-- 卡片二：💎 遠古之印 -->
-                        <div class="bg-slate-800/60 border border-purple-600/40 rounded p-3 text-xs leading-relaxed flex flex-col gap-2 shadow-[0_0_8px_rgba(147,51,234,0.15)]">
-                            <div class="text-purple-400 font-bold text-sm">💎 遠古之印能力變體</div>
-                            <div class="text-slate-300 italic">「來自遠古時空的烙印，賦予裝備強大的能力變體。」</div>
-                            <div class="text-slate-400 border-t border-slate-700/60 pt-2 flex flex-col gap-1">
-                                <div class="font-bold text-slate-300">⚔️ 遠古印記加成</div>
-                                <div>• <b>武器</b>：<span class="c-ancient font-bold">遠古</span> (外傷+2/魔傷+1) ｜ <span class="c-eternal font-bold">永恆</span> (外傷+4) ｜ <span class="c-immortal font-bold">不朽</span> (外命+4) ｜ <span class="c-primordial font-bold">太初</span> (魔傷+2)</div>
-                                <div>• <b>防具</b>：<span class="c-ancient font-bold">遠古</span> (傷減+2) ｜ <span class="c-eternal font-bold">永恆</span> (AC-2) ｜ <span class="c-immortal font-bold">不朽</span> (迴避ER+2) ｜ <span class="c-primordial font-bold">太初</span> (魔防MR+4)</div>
-                                <div>• <b>飾品</b>：<span class="c-ancient font-bold">遠古</span> (傷減+1/魔防+1) ｜ <span class="c-eternal font-bold">永恆</span> (外傷+1/AC-1) ｜ <span class="c-immortal font-bold">不朽</span> (外傷+1/外命+1) ｜ <span class="c-primordial font-bold">太初</span> (魔防+2/外魔+2)</div>
-                            </div>
-                        </div>
-
-                        <!-- 卡片三：🔥 屬性印記與元素共鳴 -->
-                        <div class="bg-slate-800/60 border border-amber-600/40 rounded p-3 text-xs leading-relaxed flex flex-col gap-2 shadow-[0_0_8px_rgba(245,158,11,0.15)]">
-                            <div class="text-amber-500 font-bold text-sm">🔥 屬性印記與元素共鳴 (將武器攻擊轉為該屬性，剋屬關係為 火克地/地克風/風克水/水克火)</div>
-                            <div class="text-slate-300 italic">「將大自然的元素之力封入武器與防具中，激發相生相剋的共鳴。」</div>
-                            <div class="text-slate-400 border-t border-slate-700/60 pt-2 flex flex-col gap-2">
-                                <div>
-                                    <div class="font-bold text-slate-300">⚔️ 武器加成 (固定物理傷害 / 剋屬性怪額外固定傷害)</div>
-                                    <ul class="list-none space-y-0.5 mt-1">
-                                        <li>• <span class="c-attr-fire1 font-bold">火之</span> / <span class="c-attr-fire3 font-bold">爆炎</span> / <span class="c-attr-fire5 c-attr-glow font-bold">火靈</span>：物理傷害 +1/+3/+5 ｜ 剋地屬怪 +6/+9/+12</li>
-                                        <li>• <span class="c-attr-water1 font-bold">水之</span> / <span class="c-attr-water3 font-bold">海嘯</span> / <span class="c-attr-water5 c-attr-glow font-bold">水靈</span>：物理傷害 +1/+3/+5 ｜ 剋火屬怪 +6/+9/+12</li>
-                                        <li>• <span class="c-attr-wind1 font-bold">風之</span> / <span class="c-attr-wind3 font-bold">暴風</span> / <span class="c-attr-wind5 c-attr-glow font-bold">風靈</span>：物理傷害 +1/+3/+5 ｜ 剋水屬怪 +6/+9/+12</li>
-                                        <li>• <span class="c-attr-earth1 font-bold">地之</span> / <span class="c-attr-earth3 font-bold">崩裂</span> / <span class="c-attr-earth5 c-attr-glow font-bold">地靈</span>：物理傷害 +1/+3/+5 ｜ 剋風屬怪 +6/+9/+12</li>
-                                    </ul>
-                                </div>
-                                <div class="border-t border-slate-800/80 pt-1.5">
-                                    <div class="font-bold text-slate-300">🛡️ 防具/飾品加成 (對應元素抗性 / 魔法防禦 MR)</div>
-                                    <ul class="list-none space-y-0.5 mt-1">
-                                        <li>• <span class="c-attr-fire1 font-bold">火之</span> / <span class="c-attr-fire3 font-bold">爆炎</span> / <span class="c-attr-fire5 c-attr-glow font-bold">火靈</span>：火抗 +1%/+2%/+3% ｜ 魔法防禦 +1/+2/+3</li>
-                                        <li>• <span class="c-attr-water1 font-bold">水之</span> / <span class="c-attr-water3 font-bold">海嘯</span> / <span class="c-attr-water5 c-attr-glow font-bold">水靈</span>：水抗 +1%/+2%/+3% ｜ 魔法防禦 +1/+2/+3</li>
-                                        <li>• <span class="c-attr-wind1 font-bold">風之</span> / <span class="c-attr-wind3 font-bold">暴風</span> / <span class="c-attr-wind5 c-attr-glow font-bold">風靈</span>：風抗 +1%/+2%/+3% ｜ 魔法防禦 +1/+2/+3</li>
-                                        <li>• <span class="c-attr-earth1 font-bold">地之</span> / <span class="c-attr-earth3 font-bold">崩裂</span> / <span class="c-attr-earth5 c-attr-glow font-bold">地靈</span>：地抗 +1%/+2%/+3% ｜ 魔法防禦 +1/+2/+3</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 卡片四：👁️ 席琳的怨念與混沌套裝 -->
-                        <div class="bg-slate-800/60 border border-green-600/40 rounded p-3 text-xs leading-relaxed flex flex-col gap-2 shadow-[0_0_8px_rgba(74,222,128,0.15)]">
-                            <div class="text-emerald-400 font-bold text-sm">👁️ 席琳的怨念與混沌套裝 (武器/頭盔/防具/手套/長靴/斗篷/腰帶 隨機印記賦予)</div>
-                            <div class="text-slate-300 italic">「自死神席琳的嘆息中流出的結晶，帶有使凡人裝備產生套裝共鳴的禁忌魔能。」</div>
-                            <div class="text-slate-400 border-t border-slate-700/60 pt-2 flex flex-col gap-2">
-                                <div class="font-bold text-slate-300">⚔️ 九大混沌套裝效果 (須裝備同套裝且「不重複」的效果印記名稱方可累積件數，重複名稱只計 1 件)</div>
-                                <div class="grid grid-cols-1 gap-2 text-slate-400">
-                                    <div>
-                                        <b class="text-red-400">【紅獅】(技能輸出)</b> <span class="text-slate-300 ml-1.5">(誓言/壯志/復仇/熱情/單思)</span><br>— 2件：外傷+5/外魔+3 ｜ 3件：傷減+10 ｜ 5件：技能最終傷害+20%
-                                    </div>
-                                    <div>
-                                        <b class="text-blue-400">【白鳥】(命中脆弱)</b> <span class="text-slate-300 ml-1.5">(誓言/依戀/夢想/情愫/犧牲)</span><br>— 2件：外命+5 ｜ 3件：魅力+10 ｜ 5件：命中附加「脆弱」(受傷+20%) 3秒
-                                    </div>
-                                    <div>
-                                        <b class="text-slate-400">【鐵衛】(減傷反擊)</b> <span class="text-slate-300 ml-1.5">(誓言/象徵/盟約/奮戰/守護)</span><br>— 2件：AC-3/傷減+5 ｜ 3件：受傷-20% ｜ 5件：反擊/居合時對全體敵人橫掃普攻
-                                    </div>
-                                    <div>
-                                        <b class="text-yellow-500">【麗人】(近戰重擊)</b> <span class="text-slate-300 ml-1.5">(誓言/加護/期盼/依靠/單戀)</span><br>— 2件：近傷+3/近命+3 ｜ 3件：近暴+2% ｜ 5件：重擊後下一次攻擊 100% 必中
-                                    </div>
-                                    <div>
-                                        <b class="text-sky-400">【疾風】(遠程連射)</b> <span class="text-slate-300 ml-1.5">(誓言/灑脫/傳說/襲擊/迅捷)</span><br>— 2件：遠傷+3/遠命+3 ｜ 3件：遠暴+2% ｜ 5件：連射傷害由 30% 提升至 80%
-                                    </div>
-                                    <div>
-                                        <b class="text-violet-400">【月光】(魔避雙防)</b> <span class="text-slate-300 ml-1.5">(誓言/隱情/幽蔽/純潔/消逝)</span><br>— 2件：外傷+2/外命+2 ｜ 3件：ER+5/MR+10 ｜ 5件：可用迴避率(ER)迴避魔法攻擊
-                                    </div>
-                                    <div>
-                                        <b class="text-orange-400">【學徒】(省魔回魔)</b> <span class="text-slate-300 ml-1.5">(誓言/好奇/研究/夢想/智慧)</span><br>— 2件：MP恢復+5/外魔+6 ｜ 3件：魔暴+2% ｜ 5件：魔量&lt;30%時技能耗魔減半
-                                    </div>
-                                    <div>
-                                        <b class="text-teal-400">【魔女】(魔法共鳴)</b> <span class="text-slate-300 ml-1.5">(誓言/哀戚/束縛/瘋狂/冷冽)</span><br>— 2件：魔傷+2 ｜ 3件：水抗+10/外魔+5 ｜ 5件：每5次共鳴免費冰矛圍籬一次
-                                    </div>
-                                    <div>
-                                        <b class="text-fuchsia-400">【暗影】(物傷連擊)</b> <span class="text-slate-300 ml-1.5">(誓言/護衛/抉擇/瞥視/忠誠)</span><br>— 2件：外傷+7 ｜ 3件：成功迴避回 20 HP ｜ 5件：連擊追加攻擊傷害提升至 100%
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
-    };
 
     // ==========================================
     // 17. 廢品記憶清單管理與 UI 攔截
