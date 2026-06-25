@@ -1039,7 +1039,7 @@
                     localStorage.setItem('klh_custom_key', (window.activeKey || "").trim());
                 }
                 if (isManual) {
-                    window.showToast('成功將本機進度上傳至雲端！(管道：' + (res.connectionMethod || '直接連線') + ') ⚠️注意：雲端儲存成功！請勿雙開遊戲。按完儲存後請務必回首頁或登出！', 'success');
+                    window.showToast('成功將本機進度上傳至雲端！(管道：' + (res.connectionMethod || '直接連線') + ') ⚠️注意：雲端儲存成功！請勿跨裝置雙開遊戲。按完儲存後請務必回首頁或登出！', 'success');
                 }
                 return true;
             } else {
@@ -1537,7 +1537,7 @@
                 <span id="current-storage-mode-text" class="font-bold text-green-400">本地模式</span>
             </div>
             <div class="text-[11px] text-amber-400 font-bold leading-relaxed bg-amber-950/40 p-2 rounded border border-amber-900/50">
-                ⚠️ 注意：使用雲端同步請勿雙開遊戲！儲存後請務必回首頁或登出，以防存檔覆寫！
+                ⚠️ 注意：使用雲端同步請勿跨裝置雙開遊戲！儲存後請務必回首頁或登出，以防存檔覆寫！
             </div>
             
             <div class="flex gap-1.5 w-full">
