@@ -70,10 +70,12 @@
     }
     injectTeamCSS();
 
-    // 1. 仇恨權重演算法 (騎士:10 / 黑妖:6 / 妖精:4 / 法師:3)
+    // 1. 仇恨權重演算法 (戰士:10 / 騎士:10 / 龍騎士:8 / 王族/幻術士/黑妖:6 / 妖精(引導/其他):4 / 法師:3)
     function getJobWeight(cls) {
+        if (cls === 'warrior') return 10;
         if (cls === 'knight') return 10;
-        if (cls === 'dark') return 6;
+        if (cls === 'dragon') return 8;
+        if (cls === 'royal' || cls === 'illusion' || cls === 'dark') return 6;
         if (cls === 'elf') return 4;
         if (cls === 'mage') return 3;
         return 4;
@@ -82,10 +84,10 @@
     function selectAttackTarget() {
         const targets = [];
 
-        // 1. 主角 (主角權重多 * 1.5)
+        // 1. 主角 (主角權重多 * 2.0，提供更高的戰鬥操作參與感)
         targets.push({
             type: 'player',
-            weight: getJobWeight(player.cls) * 1.5,
+            weight: getJobWeight(player.cls) * 2.0,
             ref: player
         });
 
