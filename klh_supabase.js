@@ -933,8 +933,8 @@
 
     let lastAutoUploadTime = 0;
     let lastManualUploadTime = 0;
-    const AUTO_UPLOAD_DEBOUNCE_MS = 60000; // 60秒自動存檔上傳節流
-    const MANUAL_UPLOAD_DEBOUNCE_MS = 10000; // 10秒手動存檔上傳節流
+    const AUTO_UPLOAD_DEBOUNCE_MS = 660000; // 11分鐘自動存檔上傳節流
+    const MANUAL_UPLOAD_DEBOUNCE_MS = 15000; // 15秒手動存檔上傳節流
 
     window.addEventListener('beforeunload', () => {
         window.__klh_is_unloading = true;
