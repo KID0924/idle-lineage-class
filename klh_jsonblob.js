@@ -2855,6 +2855,15 @@
                 </div>
                 <div class="flex flex-col gap-3.5 text-sm text-slate-300 leading-relaxed">
                     <div>
+                        <span class="font-bold text-cyan-400">📖 遊戲攻略與常見問答 (QA.html)</span>
+                        <p class="pl-4 text-slate-400">
+                            完整更新特色、新手攻略、常見問答及仇恨計算機：
+                            <a href="QA.html" target="_blank" class="text-yellow-400 hover:text-yellow-300 font-bold underline inline-flex items-center gap-1 ml-1">
+                                🔗 點我開啟【更新指南 & 常見問答】
+                            </a>
+                        </p>
+                    </div>
+                    <div>
                         <span class="font-bold text-amber-300">1. 全新雲端存檔功能</span>
                         <p class="pl-4 text-slate-400">支援系統自然產出的專屬雲端金鑰。<strong class="text-rose-400">（⚠️請務必熟記並保存金鑰。）</strong></p>
                     </div>
