@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金鑰版 - 更新指南 & 仇恨計算機</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #0b0f19;
+            color: #f3f4f6;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* Glass effect for merc slots */
+        .merc-slot {
+            transition: all 0.2s ease-in-out;
+        }
+        .merc-slot:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px -2px rgba(245, 158, 11, 0.15);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-amber-500 selection:text-slate-900">
+
+    <!-- Header Banner -->
+    <header class="relative border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl shadow-lg shadow-amber-500/20">
+                    <svg class="w-6 h-6 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m-5a2 2 0 01-2-2V5a2 2 0 114 0v2zm0 0h4a2 2 0 012 2v3m-6 8a1.5 1.5 0 001.5-1.5V15h-3v1.5A1.5 1.5 0 0012 18zm-3-5V7m3 6v5m-3-5h3m2.5-9h.01M9 17h.01"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500">
+                        金鑰版
+                    </h1>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <nav class="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
+                <button onclick="switchTab('features')" id="btn-features" class="tab-btn px-4 py-1.5 rounded-md text-sm font-bold transition-all bg-amber-500 text-slate-950">
+                    更新特色
+                </button>
+                <button onclick="switchTab('faq')" id="btn-faq" class="tab-btn px-4 py-1.5 rounded-md text-sm font-bold transition-all text-slate-400 hover:text-slate-100">
+                    常見問答
+                </button>
+                <button onclick="switchTab('calculator')" id="btn-calculator" class="tab-btn px-4 py-1.5 rounded-md text-sm font-bold transition-all text-slate-400 hover:text-slate-100">
+                    仇恨計算機
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow max-w-6xl w-full mx-auto px-4 py-8">
+        
+        <!-- Tab: Features -->
+        <section id="tab-features" class="tab-content space-y-8">
+            <!-- Hero Announcement -->
+            <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 p-6 md:p-8">
+                <div class="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl -z-10"></div>
+                <div class="max-w-2xl">
+                    <span class="inline-block text-xs font-bold tracking-widest text-amber-400 uppercase bg-amber-500/10 px-2.5 py-1 rounded-full mb-4">
+                        💡 版本重要公告
+                    </span>
+                    <h2 class="text-2xl md:text-3xl font-bold mb-3 text-slate-100">全新雲端機制強勢登場！</h2>
+                    <p class="text-slate-400 text-sm md:text-base leading-relaxed">
+                        親愛的冒險者，本次更新重點已為您整理完畢。正常遊玩建議選擇 <strong class="text-amber-400">「標準」</strong> 難度即可。若想挑戰極限，隨時可以自由切換至其他難度！金鑰就是你的通行證，請妥善保管。
+                    </p>
+                </div>
+            </div>
+
+            <!-- Features Grid -->
+            <div>
+                <h3 class="text-lg font-bold text-slate-300 mb-6 flex items-center gap-2">
+                    <span class="w-1.5 h-5 bg-amber-500 rounded-full"></span>
+                    十二大核心更新特色
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Feature 1 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">01</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">雲端金鑰系統</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">每個瀏覽器都能取得獨一無二的 12 碼英數字金鑰。跨裝置同步遊玩必備！金鑰即帳號，不見就沒了，請務必妥善備份。</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 2 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">02</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">五大難易度自由切</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">開放「地獄、惡夢、標準、祝福、天堂」五種難度。一般玩家建議「標準」起步，後期自由切換體驗不同難度的樂趣。</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 3 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">03</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">舊版潘朵拉抽獎回歸</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">單抽 9999 金幣，全面新增「1抽 / 10抽 / 100連抽」功能！特別是 100 連抽，畫面極致舒適，熱愛抽獎的玩家能抽到爽。</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 4 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">04</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">強力恢復與掉寶藥水</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">新增更高級的強力恢復水與掉寶率加成藥水。售價雖高，但在中後期金幣充裕時，將是突破效率瓶頸的關鍵！</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 5 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">05</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">轉生系統開放</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">角色達到 75 等後即可進行轉生。突破極限！警告：轉生前請務必進行「匯出存檔」備份，以免操作錯誤遺憾終生。</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 6 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">06</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">背包功能深度優化</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">新增「批量賣出、批量解鎖、批量鎖定、廢品清單刪除」。整理上百件裝備一鍵搞定，強迫症玩家的福音！</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 7 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">07</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">席琳結晶注入系統</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">全新的席琳結晶注入玩法。不需要看臉拼機率，只要一步步累積結晶，人人都能親手敲出畢業級神話套裝！</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 8 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">08</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">24H 離線掛機手機版</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">完美支援離線掛機長達 24 小時。專門為手機瀏覽器優化的 UI 介面，讓你隨時隨地，通勤上班也能無壓力變強。</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 9 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">09</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">屬性與萬能藥上限+20</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">原生屬性配點上限比舊版多 20 點！此外萬能藥上限也同步多出 20 點，中後期角色培養更有成長空間與極限上限。</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 10 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">10</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">傭兵血量與共用 CD</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">傭兵現在擁有獨立的血量與魔量，會共用隊長的水與治癒技能並共用冷卻，每 5 秒還會自動回血 3% / 回魔 2%。</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 11 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">11</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">桌機寬版自適應介面</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">桌機寬版專用版面，冒險地圖、物品日誌底部區塊支援自由拉伸，整理倉庫與觀看日誌更直覺、不憋屈。</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 12 -->
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-5 rounded-xl hover:border-amber-500/30 transition-all duration-300 flex gap-4 group">
+                        <div class="text-amber-400 text-2xl font-bold font-mono shrink-0">12</div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 group-hover:text-amber-400 transition-colors mb-1">原版同步與安全排程</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">保留原作精隨無亂改。自動化更新排程約延遲原作者版本 2 至 3 小時，確保代碼穩定性，安全好玩有保障。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab: FAQ -->
+        <section id="tab-faq" class="tab-content hidden space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-300 flex items-center gap-2">
+                        <span class="w-1.5 h-5 bg-amber-500 rounded-full"></span>
+                        常見問答與設定指引
+                    </h3>
+                    <p class="text-xs text-slate-400">快速檢索遇到的問題，精準調校您的掛機配置</p>
+                </div>
+                <!-- Search Box -->
+                <div class="relative w-full md:w-80">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </span>
+                    <input type="text" id="faq-search" oninput="filterFAQ()" placeholder="輸入關鍵字搜尋 FAQ..." class="w-full pl-9 pr-4 py-2 text-sm bg-slate-900 border border-slate-800 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all">
+                </div>
+            </div>
+
+            <!-- FAQ List -->
+            <div class="space-y-4" id="faq-list">
+                <!-- Q1 -->
+                <div class="faq-item bg-slate-900/50 border border-slate-800/80 rounded-xl overflow-hidden transition-all duration-200">
+                    <button onclick="toggleFAQ(this)" class="w-full text-left p-5 flex justify-between items-center hover:bg-slate-800/20 transition-colors">
+                        <span class="font-bold text-slate-200 text-sm md:text-base">Q1. 金鑰版本如果要電腦手機雙端遊玩，要選「切回雲端」還是「切回本地」？</span>
+                        <svg class="w-5 h-5 text-slate-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div class="faq-answer max-h-0 overflow-hidden transition-all duration-300 bg-slate-950/40">
+                        <div class="p-5 text-sm text-slate-300 leading-relaxed border-t border-slate-800/50 space-y-2">
+                            <p>這兩個存檔系統是<strong>完全獨立</strong>的：</p>
+                            <ul class="list-disc pl-5 text-xs text-slate-400 space-y-1">
+                                <li><strong>「切回本地」：</strong> 資料只會存在該瀏覽器，不會上傳雲端，無法跨裝置玩。</li>
+                                <li><strong>「切回雲端」：</strong> 可以取得 12 碼雲端金鑰，請用這組金鑰在手機或電腦登入，即能即時同步進度。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Q2 -->
+                <div class="faq-item bg-slate-900/50 border border-slate-800/80 rounded-xl overflow-hidden transition-all duration-200">
+                    <button onclick="toggleFAQ(this)" class="w-full text-left p-5 flex justify-between items-center hover:bg-slate-800/20 transition-colors">
+                        <span class="font-bold text-slate-200 text-sm md:text-base">Q2. 難度可以在玩到一半時隨便切換嗎？會不會扣懲罰？</span>
+                        <svg class="w-5 h-5 text-slate-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div class="faq-answer max-h-0 overflow-hidden transition-all duration-300 bg-slate-950/40">
+                        <div class="p-5 text-sm text-slate-300 leading-relaxed border-t border-slate-800/50">
+                            可以，完全自由切換。只需在遊戲主介面點選你想要的難度，然後按一下自己的「存檔」，即可立即切換難度。
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Q3 -->
+                <div class="faq-item bg-slate-900/50 border border-slate-800/80 rounded-xl overflow-hidden transition-all duration-200">
+                    <button onclick="toggleFAQ(this)" class="w-full text-left p-5 flex justify-between items-center hover:bg-slate-800/20 transition-colors">
+                        <span class="font-bold text-slate-200 text-sm md:text-base">Q3. 本版本新增的特殊 NPC 位置都在哪裡？</span>
+                        <svg class="w-5 h-5 text-slate-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div class="faq-answer max-h-0 overflow-hidden transition-all duration-300 bg-slate-950/40">
+                        <div class="p-5 text-sm text-slate-300 leading-relaxed border-t border-slate-800/50">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div class="bg-slate-900 p-3 rounded-lg border border-slate-800">
+                                    <div class="text-xs text-amber-400 font-bold mb-1">說話之島</div>
+                                    <div class="font-bold text-slate-100">潘朵拉的妹妹</div>
+                                    <p class="text-xs text-slate-400 mt-1">9999 金幣抽獎機（挑戰100連抽爽度）</p>
+                                </div>
+                                <div class="bg-slate-900 p-3 rounded-lg border border-slate-800">
+                                    <div class="text-xs text-amber-400 font-bold mb-1">象牙塔</div>
+                                    <div class="font-bold text-slate-100">時光使者</div>
+                                    <p class="text-xs text-slate-400 mt-1">負責 75 等角色的轉生儀式</p>
+                                </div>
+                                <div class="bg-slate-900 p-3 rounded-lg border border-slate-800">
+                                    <div class="text-xs text-amber-400 font-bold mb-1">象牙塔</div>
+                                    <div class="font-bold text-slate-100">克里斯特</div>
+                                    <p class="text-xs text-slate-400 mt-1">販售強力「神之祝福藥水」</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Q4 -->
+                <div class="faq-item bg-slate-900/50 border border-slate-800/80 rounded-xl overflow-hidden transition-all duration-200">
+                    <button onclick="toggleFAQ(this)" class="w-full text-left p-5 flex justify-between items-center hover:bg-slate-800/20 transition-colors">
+                        <span class="font-bold text-slate-200 text-sm md:text-base">Q4. 我的傭兵怎麼一直死？補血機制和仇恨值怎麼算？</span>
+                        <svg class="w-5 h-5 text-slate-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div class="faq-answer max-h-0 overflow-hidden transition-all duration-300 bg-slate-950/40">
+                        <div class="p-5 text-sm text-slate-300 leading-relaxed border-t border-slate-800/50 space-y-4">
+                            <p class="text-xs text-slate-400">這個版本的傭兵有自己的血量與魔量，操作得當可以充當副坦幫隊長吸收大量傷害。</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="bg-slate-900 p-4 rounded-lg border border-slate-800 space-y-2">
+                                    <h5 class="font-bold text-amber-400 text-xs">🧪 補血與回復機制</h5>
+                                    <p class="text-xs text-slate-300 leading-relaxed">
+                                        1. 傭兵全部共用隊長身上的「水」與「治癒魔法」。<br>
+                                        2. 只要隊長或任何一個傭兵的血量低於您設定的「補血百分比」，系統就會自動扣水/施法來補。<br>
+                                        3. 隊伍共用冷卻時間（CD）以維持平衡。<br>
+                                        4. <strong>被動回復：</strong> 傭兵每 5 秒會自動回血 3%、回魔 2%。<br>
+                                        5. 隊長施放「全部治癒術」或「生命的祝福」時，為「全體隊員」同時獲得治癒。
+                                    </p>
+                                </div>
+                                <div class="bg-slate-900 p-4 rounded-lg border border-slate-800 space-y-2">
+                                    <h5 class="font-bold text-amber-400 text-xs">🎯 仇恨值與怪物攻擊概率 (隊長仇恨值額外 *2)</h5>
+                                    <p class="text-xs text-slate-300 leading-relaxed">
+                                        仇恨值決定了怪物打誰。各職業仇恨權重如下：
+                                    </p>
+                                    <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-slate-400">
+                                        <div>戰士 / 騎士：10</div>
+                                        <div>王族/幻術/黑妖：6</div>
+                                        <div>龍騎士：8</div>
+                                        <div>妖精與其他：4</div>
+                                        <div>法師：3</div>
+                                    </div>
+                                    <div class="bg-slate-950 p-2.5 rounded text-xs text-slate-400 border border-slate-800 mt-2">
+                                        (可直接使用上方「仇恨計算機」分頁進行模擬！)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Q5 -->
+                <div class="faq-item bg-slate-900/50 border border-slate-800/80 rounded-xl overflow-hidden transition-all duration-200">
+                    <button onclick="toggleFAQ(this)" class="w-full text-left p-5 flex justify-between items-center hover:bg-slate-800/20 transition-colors">
+                        <span class="font-bold text-slate-200 text-sm md:text-base">Q5. 本金鑰版和隔壁的「秋玥版」存檔可以互轉嗎？會不會吞裝備？</span>
+                        <svg class="w-5 h-5 text-slate-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div class="faq-answer max-h-0 overflow-hidden transition-all duration-300 bg-slate-950/40">
+                        <div class="p-5 text-sm text-slate-300 leading-relaxed border-t border-slate-800/50">
+                            可以互轉。 透過匯入與匯出存檔即可自由互轉。但請特別注意：如果將金鑰版的存檔轉移至秋玥版，金鑰版特有而秋玥版沒有的道具（例如：掉寶藥水）將會直接消失。轉移前請確認身上與倉庫沒有這些專屬道具。
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Q6 -->
+                <div class="faq-item bg-slate-900/50 border border-slate-800/80 rounded-xl overflow-hidden transition-all duration-200">
+                    <button onclick="toggleFAQ(this)" class="w-full text-left p-5 flex justify-between items-center hover:bg-slate-800/20 transition-colors">
+                        <span class="font-bold text-slate-200 text-sm md:text-base">Q6. 如果我把轉生後的角色轉去秋玥版，我的轉生紅利點數會消失嗎？</span>
+                        <svg class="w-5 h-5 text-slate-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div class="faq-answer max-h-0 overflow-hidden transition-all duration-300 bg-slate-950/40">
+                        <div class="p-5 text-sm text-slate-300 leading-relaxed border-t border-slate-800/50 space-y-2">
+                            不會。 轉生所取得的額外能力點數，在代碼中是被當作「創角初始數值」直接寫入角色存檔的，因此即使換去別的版本也依然存在。
+                            <br><br>
+                            ⚠️ 致命警報： 如果把轉生存檔放到秋玥版，千萬別吃「回憶蠟燭（洗點）」！一旦在不支援轉生的版本吃蠟燭，數值會直接重置回該版本的「創角初始數值」，轉生點數直接歸零。建議吃蠟燭前務必匯出備份！
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Tab: Aggro Calculator -->
+        <section id="tab-calculator" class="tab-content hidden space-y-6">
+            <div class="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                        <span class="w-1.5 h-5 bg-amber-500 rounded-full"></span>
+                        傭兵仇恨值與受擊率計算機 (Max 7)
+                    </h3>
+                </div>
+                
+                <p class="text-xs text-slate-400 mb-6">
+                    怪物攻擊目標是依據隊伍總仇恨池分配的。<strong>隊長天生自帶雙倍仇恨 (基數 x 2)</strong>。你最多可以帶 7 隻傭兵，每隻職業不同，被打的機率也完全不同。來配配看你的極限陣容吧！
+                </p>
+
+                <!-- Calculator Layout -->
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    
+                    <!-- Left: Leader Section & Summary -->
+                    <div class="lg:col-span-1 space-y-4 flex flex-col">
+                        <!-- Leader Slot -->
+                        <div class="bg-slate-950 border border-amber-500/50 p-4 rounded-xl relative overflow-hidden shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+                            <div class="absolute top-0 right-0 bg-amber-500 text-slate-950 text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">
+                                隊長 (仇恨 x2)
+                            </div>
+                            <label class="block text-xs font-bold text-slate-300 mb-2 mt-2">隊長職業</label>
+                            <select id="leader-class" onchange="calcAggro()" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 mb-3">
+                                <option value="10">戰士 / 騎士 (基礎 10)</option>
+                                <option value="8">龍騎士 (基礎 8)</option>
+                                <option value="6">王族/幻術/黑妖 (基礎 6)</option>
+                                <option value="4">妖精/其他 (基礎 4)</option>
+                                <option value="3">法師 (基礎 3)</option>
+                            </select>
+                            
+                            <div class="flex justify-between items-end border-t border-slate-800/50 pt-2">
+                                <span class="text-[10px] text-slate-400">承受攻擊機率</span>
+                                <span id="leader-prob" class="text-2xl font-black text-amber-400">0%</span>
+                            </div>
+                        </div>
+
+                        <!-- Summary Block -->
+                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex-grow flex flex-col justify-center text-center">
+                            <span class="text-xs text-slate-400 block mb-1">全隊總仇恨池 (Total Aggro)</span>
+                            <span id="total-pool" class="text-4xl font-black text-emerald-400">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Right: Mercenaries Slots (Grid of 7) -->
+                    <div class="lg:col-span-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                            
+                            <!-- Merc Slots generated dynamically or hardcoded for ease -->
+                            <!-- Slot 1 -->
+                            <div class="merc-slot bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col justify-between h-full" id="slot-1">
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">傭兵 Slot 1</label>
+                                    <select id="merc-1" onchange="calcAggro()" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
+                                        <option value="0">--- 空缺 ---</option>
+                                        <option value="10">戰士 / 騎士 (10)</option>
+                                        <option value="8">龍騎士 (8)</option>
+                                        <option value="6">王族/幻術/黑妖 (6)</option>
+                                        <option value="4">妖精/其他 (4)</option>
+                                        <option value="3">法師 (3)</option>
+                                    </select>
+                                </div>
+                                <div class="mt-3 flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-500">被打率:</span>
+                                    <span id="merc-1-prob" class="font-bold text-slate-300">-</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Slot 2 -->
+                            <div class="merc-slot bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col justify-between h-full" id="slot-2">
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">傭兵 Slot 2</label>
+                                    <select id="merc-2" onchange="calcAggro()" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
+                                        <option value="0">--- 空缺 ---</option>
+                                        <option value="10">戰士 / 騎士 (10)</option>
+                                        <option value="8">龍騎士 (8)</option>
+                                        <option value="6">王族/幻術/黑妖 (6)</option>
+                                        <option value="4">妖精/其他 (4)</option>
+                                        <option value="3">法師 (3)</option>
+                                    </select>
+                                </div>
+                                <div class="mt-3 flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-500">被打率:</span>
+                                    <span id="merc-2-prob" class="font-bold text-slate-300">-</span>
+                                </div>
+                            </div>
+
+                            <!-- Slot 3 -->
+                            <div class="merc-slot bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col justify-between h-full" id="slot-3">
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">傭兵 Slot 3</label>
+                                    <select id="merc-3" onchange="calcAggro()" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
+                                        <option value="0">--- 空缺 ---</option>
+                                        <option value="10">戰士 / 騎士 (10)</option>
+                                        <option value="8">龍騎士 (8)</option>
+                                        <option value="6">王族/幻術/黑妖 (6)</option>
+                                        <option value="4">妖精/其他 (4)</option>
+                                        <option value="3">法師 (3)</option>
+                                    </select>
+                                </div>
+                                <div class="mt-3 flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-500">被打率:</span>
+                                    <span id="merc-3-prob" class="font-bold text-slate-300">-</span>
+                                </div>
+                            </div>
+
+                            <!-- Slot 4 -->
+                            <div class="merc-slot bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col justify-between h-full" id="slot-4">
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">傭兵 Slot 4</label>
+                                    <select id="merc-4" onchange="calcAggro()" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
+                                        <option value="0">--- 空缺 ---</option>
+                                        <option value="10">戰士 / 騎士 (10)</option>
+                                        <option value="8">龍騎士 (8)</option>
+                                        <option value="6">王族/幻術/黑妖 (6)</option>
+                                        <option value="4">妖精/其他 (4)</option>
+                                        <option value="3">法師 (3)</option>
+                                    </select>
+                                </div>
+                                <div class="mt-3 flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-500">被打率:</span>
+                                    <span id="merc-4-prob" class="font-bold text-slate-300">-</span>
+                                </div>
+                            </div>
+
+                            <!-- Slot 5 -->
+                            <div class="merc-slot bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col justify-between h-full" id="slot-5">
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">傭兵 Slot 5</label>
+                                    <select id="merc-5" onchange="calcAggro()" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
+                                        <option value="0">--- 空缺 ---</option>
+                                        <option value="10">戰士 / 騎士 (10)</option>
+                                        <option value="8">龍騎士 (8)</option>
+                                        <option value="6">王族/幻術/黑妖 (6)</option>
+                                        <option value="4">妖精/其他 (4)</option>
+                                        <option value="3">法師 (3)</option>
+                                    </select>
+                                </div>
+                                <div class="mt-3 flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-500">被打率:</span>
+                                    <span id="merc-5-prob" class="font-bold text-slate-300">-</span>
+                                </div>
+                            </div>
+
+                            <!-- Slot 6 -->
+                            <div class="merc-slot bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col justify-between h-full" id="slot-6">
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">傭兵 Slot 6</label>
+                                    <select id="merc-6" onchange="calcAggro()" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
+                                        <option value="0">--- 空缺 ---</option>
+                                        <option value="10">戰士 / 騎士 (10)</option>
+                                        <option value="8">龍騎士 (8)</option>
+                                        <option value="6">王族/幻術/黑妖 (6)</option>
+                                        <option value="4">妖精/其他 (4)</option>
+                                        <option value="3">法師 (3)</option>
+                                    </select>
+                                </div>
+                                <div class="mt-3 flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-500">被打率:</span>
+                                    <span id="merc-6-prob" class="font-bold text-slate-300">-</span>
+                                </div>
+                            </div>
+
+                            <!-- Slot 7 -->
+                            <div class="merc-slot bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col justify-between h-full" id="slot-7">
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">傭兵 Slot 7 (Max)</label>
+                                    <select id="merc-7" onchange="calcAggro()" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
+                                        <option value="0">--- 空缺 ---</option>
+                                        <option value="10">戰士 / 騎士 (10)</option>
+                                        <option value="8">龍騎士 (8)</option>
+                                        <option value="6">王族/幻術/黑妖 (6)</option>
+                                        <option value="4">妖精/其他 (4)</option>
+                                        <option value="3">法師 (3)</option>
+                                    </select>
+                                </div>
+                                <div class="mt-3 flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-500">被打率:</span>
+                                    <span id="merc-7-prob" class="font-bold text-slate-300">-</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Filler block to maintain grid shape if needed -->
+                            <div class="hidden xl:flex bg-slate-950/30 border border-slate-800/30 p-3 rounded-lg border-dashed items-center justify-center h-full">
+                                <span class="text-[10px] text-slate-600">Max 7 Mercenaries</span>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 bg-slate-950 py-8 text-center text-xs text-slate-500">
+        <div class="max-w-6xl mx-auto px-4 space-y-3">
+            <p>放置天堂金鑰版排版與玩家工具組 - 內容來源自更新資訊與官方公告</p>
+            <div class="flex justify-center gap-4 text-slate-400">
+                <span>⚔️ 可離線掛機 24 小時</span>
+                <span>🔑 雲端金鑰跨裝置同步</span>
+                <span>✨ 席琳結晶自製套裝</span>
+            </div>
+            <p class="text-[10px] text-slate-600">本網頁為輔助攻略工具，所有遊戲版權與自動更新排程屬原作者及發行團隊所有。</p>
+        </div>
+    </footer>
+
+    <!-- JS Logic -->
+    <script>
+        // 1. Tab Switching System
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            // Show target tab
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+            // Toggle active styles on buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-amber-500', 'text-slate-950');
+                btn.classList.add('text-slate-400', 'hover:text-slate-100');
+            });
+            const activeBtn = document.getElementById(`btn-${tabName}`);
+            activeBtn.classList.remove('text-slate-400', 'hover:text-slate-100');
+            activeBtn.classList.add('bg-amber-500', 'text-slate-950');
+        }
+
+        // 2. FAQ Accordion Toggle
+        function toggleFAQ(button) {
+            const answer = button.nextElementSibling;
+            const icon = button.querySelector('svg');
+            
+            // Check if open
+            if (answer.style.maxHeight && answer.style.maxHeight !== '0px') {
+                answer.style.maxHeight = '0px';
+                icon.classList.remove('rotate-180');
+            } else {
+                // Close all others
+                document.querySelectorAll('.faq-answer').forEach(ans => {
+                    ans.style.maxHeight = '0px';
+                });
+                document.querySelectorAll('.faq-item svg').forEach(svg => {
+                    svg.classList.remove('rotate-180');
+                });
+                
+                // Open this one
+                answer.style.maxHeight = answer.scrollHeight + 'px';
+                icon.classList.add('rotate-180');
+            }
+        }
+
+        // 3. FAQ Search Filter
+        function filterFAQ() {
+            const query = document.getElementById('faq-search').value.toLowerCase();
+            const faqItems = document.querySelectorAll('.faq-item');
+            
+            faqItems.forEach(item => {
+                const questionText = item.querySelector('button span').innerText.toLowerCase();
+                const answerText = item.querySelector('.faq-answer').innerText.toLowerCase();
+                
+                if (questionText.includes(query) || answerText.includes(query)) {
+                    item.classList.remove('hidden');
+                } else {
+                    item.classList.add('hidden');
+                }
+            });
+        }
+
+        // 4. Advanced Mercenary Aggro Calculator (Max 7)
+        function calcAggro() {
+            // Leader
+            const leaderBase = parseInt(document.getElementById('leader-class').value) || 0;
+            const leaderAggro = leaderBase * 2; // Leader weight is double
+            
+            let totalAggro = leaderAggro;
+            const mercAggros = [];
+
+            // Loop through the 7 merc slots
+            for (let i = 1; i <= 7; i++) {
+                const val = parseInt(document.getElementById(`merc-${i}`).value) || 0;
+                mercAggros.push(val);
+                totalAggro += val;
+
+                // Visual feedback for active vs empty slots
+                const slotDiv = document.getElementById(`slot-${i}`);
+                if (val > 0) {
+                    slotDiv.classList.add('border-emerald-500/30');
+                    slotDiv.classList.remove('border-slate-800');
+                } else {
+                    slotDiv.classList.remove('border-emerald-500/30');
+                    slotDiv.classList.add('border-slate-800');
+                }
+            }
+
+            // Update DOM Results
+            document.getElementById('total-pool').innerText = totalAggro;
+            
+            // Leader Probability
+            const leaderProb = totalAggro > 0 ? ((leaderAggro / totalAggro) * 100).toFixed(1) : 0;
+            document.getElementById('leader-prob').innerText = `${leaderProb}%`;
+
+            // Mercenary Probabilities
+            for (let i = 1; i <= 7; i++) {
+                const val = mercAggros[i-1];
+                const probEl = document.getElementById(`merc-${i}-prob`);
+                
+                if (val > 0 && totalAggro > 0) {
+                    const prob = ((val / totalAggro) * 100).toFixed(1);
+                    probEl.innerText = `${prob}%`;
+                    probEl.classList.remove('text-slate-500');
+                    probEl.classList.add('text-emerald-400');
+                } else {
+                    probEl.innerText = '-';
+                    probEl.classList.remove('text-emerald-400');
+                    probEl.classList.add('text-slate-500');
+                }
+            }
+        }
+
+        // Initialize calculator on page load
+        window.onload = function() {
+            calcAggro();
+        };
+    </script>
+</body>
+</html>
