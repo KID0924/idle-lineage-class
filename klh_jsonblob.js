@@ -2855,9 +2855,9 @@
                 </div>
                 <div class="flex flex-col gap-3.5 text-sm text-slate-300 leading-relaxed">
                     <div>
-                        <span class="font-bold text-cyan-400">📖 遊戲攻略與常見問答 (QA.html)</span>
+                        <span class="font-bold text-cyan-400">📖 完整遊戲更新與常見問答 (QA.html)</span>
                         <p class="pl-4 text-slate-400">
-                            完整更新特色、新手攻略、常見問答及仇恨計算機：
+                            完整更新內容、常見問答及仇恨計算機：
                             <a href="QA.html" target="_blank" class="text-yellow-400 hover:text-yellow-300 font-bold underline inline-flex items-center gap-1 ml-1">
                                 🔗 點我開啟【更新指南 & 常見問答】
                             </a>
