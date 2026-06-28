@@ -107,10 +107,10 @@
                     <span class="text-amber-300 font-bold shrink-0">經典模式</span>
                     <span class="text-slate-400 text-xs">經驗/金錢砍半、掉寶率 1/10、死亡噴經驗（永久）</span>
                 </label>
-                <label id="lbl-create-traditional" class="flex items-center gap-2 mt-2 px-1 cursor-pointer select-none opacity-40" title="須先勾選「經典模式」才能選擇；傳統模式為經典之上的子模式，永久生效">
-                    <input type="checkbox" id="create-traditional-toggle" onchange="onToggleTraditional(this)" disabled class="w-5 h-5 accent-purple-600 shrink-0">
+                <label id="lbl-create-traditional" class="flex items-center gap-2 mt-2 px-1 cursor-pointer select-none" title="傳統模式可單獨開啟、或與經典模式並用，永久生效">
+                    <input type="checkbox" id="create-traditional-toggle" onchange="onToggleTraditional(this)" class="w-5 h-5 accent-purple-600 shrink-0">
                     <span class="text-purple-300 font-bold shrink-0">傳統模式</span>
-                    <span class="text-slate-400 text-xs">經典之上：裝備不可強化、無施法卷軸，改由掉落/製作裝備自帶隨機強化值（永久）</span>
+                    <span class="text-slate-400 text-xs">裝備不可強化、無施法卷軸，改由掉落/製作裝備自帶隨機強化值（永久；可單開或＋經典）</span>
                 </label>
                 <div class="flex gap-4 shrink-0 mt-3">
                     <button onclick="backToMenu()" class="btn w-1/4 py-2.5 text-base">返回</button>
@@ -408,44 +408,43 @@
 
 <!-- pp771007 -->
 <!-- 離線掛機外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606281454"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606281606"></script>
 <!-- 手機版介面外掛(可獨立維護;原作者更新後重新加回此行即可) -->      
-<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606281454"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606281606"></script>
 <!-- 怪物/掉落查詢外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606281454"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606281606"></script>
 <!-- 小百科外掛(專精/武器特性/職業魔法;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606281454"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606281606"></script>
 <!-- 通用修正外掛(補原作者坑,桌機/手機通用;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606281454"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606281606"></script>
 <!-- 背景大圖快取 Service Worker 註冊(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606281454"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606281606"></script>
 <!-- 手機 toast 提示(點按鈕的系統日誌訊息浮現;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606281454"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606281606"></script>
 <!-- 統一自製彈窗:全域接管 window.alert(可獨立維護;原作者更新後重新加回此行即可) -->
-<!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v=202606281454"></script-->
+<!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v=202606281606"></script-->
 <!-- 能力值面板補點數分解 始/升/藥/總(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v=202606281454"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v=202606281606"></script>
 <!-- 外掛自動購買:肉 / 魔法屏障卷軸(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-autobuy.js?v=202606281454"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-autobuy.js?v=202606281606"></script>
 
 
-<!-- KID0924 -->
-<!-- Json雲端模組 -->
-<script src="klh_jsonblob.js?v=202606281454"></script>
-<!-- 潘朵拉抽獎模組 -->
-<script src="klh_Pandora.js?v=202606281454"></script>
-<!-- 自定義藥水與兌換模組 -->
-<script src="klh_Addition.js?v=202606281454"></script>
-<!-- 黃金交易所/雲端資源商店模組 -->
-<!--script src="klh_Shop.js?v=202606281454"></script-->
-<!-- 傭兵生存戰鬥血魔擴充模組 -->
-<script src="klh_team.js?v=202606281454"></script>
-<!-- Supabase雲端模組 -->
-<script src="klh_supabase.js?v=202606281454"></script>
+<!-- 整合外掛補丁模組 -->
+<script src="klh_initial.js?v=20260628"></script>
+<!-- 雲端存檔引擎模組 -->
+<script src="klh_database.js?v=20260628"></script>
+<!-- GM/抽獎模組 -->
+<script src="klh_Pandora.js?v=20260616"></script>
+<!-- GM2/自定義藥水與兌換模組 -->
+<script src="klh_Addition.js?v=20260616"></script>
+<!-- 黃金交易所/限量資源商店模組 -->
+<script src="klh_Shop.js?v=20260619_defensive"></script>
+<!-- 傭兵生存戰鬥擴充模組 -->
+<script src="klh_team.js?v=20260620"></script>
 <!-- 手機觸控卡死修復 -->
-<script src="klh_touch_fix.js?v=202606281454"></script>
+<script src="klh_touch_fix.js?v=20260621_2"></script>
 <!-- 電腦版延展介面 -->
-<script src="klh_PC_fix.js?v=202606281454"></script>
+<script src="klh_PC_fix.js?v=20260623"></script>
 
 <script>
   document.addEventListener("DOMContentLoaded", function() {
@@ -459,7 +458,7 @@
       footer.style.marginTop = '10px';
       footer.style.lineHeight = '1.6';
       
-      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/28 22:54';
+      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/29 00:06';
       menu.appendChild(footer);
     } else {
       console.warn("找不到 #main-menu，時間戳記外掛潛水去啦~");
