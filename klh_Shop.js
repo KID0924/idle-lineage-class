@@ -130,7 +130,7 @@
     // ==========================================
     async function fetchWithProxy(targetUrl, options = {}) {
         const method = options.method || 'GET';
-        const customProxy = localStorage.getItem('klh_custom_proxy') || "https://fragrant-glade-bab3.dreammy0924.workers.dev/";
+        const customProxy = localStorage.getItem('klh_custom_proxy') || "";
         const isFileProtocol = window.location.protocol === 'file:';
 
         async function tryDirect() {
