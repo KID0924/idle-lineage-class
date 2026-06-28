@@ -102,7 +102,9 @@ jobs:
           <script src="klh_touch_fix.js?v=20260621_2"></script>
           <!-- 電腦版延展介面 -->
           <script src="klh_PC_fix.js?v=20260623"></script>
-
+          <!-- 緊急通告與首頁運行模組 -->
+          <script src="klh_run.js?v=20260628"></script>
+          
           <script>
             document.addEventListener("DOMContentLoaded", function() {{
               let menu = document.getElementById('main-menu');
