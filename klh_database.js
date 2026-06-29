@@ -1052,11 +1052,14 @@
         try {
             const payloadJsonStr = JSON.stringify(payload);
             const compressedPayload = LZString.compressToBase64(payloadJsonStr);
-            const { error } = await supabase.rpc('save_player_save_short', { player_id: key, new_save_data: null, new_save_data_short: compressedPayload });
+            const { error } = await supabase.rpc('save_player_save_short', { player_id: key, new_save_data: {}, new_save_data_short: compressedPayload });
             if (error) throw error;
             if (isManual) window.showToast('成功將本機進度同步至雲端！ ⚠️請勿跨裝置雙開遊戲。', 'success');
             return true;
-        } catch (err) { if (isManual) window.showToast('上傳雲端存檔失敗，請檢查網路連線。', 'error'); return false;
+        } catch (err) { 
+            console.error('Supabase upload error:', err);
+            if (isManual) window.showToast('上傳雲端存檔失敗：' + (err.message || err), 'error'); 
+            return false;
         } finally { if (isManual) window.hideLoadingOverlay(); }
     };
 
@@ -1081,7 +1084,7 @@
                         const initialTemplate = { "warehouse": null };
                         for (let n = 1; n <= maxSlots_nk; n++) initialTemplate["save_" + n] = null;
                         const initCompressed = LZString.compressToBase64(JSON.stringify(initialTemplate));
-                        const { error: initError } = await supabase.rpc('save_player_save_short', { player_id: newKey, new_save_data: null, new_save_data_short: initCompressed });
+                        const { error: initError } = await supabase.rpc('save_player_save_short', { player_id: newKey, new_save_data: {}, new_save_data_short: initCompressed });
                         if (initError) throw initError;
                         localStorage.setItem('klh_supabase_key', newKey);
                         localStorage.setItem('klh_supabase_local_key', newKey);
@@ -1140,7 +1143,7 @@
                 const initialTemplate = { "warehouse": null };
                 for (let n = 1; n <= maxSlots_sw; n++) initialTemplate["save_" + n] = null;
                 const switchCompressed = LZString.compressToBase64(JSON.stringify(initialTemplate));
-                const { error } = await supabase.rpc('save_player_save_short', { player_id: newKey, new_save_data: null, new_save_data_short: switchCompressed });
+                const { error } = await supabase.rpc('save_player_save_short', { player_id: newKey, new_save_data: {}, new_save_data_short: switchCompressed });
                 if (error) throw error;
                 key = newKey;
                 localStorage.setItem('klh_supabase_key', key);
