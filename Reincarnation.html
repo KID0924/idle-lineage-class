@@ -158,7 +158,7 @@
 
         .slots-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             gap: 12px;
         }
 
@@ -474,8 +474,19 @@
                                 slotObj.wh = warehouseParsed;
                             }
 
-                            // 取得角色名稱
-                            const charName = (slotObj.p && slotObj.p.name) ? slotObj.p.name : `槽位${n}`;
+                            // 取得角色資訊 (名稱、職業、等級、模式)
+                            const charName = (slotObj.p && slotObj.p.name) ? slotObj.p.name : `未命名`;
+                            const rawCls = (slotObj.p && slotObj.p.cls) ? slotObj.p.cls : '';
+                            const clsMap = { knight:'騎士', mage:'法師', elf:'妖精', dark:'黑暗妖精', illusion:'幻術士', dragon:'龍騎士', warrior:'戰士', royal:'王族' };
+                            const charCls = clsMap[rawCls] || rawCls || '未知職業';
+                            const charLv = (slotObj.p && slotObj.p.lv) ? slotObj.p.lv : 1;
+
+                            const isClassic = !!(slotObj.p && slotObj.p.classicMode);
+                            const isTrad = !!(slotObj.p && slotObj.p.traditionalMode);
+                            let modeText = '';
+                            if (isClassic && isTrad) modeText = '經典＋傳統';
+                            else if (isTrad) modeText = '傳統';
+                            else if (isClassic) modeText = '經典';
 
                             // 執行淨化 (靜默執行)
                             slotObj = sanitizeSaveData(slotObj);
@@ -487,10 +498,14 @@
                             processedSaves.push({
                                 slot: n,
                                 name: charName,
+                                cls: charCls,
+                                lv: charLv,
+                                mode: modeText,
                                 content: signedData
                             });
 
-                            logStatus(`[槽位 ${n}] ${charName} - 資料讀取與封裝完成！`, "success");
+                            const logModeStr = modeText ? ` [${modeText}]` : '';
+                            logStatus(`[槽位 ${n}]${logModeStr} ${charCls} Lv.${charLv} (${charName}) - 資料讀取與封裝完成！`, "success");
                         } catch (err) {
                             logStatus(`[槽位 ${n}] 處理失敗：${err.message}`, "error");
                         }
@@ -530,14 +545,19 @@
                 const url = createDownloadBlob(save.content);
                 const filename = `fable5_save_${save.slot}_${save.name}.json`;
                 
+                const modeBadge = save.mode ? `<span style="font-size: 10px; background: rgba(251, 191, 36, 0.2); color: #fbbf24; padding: 1px 5px; border-radius: 4px; margin-left: 4px; border: 1px solid rgba(251, 191, 36, 0.4); font-weight: normal;">${save.mode}</span>` : '';
+
                 const a = document.createElement('a');
                 a.className = 'btn-download-slot';
                 a.href = url;
                 a.download = filename;
                 a.innerHTML = `
-                    <div style="font-size: 20px;">📄</div>
-                    <div>槽位 ${save.slot}</div>
-                    <div class="slot-name">${save.name}</div>
+                    <div style="font-size: 22px; margin-bottom: 2px;">📄</div>
+                    <div style="font-weight: 700; color: #a78bfa; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap;">
+                        <span>槽位 ${save.slot}</span> ${modeBadge}
+                    </div>
+                    <div style="font-size: 14px; color: #f8fafc; font-weight: 700; margin: 2px 0;">${save.cls} Lv.${save.lv}</div>
+                    <div class="slot-name" style="color: #10b981; font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${save.name}</div>
                 `;
                 slotsGrid.appendChild(a);
             });
