@@ -864,8 +864,8 @@
     // JSONBlob 上傳/下載節流
     let jbLastAutoUploadTime = 0;
     let jbLastManualUploadTime = 0;
-    const AUTO_UPLOAD_DEBOUNCE_MS = 300000;
-    const MANUAL_UPLOAD_DEBOUNCE_MS = 5000;
+    const AUTO_UPLOAD_DEBOUNCE_MS = 960000;
+    const MANUAL_UPLOAD_DEBOUNCE_MS = 10000;
 
     window.addEventListener('beforeunload', () => { window.__klh_is_unloading = true; });
 
