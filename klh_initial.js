@@ -191,11 +191,18 @@
             }
 
             // 注入難度與自定義設定至存檔
+            // 🔧 使用 _lzGet/_lzSet + _saveUnwrap/_saveWrap 正確處理 LZ-String 壓縮 + 簽章層
             if (typeof currentSlot !== 'undefined') {
-                let s = localStorage.getItem('lineage_idle_save_' + currentSlot);
-                if (s) {
+                let rawPayload = (typeof _lzGet === 'function') ? _lzGet('lineage_idle_save_' + currentSlot) : localStorage.getItem('lineage_idle_save_' + currentSlot);
+                if (rawPayload) {
                     try {
-                        let d = JSON.parse(s);
+                        // 解開簽章層 (SIG1:hash:json → json)
+                        let jsonStr = rawPayload;
+                        if (typeof _saveUnwrap === 'function') {
+                            let unwrapped = _saveUnwrap(rawPayload);
+                            jsonStr = unwrapped.payload || rawPayload;
+                        }
+                        let d = JSON.parse(jsonStr);
                         d.difficulty = window.gameDifficulty;
 
                         // 注入自定義設定，以防被原版 saveGame() 覆寫擦除
@@ -210,8 +217,18 @@
                             d.p.config.setGodBless = chkGodBless ? chkGodBless.checked : false;
                         }
 
-                        localStorage.setItem('lineage_idle_save_' + currentSlot, JSON.stringify(d));
-                    } catch (e) { }
+                        // 重新封裝：簽章 + LZ壓縮 寫回
+                        let newJsonStr = JSON.stringify(d);
+                        if (typeof _lzSet === 'function' && typeof _saveWrap === 'function') {
+                            _lzSet('lineage_idle_save_' + currentSlot, _saveWrap(newJsonStr));
+                        } else if (typeof _lzSet === 'function') {
+                            _lzSet('lineage_idle_save_' + currentSlot, newJsonStr);
+                        } else {
+                            localStorage.setItem('lineage_idle_save_' + currentSlot, newJsonStr);
+                        }
+                    } catch (e) {
+                        console.error("[KLH] saveGame difficulty injection error:", e);
+                    }
                 }
             }
         };
@@ -235,17 +252,25 @@
         window.__klh_load_game_wrapped = true;
         const originalLoadGame = window.loadGame;
         window.loadGame = function () {
-            let slotDataStr = localStorage.getItem('lineage_idle_save_' + currentSlot);
+            // 🔧 使用 _lzGet + _saveUnwrap 正確處理 LZ-String 壓縮 + 簽章層
+            let rawPayload = (typeof _lzGet === 'function') ? _lzGet('lineage_idle_save_' + currentSlot) : localStorage.getItem('lineage_idle_save_' + currentSlot);
             let finalDiff = window.gameDifficulty || 'standard';
 
             // 如果玩家「沒有」手動在難度面板上點選難度，則優先使用該存檔原本儲存的難度
-            if (!window.difficultyManuallySelected && slotDataStr) {
+            if (!window.difficultyManuallySelected && rawPayload) {
                 try {
-                    let d = JSON.parse(slotDataStr);
+                    let jsonStr = rawPayload;
+                    if (typeof _saveUnwrap === 'function') {
+                        let unwrapped = _saveUnwrap(rawPayload);
+                        jsonStr = unwrapped.payload || rawPayload;
+                    }
+                    let d = JSON.parse(jsonStr);
                     if (d.difficulty) {
                         finalDiff = d.difficulty;
                     }
-                } catch (e) { }
+                } catch (e) {
+                    console.error("[KLH] loadGame difficulty read error:", e);
+                }
             }
 
             window.gameDifficulty = finalDiff;
@@ -256,13 +281,27 @@
             }
 
             // 載入完成後，立刻將最新的最終決定難度同步寫回 LocalStorage
-            let s = localStorage.getItem('lineage_idle_save_' + currentSlot);
-            if (s) {
+            let rawAfterLoad = (typeof _lzGet === 'function') ? _lzGet('lineage_idle_save_' + currentSlot) : localStorage.getItem('lineage_idle_save_' + currentSlot);
+            if (rawAfterLoad) {
                 try {
-                    let d = JSON.parse(s);
+                    let jsonStr = rawAfterLoad;
+                    if (typeof _saveUnwrap === 'function') {
+                        let unwrapped = _saveUnwrap(rawAfterLoad);
+                        jsonStr = unwrapped.payload || rawAfterLoad;
+                    }
+                    let d = JSON.parse(jsonStr);
                     d.difficulty = window.gameDifficulty;
-                    localStorage.setItem('lineage_idle_save_' + currentSlot, JSON.stringify(d));
-                } catch (e) { }
+                    let newJsonStr = JSON.stringify(d);
+                    if (typeof _lzSet === 'function' && typeof _saveWrap === 'function') {
+                        _lzSet('lineage_idle_save_' + currentSlot, _saveWrap(newJsonStr));
+                    } else if (typeof _lzSet === 'function') {
+                        _lzSet('lineage_idle_save_' + currentSlot, newJsonStr);
+                    } else {
+                        localStorage.setItem('lineage_idle_save_' + currentSlot, newJsonStr);
+                    }
+                } catch (e) {
+                    console.error("[KLH] loadGame difficulty write-back error:", e);
+                }
             }
 
             if (typeof window.updateDifficultyDisplay === 'function') {
@@ -284,12 +323,17 @@
             }
             if (!sum) return null;
 
-            // 讀取存檔中的難度欄位並整合進來
-            let s = localStorage.getItem('lineage_idle_save_' + n);
+            // 🔧 使用 _lzGet + _saveUnwrap 正確處理 LZ-String 壓縮 + 簽章層
+            let rawSlotData = (typeof _lzGet === 'function') ? _lzGet('lineage_idle_save_' + n) : localStorage.getItem('lineage_idle_save_' + n);
             let diff = 'standard';
-            if (s) {
+            if (rawSlotData) {
                 try {
-                    let d = JSON.parse(s);
+                    let jsonStr = rawSlotData;
+                    if (typeof _saveUnwrap === 'function') {
+                        let unwrapped = _saveUnwrap(rawSlotData);
+                        jsonStr = unwrapped.payload || rawSlotData;
+                    }
+                    let d = JSON.parse(jsonStr);
                     if (d.difficulty) {
                         diff = d.difficulty;
                     }
@@ -1566,7 +1610,7 @@
         attachHoldEventsToStatButtons();
         attachHoldEventsToInGameStatButtons();
 
-        // 攔截 exportSave 避免特權金鑰被匯出進度
+        // 攔截 exportSave 避免特權金鑰被匯出進度，並在匯出時進行存檔淨化
         if (typeof window.exportSave === 'function' && !window.exportSave.__klh_patched_priv) {
             const originalExportSave = window.exportSave;
             window.exportSave = async function () {
@@ -1575,7 +1619,81 @@
                     else alert('特權金鑰限制：禁止匯出進度！');
                     return;
                 }
-                return await originalExportSave.apply(this, arguments);
+
+                // 暫時覆寫全域的 _saveWrap 以便在生成簽章與匯出檔案前淨化資料
+                const originalSaveWrap = window._saveWrap || (typeof _saveWrap === 'function' ? _saveWrap : null);
+                if (originalSaveWrap) {
+                    window._saveWrap = function (payloadStr) {
+                        try {
+                            let _obj = JSON.parse(payloadStr);
+                            const customItemIds = ['potion_super_white', 'potion_hyper_white', 'potion_droprate', 'potion_god_bless'];
+                            if (_obj.p) {
+                                // 1. 清理背包自訂藥水
+                                if (Array.isArray(_obj.p.inv)) {
+                                    _obj.p.inv = _obj.p.inv.filter(i => i && !customItemIds.includes(i.id));
+                                }
+                                // 2. 清理自動喝水設定 → 一律改回紅色藥水；清理自訂自動 Buff 設定與自訂 config 欄位
+                                if (_obj.p.config) {
+                                    // 喝水設定一律改回原版紅色藥水
+                                    _obj.p.config.setPot = 'potion_heal';
+                                    // 移除外掛專屬 config 欄位
+                                    delete _obj.p.config.setDroprate;
+                                    delete _obj.p.config.setAutoBuyDroprate;
+                                    delete _obj.p.config.setGodBless;
+                                    if (_obj.p.config.autoBuffSkills) {
+                                        delete _obj.p.config.autoBuffSkills.droprate;
+                                        delete _obj.p.config.autoBuffSkills.god_bless;
+                                    }
+                                }
+                                // 3. 清理自訂 Buff 剩餘時間
+                                if (_obj.p.buffs) {
+                                    delete _obj.p.buffs.droprate;
+                                    delete _obj.p.buffs.god_bless;
+                                }
+                                // 4. 清理自訂傭兵設定
+                                delete _obj.p.klhTeamConfig;
+                                // 5. 清理協力傭兵 (allies) 背包中的自訂藥水
+                                if (Array.isArray(_obj.p.allies)) {
+                                    _obj.p.allies.forEach(ally => {
+                                        if (ally && Array.isArray(ally.inv)) {
+                                            ally.inv = ally.inv.filter(i => i && !customItemIds.includes(i.id));
+                                        }
+                                    });
+                                }
+                                // 6. 清理轉生系統欄位（原版不存在）
+                                delete _obj.p.rebirthCount;
+                                delete _obj.p.rebirthPoints;
+                                // 7. 清理廢品記憶中自訂物品的簽章 key
+                                if (_obj.p.junkPrefs && typeof _obj.p.junkPrefs === 'object') {
+                                    for (let sig in _obj.p.junkPrefs) {
+                                        if (customItemIds.some(id => sig.startsWith(id + '|') || sig === id)) {
+                                            delete _obj.p.junkPrefs[sig];
+                                        }
+                                    }
+                                }
+                            }
+                            // 8. 清理倉庫裡的自訂藥水
+                            if (_obj.wh && Array.isArray(_obj.wh.items)) {
+                                _obj.wh.items = _obj.wh.items.filter(i => i && !customItemIds.includes(i.id));
+                            }
+                            // 9. 清理外掛專屬頂層欄位 (難度系統)
+                            delete _obj.difficulty;
+                            payloadStr = JSON.stringify(_obj);
+                        } catch (e) {
+                            console.error("[klh_initial] Sanitizing export data failed:", e);
+                        }
+                        return originalSaveWrap(payloadStr);
+                    };
+                }
+
+                try {
+                    return await originalExportSave.apply(this, arguments);
+                } finally {
+                    // 恢復原先的 _saveWrap
+                    if (originalSaveWrap) {
+                        window._saveWrap = originalSaveWrap;
+                    }
+                }
             };
             window.exportSave.__klh_patched_priv = true;
         }
