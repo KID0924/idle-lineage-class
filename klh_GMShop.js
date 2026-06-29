@@ -27,6 +27,8 @@
     window.gmShopMainCategory = 'all';
     window.gmShopSubCategory = 'all';
     window.gmShopSearchQuery = '';
+    window.gmShopCurrentPage = 1;
+    let lastBtnState = null;
 
     // 1. 注入樣式
     function injectStyles() {
@@ -347,6 +349,42 @@
                 background: rgba(124, 58, 237, 0.6) !important;
             }
 
+            .gm-shop-pagination-bar {
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                gap: 12px !important;
+                padding-top: 12px !important;
+                border-top: 1px solid rgba(124, 58, 237, 0.2) !important;
+                flex-shrink: 0 !important;
+                margin-top: auto !important;
+            }
+            .gm-shop-page-btn {
+                background: rgba(124, 58, 237, 0.2) !important;
+                border: 1px solid rgba(124, 58, 237, 0.4) !important;
+                color: #a78bfa !important;
+                padding: 6px 12px !important;
+                border-radius: 8px !important;
+                cursor: pointer !important;
+                font-weight: bold !important;
+                font-size: 13px !important;
+                transition: all 0.2s ease !important;
+                user-select: none !important;
+            }
+            .gm-shop-page-btn:hover:not(:disabled) {
+                background: rgba(124, 58, 237, 0.4) !important;
+                color: #fff !important;
+            }
+            .gm-shop-page-btn:disabled {
+                opacity: 0.4 !important;
+                cursor: not-allowed !important;
+            }
+            .gm-shop-page-info {
+                font-size: 13px !important;
+                color: #94a3b8 !important;
+                font-weight: 600 !important;
+            }
+
             /* 分頁內容與角色修改樣式 */
             .gm-shop-tab-content {
                 display: none !important;
@@ -641,12 +679,32 @@
                     let isPotion = item.type === 'pot' || item.id.startsWith('potion_') || (item.n && item.n.includes('藥水'));
                     let isPet = item.id.includes('pet') || (item.n && (item.n.includes('果實') || item.n.includes('寵物') || item.n.includes('進化')));
                     let isMaterial = item.type === 'material' || item.id.startsWith('mat_') || item.id.includes('crystal') || (item.n && (item.n.includes('材料') || item.n.includes('結晶') || item.n.includes('礦石') || item.n.includes('皮革') || item.n.includes('骨頭') || item.n.includes('布料')));
-                    let isOther = !isPotion && !isPet && !isMaterial;
+                    let isTalisman = !!item.prideKind || item.id.includes('pride') || item.id.includes('talisman');
+                    let isOther = !isPotion && !isPet && !isMaterial && !isTalisman;
 
                     if (subCat === 'potion' && !isPotion) return false;
                     if (subCat === 'pet' && !isPet) return false;
                     if (subCat === 'material' && !isMaterial) return false;
+                    if (subCat === 'talisman' && !isTalisman) return false;
                     if (subCat === 'other' && !isOther) return false;
+                } else if (mainCat === 'card') {
+                    let isT1 = item.cardTier === 1;
+                    let isT2 = item.cardTier === 2;
+                    let isT3 = item.cardTier === 3;
+                    let isBook = item.id === 'item_card_book' || item.eff === 'cardbook';
+
+                    if (subCat === 'tier1' && !isT1) return false;
+                    if (subCat === 'tier2' && !isT2) return false;
+                    if (subCat === 'tier3' && !isT3) return false;
+                    if (subCat === 'book' && !isBook) return false;
+                } else if (mainCat === 'doll') {
+                    let tier = item.dollTier || 0;
+                    if (subCat === 'tier1' && tier !== 1) return false;
+                    if (subCat === 'tier2' && tier !== 2) return false;
+                    if (subCat === 'tier3' && tier !== 3) return false;
+                    if (subCat === 'tier4' && tier !== 4) return false;
+                    if (subCat === 'tier5' && tier !== 5) return false;
+                    if (subCat === 'tier6' && tier !== 6) return false;
                 } else {
                     if (item.slot !== subCat) return false;
                 }
@@ -657,9 +715,24 @@
             return true;
         });
 
+        // 分頁處理
+        let pageSize = 24; // 每頁顯示 24 筆
+        let totalItems = filtered.length;
+        let totalPages = Math.ceil(totalItems / pageSize) || 1;
+
+        if (window.gmShopCurrentPage > totalPages) {
+            window.gmShopCurrentPage = totalPages;
+        }
+        if (window.gmShopCurrentPage < 1) {
+            window.gmShopCurrentPage = 1;
+        }
+
+        let startIndex = (window.gmShopCurrentPage - 1) * pageSize;
+        let pageItems = filtered.slice(startIndex, startIndex + pageSize);
+
         // 渲染卡片
         let html = '';
-        filtered.forEach(eq => {
+        pageItems.forEach(eq => {
             let d = DB.items[eq.id];
             if (!d) return;
 
@@ -715,6 +788,30 @@
         }
 
         container.innerHTML = html;
+
+        // 渲染分頁按鈕
+        let pagContainer = document.getElementById('gm-shop-pagination-container');
+        if (pagContainer) {
+            if (totalPages <= 1) {
+                pagContainer.innerHTML = '';
+                pagContainer.style.setProperty('display', 'none', 'important');
+            } else {
+                pagContainer.style.setProperty('display', 'flex', 'important');
+                pagContainer.innerHTML = `
+                    <button class="gm-shop-page-btn" ${window.gmShopCurrentPage === 1 ? 'disabled' : ''} onclick="changeGMShopPage(-1)">◀ 上一頁</button>
+                    <span class="gm-shop-page-info">第 ${window.gmShopCurrentPage} / ${totalPages} 頁 (共 ${totalItems} 筆)</span>
+                    <button class="gm-shop-page-btn" ${window.gmShopCurrentPage === totalPages ? 'disabled' : ''} onclick="changeGMShopPage(1)">下一頁 ▶</button>
+                `;
+            }
+        }
+    };
+
+    // 新增：換頁函式
+    window.changeGMShopPage = function (dir) {
+        window.gmShopCurrentPage = (window.gmShopCurrentPage || 1) + dir;
+        renderGMShopGrid();
+        let grid = document.getElementById('gm-shop-grid-container');
+        if (grid) grid.scrollTop = 0;
     };
 
     // 4. 購買裝備邏輯
@@ -898,27 +995,35 @@
                 let item = DB.items[id];
                 if (!item) continue;
 
-                // 1. 裝備類 (武器/防具/飾品)
-                if (item.type === 'wpn' || item.type === 'arm' || item.type === 'acc') {
+                // 1. 魔法娃娃類
+                if (item.doll || item.slot === 'doll' || id.startsWith('doll_')) {
+                    equipments.push({ id: id, ...item, type: 'doll' });
+                }
+                // 2. 裝備類 (武器/防具/飾品)
+                else if (item.type === 'wpn' || item.type === 'arm' || item.type === 'acc') {
                     if (item.isArrow) continue;
                     equipments.push({ id: id, ...item });
                 }
-                // 2. 卷軸類
+                // 3. 卷軸類
                 else if (item.type === 'scroll' || id.startsWith('scroll_') || id.includes('bless') || id.includes('uncurse') || (item.n && item.n.includes('卷軸'))) {
                     equipments.push({ id: id, ...item, type: 'scroll' });
                 }
-                // 3. 魔法書類
+                // 4. 魔法書類
                 else if (item.type === 'skillbk' || id.startsWith('bk_') || (item.n && (item.n.includes('技術書') || item.n.includes('魔法書') || item.n.includes('精靈水晶')))) {
                     equipments.push({ id: id, ...item, type: 'skillbk' });
                 }
-                // 4. 其他所有物品（包含藥水、材料、果實、結晶等等雜項）一律歸入 etc
+                // 5. 卡片與圖鑑類
+                else if (item.eff === 'card' || item.eff === 'cardbook' || id === 'item_card_book') {
+                    equipments.push({ id: id, ...item, type: 'card' });
+                }
+                // 6. 其他所有物品（包含藥水、材料、果實、結晶等等雜項）一律歸入 etc
                 else {
                     equipments.push({ id: id, ...item, type: 'etc' });
                 }
             }
-            // 排序: 武器 -> 防具 -> 飾品 -> 卷軸 -> 魔法書 -> 材料其他 (內部以售價排序)
+            // 排序: 武器 -> 防具 -> 飾品 -> 魔法娃娃 -> 卷軸 -> 魔法書 -> 卡片圖鑑 -> 材料其他 (內部以售價排序)
             equipments.sort((a, b) => {
-                const typeOrder = { wpn: 1, arm: 2, acc: 3, scroll: 4, skillbk: 5, etc: 6 };
+                const typeOrder = { wpn: 1, arm: 2, acc: 3, doll: 4, scroll: 5, skillbk: 6, card: 7, etc: 8 };
                 let orderA = typeOrder[a.type] || 99;
                 let orderB = typeOrder[b.type] || 99;
                 if (orderA !== orderB) return orderA - orderB;
@@ -1069,8 +1174,10 @@
                                     <option value="wpn">武器</option>
                                     <option value="arm">防具</option>
                                     <option value="acc">飾品</option>
+                                    <option value="doll">魔法娃娃</option>
                                     <option value="scroll">卷軸</option>
                                     <option value="skillbk">魔法書</option>
+                                    <option value="card">卡片圖鑑</option>
                                     <option value="etc">材料其他</option>
                                 </select>
                                 
@@ -1082,6 +1189,9 @@
                             
                             <!-- 裝備網格 -->
                             <div class="gm-shop-grid" id="gm-shop-grid-container"></div>
+
+                            <!-- 分頁控制 -->
+                            <div id="gm-shop-pagination-container" class="gm-shop-pagination-bar"></div>
                         </div>
                     </div>
 
@@ -1516,17 +1626,20 @@
     };
 
     window.onGMShopOptionChange = function () {
+        window.gmShopCurrentPage = 1;
         renderGMShopGrid();
     };
 
     window.onGMShopSearchInput = function (val) {
         window.gmShopSearchQuery = val;
+        window.gmShopCurrentPage = 1;
         renderGMShopGrid();
     };
 
     window.setGMShopMainCategory = function (cat) {
         window.gmShopMainCategory = cat;
         window.gmShopSubCategory = 'all';
+        window.gmShopCurrentPage = 1;
 
         // 同步主分類下拉選單
         let mainSel = document.getElementById('gm-main-cat-select');
@@ -1583,9 +1696,32 @@
             } else if (cat === 'etc') {
                 subSel.style.display = 'block';
                 subSel.innerHTML = `
-                    <option value="all">全部材料</option>
-                    <option value="potion">藥水</option>
+                    <option value="all">全部雜項</option>
+                    <option value="potion">藥水/消耗品</option>
                     <option value="material">核心材料/結晶</option>
+                    <option value="pet">寵物/進化果實</option>
+                    <option value="talisman">傲塔傳送/支配符</option>
+                    <option value="other">其他雜項</option>
+                `;
+            } else if (cat === 'card') {
+                subSel.style.display = 'block';
+                subSel.innerHTML = `
+                    <option value="all">全部卡片</option>
+                    <option value="tier1">普卡</option>
+                    <option value="tier2">銀卡</option>
+                    <option value="tier3">金卡</option>
+                    <option value="book">收集冊/其他</option>
+                `;
+            } else if (cat === 'doll') {
+                subSel.style.display = 'block';
+                subSel.innerHTML = `
+                    <option value="all">全部娃娃</option>
+                    <option value="tier1">一階娃娃</option>
+                    <option value="tier2">二階娃娃</option>
+                    <option value="tier3">三階娃娃</option>
+                    <option value="tier4">四階娃娃</option>
+                    <option value="tier5">五階娃娃</option>
+                    <option value="tier6">六階娃娃</option>
                 `;
             } else {
                 subSel.style.display = 'none';
@@ -1601,28 +1737,30 @@
         window.gmShopSubCategory = subCat;
         let subSel = document.getElementById('gm-sub-cat-select');
         if (subSel) subSel.value = subCat;
+        window.gmShopCurrentPage = 1;
         renderGMShopGrid();
     };
 
-    // 檢查按鈕顯示狀態的函式
+    // 檢查按鈕顯示狀態的函式 (優化版：快取 DOM 狀態與狀態比對，避免重複修改 DOM 造成 CPU 升溫與卡頓)
     function checkGMShopBtnVisibility() {
         let btn = document.getElementById('klh-gm-shop-btn');
         if (!btn) return;
-        if (typeof player !== 'undefined' && player && player.cls) {
-            btn.style.setProperty('display', 'flex', 'important');
-        } else {
-            btn.style.setProperty('display', 'none', 'important');
+        
+        let hasPlayer = !!(typeof player !== 'undefined' && player && player.cls);
+        if (lastBtnState !== hasPlayer) {
+            btn.style.setProperty('display', hasPlayer ? 'flex' : 'none', 'important');
+            lastBtnState = hasPlayer;
         }
 
-        // 額外支援：若載入了 GM 商店，移除 jsonblob 底部 Hella 與 Zeus 按鈕的 "🔒固定" 標籤
+        // 額外支援：若載入了 GM 商店，僅在有標籤文字時移除 jsonblob 底部 Hella 與 Zeus 按鈕的 "🔒固定" 標籤
         let hTag = document.getElementById('lock-hella-tag');
         let zTag = document.getElementById('lock-zeus-tag');
-        if (hTag) hTag.innerText = '';
-        if (zTag) zTag.innerText = '';
+        if (hTag && hTag.innerText !== '') hTag.innerText = '';
+        if (zTag && zTag.innerText !== '') zTag.innerText = '';
 
-        // 強制解鎖清除所有存檔按鈕的顯示狀態
+        // 強制解鎖清除所有存檔按鈕的顯示狀態，僅在顯示被隱藏時才重設，避免頻繁寫入 style
         let clearAllBtn = document.getElementById('btn-clear-all');
-        if (clearAllBtn) {
+        if (clearAllBtn && clearAllBtn.style.display !== '') {
             clearAllBtn.style.setProperty('display', '', 'important');
         }
     }
