@@ -496,20 +496,36 @@
 
             /* 手機適應調整 */
             @media (max-width: 768px) {
+                .gm-shop-modal {
+                    padding-top: max(8px, env(safe-area-inset-top)) !important;
+                    padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+                    box-sizing: border-box !important;
+                }
                 .gm-shop-container {
-                    height: 95vh !important;
-                    width: 98vw !important;
+                    height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px) !important;
+                    height: calc(100vh - 16px) !important;
+                    max-height: 98% !important;
+                    width: 96vw !important;
+                    margin: auto !important;
+                    border-radius: 16px !important;
                 }
                 .gm-shop-header {
-                    padding: 12px 16px !important;
-                    gap: 8px !important;
+                    padding: 8px 12px !important;
+                    gap: 6px !important;
                     flex-wrap: wrap !important;
                     justify-content: space-between !important;
+                }
+                .gm-shop-title {
+                    font-size: 18px !important;
                 }
                 .gm-shop-tabs {
                     order: 3 !important;
                     width: 100% !important;
                     justify-content: center !important;
+                }
+                .gm-shop-tab-btn {
+                    padding: 6px 12px !important;
+                    font-size: 12px !important;
                 }
                 .gm-shop-char-grid {
                     grid-template-columns: 1fr !important;
@@ -517,6 +533,7 @@
                 }
                 .gm-shop-char-container {
                     padding: 12px !important;
+                    padding-bottom: 36px !important;
                 }
                 .gm-shop-body {
                     flex-direction: column !important;
@@ -525,7 +542,10 @@
                     flex-direction: column !important;
                 }
                 .gm-shop-content {
-                    padding: 10px !important;
+                    padding: 8px !important;
+                }
+                .gm-shop-grid {
+                    padding-bottom: 24px !important;
                 }
                 .gm-shop-sidebar {
                     width: 100% !important;
