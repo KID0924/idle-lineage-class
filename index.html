@@ -28,8 +28,8 @@
     <title>放置天堂 - 以血為盟</title>
     <link rel="icon" type="image/png" href="assets/favicon.png">   <!-- 🖼️ 瀏覽器分頁圖示(favicon)：把你的圖放到 assets/favicon.png 即生效；可改 href 路徑或副檔名(.ico/.svg) -->
 
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/tailwind-built.css"><!-- 🔧 預編譯 Tailwind（取代執行期 JIT tailwind.js）：只含實際用到的 class，省 407KB runtime + 移除持續掃描 DOM 的成本。置於 style.css 之後以保留原 cascade（utility 平手時勝過自訂 class，與舊 JIT 注入順序一致） -->
 </head>
 <body class="h-screen w-screen flex items-center justify-center p-4">
 
@@ -157,6 +157,16 @@
             <div id="automation-panel" class="panel flex-1 overflow-hidden flex flex-col">
                 <div class="panel-header text-center">自動化設定</div>
                 <div class="p-4 text-base flex flex-col gap-4 overflow-y-auto">
+                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 flex flex-col gap-2">
+                        <div class="flex items-center justify-between gap-3">
+                            <label class="cursor-pointer flex items-center gap-2"><input type="checkbox" id="set-sfx-on" class="w-4 h-4" onchange="try{setSfxOn(this.checked)}catch(e){}"><span class="text-sm text-amber-200 font-bold">🔊 戰鬥音效</span></label>
+                            <input type="range" id="set-sfx-vol" min="0" max="100" value="50" step="5" class="flex-1 max-w-[150px]" oninput="try{setSfxVol(this.value)}catch(e){}" title="音效音量">
+                        </div>
+                        <div class="flex items-center justify-between gap-3 border-t border-slate-700 pt-2">
+                            <label class="cursor-pointer flex items-center gap-2"><input type="checkbox" id="set-bgm-on" class="w-4 h-4" onchange="try{setBgmOn(this.checked)}catch(e){}"><span class="text-sm text-sky-200 font-bold">🎵 背景音樂</span></label>
+                            <input type="range" id="set-bgm-vol" min="0" max="100" value="35" step="5" class="flex-1 max-w-[150px]" oninput="try{setBgmVol(this.value)}catch(e){}" title="音樂音量">
+                        </div>
+                    </div>
                     <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
                         <div class="flex flex-col gap-2">
                             <div class="flex justify-between items-center">
@@ -405,28 +415,29 @@
 <script src="js/14-craft-pandora.js"></script>
 <script src="js/15-cards.js"></script>
 <script src="js/16-equip-book.js"></script>
+<script src="js/17-audio.js"></script>
 
 <!-- pp771007 -->
 <!-- 離線掛機外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606291917"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606292059"></script>
 <!-- 手機版介面外掛(可獨立維護;原作者更新後重新加回此行即可) -->      
-<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606291917"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606292059"></script>
 <!-- 怪物/掉落查詢外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606291917"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606292059"></script>
 <!-- 小百科外掛(專精/武器特性/職業魔法;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606291917"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606292059"></script>
 <!-- 通用修正外掛(補原作者坑,桌機/手機通用;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606291917"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606292059"></script>
 <!-- 背景大圖快取 Service Worker 註冊(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606291917"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606292059"></script>
 <!-- 手機 toast 提示(點按鈕的系統日誌訊息浮現;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606291917"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606292059"></script>
 <!-- 統一自製彈窗:全域接管 window.alert(可獨立維護;原作者更新後重新加回此行即可) -->
-<!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v=202606291917"></script-->
+<!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v=202606292059"></script-->
 <!-- 能力值面板補點數分解 始/升/藥/總(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v=202606291917"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v=202606292059"></script>
 <!-- 外掛自動購買:肉 / 魔法屏障卷軸(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-autobuy.js?v=202606291917"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-autobuy.js?v=202606292059"></script>
 
 
 <!-- 整合外掛補丁模組 -->
@@ -460,7 +471,7 @@
       footer.style.marginTop = '10px';
       footer.style.lineHeight = '1.6';
       
-      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/30 03:17';
+      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/30 04:59';
       menu.appendChild(footer);
     } else {
       console.warn("找不到 #main-menu，時間戳記外掛潛水去啦~");
