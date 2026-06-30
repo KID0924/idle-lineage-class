@@ -23,11 +23,11 @@
         if (typeof DB === 'undefined' || !DB.items) return;
 
         // 調整係數 (方便未來微調，附上各稀有度平均基礎 W 值與平均最終權重)
-        const multExtreme = 1;  // 極度稀有 (價格 > 100,000)：平均 W = 1.00，平均最終權重 = 1.00 * 0.5 = 0.5
-        const multRare = 1;  // 稀有 (價格 > 30,000)：平均 W = 9.88，平均最終權重 = 9.88 * 0.5 = 4.94
+        const multExtreme = 1;  // 極度稀有 (價格 > 100,000)：平均 W = 1.00，平均最終權重 = 1.00 * 1 = 1.00
+        const multRare = 1;  // 稀有 (價格 > 30,000)：平均 W = 9.88，平均最終權重 = 9.88 * 1 = 9.88
         const multUncommon = 2;    // 罕見 (價格 > 10,000)：平均 W = 13.41，平均最終權重 = 13.41 * 2 = 26.82
         const multCommon = 3;    // 一般 (價格 > 1,000)：平均 W = 46.13，平均最終權重 = 46.13 * 3 = 138.39
-        const multJunk = 10;   // 便宜貨 (價格 <= 1,000)：平均 W = 73.12，平均最終權重 = 73.12 * 10 = 731.2
+        const multJunk = 4;   // 便宜貨 (價格 <= 1,000)：平均 W = 73.12，平均最終權重 = 73.12 * 4 = 292.48
 
         for (let id in DB.items) {
             let item = DB.items[id];
@@ -104,6 +104,69 @@
 
     // 3. 渲染「潘朵拉的妹妹」專屬的黑市 UI
     window.renderPandoraSisterShop = function (div) {
+        // 注入被 Tailwind 預編譯過濾掉的網格與尺寸樣式
+        if (!document.getElementById('klh-gacha-custom-style')) {
+            const style = document.createElement('style');
+            style.id = 'klh-gacha-custom-style';
+            style.textContent = `
+                .grid-cols-5 {
+                    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+                }
+                .grid-cols-10 {
+                    grid-template-columns: repeat(10, minmax(0, 1fr)) !important;
+                }
+                /* 限制 Grid 容器總寬度以確保方格緊密相鄰，並水平居中 */
+                #gacha-ten .grid {
+                    width: 256px !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                }
+                #gacha-hundred .grid {
+                    width: 248px !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                }
+                /* 寫死固定的正方形尺寸 */
+                #gacha-ten .grid > div {
+                    width: 48px !important;
+                    height: 48px !important;
+                    box-sizing: border-box !important;
+                }
+                #gacha-hundred .grid > div {
+                    width: 23px !important;
+                    height: 23px !important;
+                    box-sizing: border-box !important;
+                }
+                .gacha10-icon, .gacha100-icon {
+                    width: 100% !important;
+                    height: 100% !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                }
+                #gacha-ten .grid img,
+                #gacha-hundred .grid img {
+                    max-width: 100% !important;
+                    max-height: 100% !important;
+                    object-fit: contain !important;
+                }
+                /* 單抽外框放大，並對齊 */
+                #gacha-display {
+                    width: 180px !important;
+                    height: 180px !important;
+                }
+                /* 單抽的問號與圖片同步放大，比例更協調 */
+                #gacha-icon {
+                    font-size: 72px !important;
+                }
+                #gacha-display img {
+                    width: 130px !important;
+                    height: 130px !important;
+                    object-fit: contain !important;
+                }
+            `;
+            document.head.appendChild(style);
+        }
         if (!window._gachaMode) window._gachaMode = 'single';
         let mode = window._gachaMode;
 

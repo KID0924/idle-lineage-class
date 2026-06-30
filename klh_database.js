@@ -1354,6 +1354,31 @@
 
     // 注入雲端存檔 UI 至主畫面
     function initCloudSaveUI() {
+        // 注入被 Tailwind 預編譯過濾掉的樣式
+        if (!document.getElementById('klh-db-custom-style')) {
+            const style = document.createElement('style');
+            style.id = 'klh-db-custom-style';
+            style.textContent = `
+                #jsonblob-input {
+                    background-color: #020617 !important;
+                    border: 1px solid #334155 !important;
+                    color: #ffffff !important;
+                }
+                #jsonblob-input:focus {
+                    border-color: #eab308 !important;
+                }
+                .bg-slate-950\\/60 {
+                    background-color: rgba(2, 6, 23, 0.6) !important;
+                }
+                .bg-amber-950\\/40 {
+                    background-color: rgba(69, 26, 3, 0.4) !important;
+                }
+                .border-amber-900\\/50 {
+                    border-color: rgba(120, 53, 15, 0.5) !important;
+                }
+            `;
+            document.head.appendChild(style);
+        }
         const mainMenu = document.getElementById('main-menu');
         if (!mainMenu || document.getElementById('cloud-save-container')) return;
         if (!allowSupabase && !allowJsonBlob) return; // 雙引擎皆關閉時不顯示面版

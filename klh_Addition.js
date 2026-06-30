@@ -79,6 +79,17 @@
             #klh-junk-list-content::-webkit-scrollbar-thumb:hover {
                 background: rgba(156, 163, 175, 0.5);
             }
+
+            /* 🔧 注入被 Tailwind 預編譯過濾掉的模糊搜尋輸入框樣式 */
+            input[id^="fuzzy-sell-input-"] {
+                background-color: #020617 !important; /* bg-slate-950 */
+                border: 1px solid #334155 !important; /* border-slate-700 */
+                color: #ffffff !important;           /* text-white */
+            }
+            input[id^="fuzzy-sell-input-"]:focus {
+                border-color: #eab308 !important;     /* focus:border-yellow-500 */
+                outline: none !important;
+            }
         `;
         let style = document.createElement('style');
         style.textContent = css;
@@ -1169,6 +1180,13 @@
 
     window.renderTabs = function (force) {
         if (typeof state !== 'undefined' && state.ff) return; // 補跑期間不刷新畫面
+
+        // 🛡 保護 0: 如果使用者正聚焦在模糊搜尋輸入框中，且非強制 (force) 重建（如背景戰鬥 tick），
+        // 則直接跳過重繪，防止瀏覽器銷毀 DOM 節點導致輸入法組字狀態 (Composition State) 被打碎而卡頓。
+        let activeEl = document.activeElement;
+        if (!force && activeEl && activeEl.tagName === 'INPUT' && activeEl.id && activeEl.id.startsWith('fuzzy-sell-input-')) {
+            return;
+        }
 
         // 🛡 保護 1: 使用者正按住分頁面板（點擊中）→延後重建，避免按鈕被重繪掉而點擊失效
         if (!force && typeof _tabPointerDown !== 'undefined' && _tabPointerDown) {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>☁️ 雲端存檔匯出與備份工具</title>
+    <title>☁️ 雲端金鑰存檔匯出工具</title>
     
     <!-- 引入必要的函式庫 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -226,7 +226,7 @@
 
     <div class="container">
         <div class="header">
-            <h1 class="title">☁️ 雲端存檔匯出與備份工具</h1>
+            <h1 class="title">☁️ 雲端金鑰存檔匯出工具</h1>
             <p class="subtitle">輸入您的雲端金鑰，直接檢索並打包匯出所有角色存檔，<br>輕鬆備份與轉移您的遊戲進度！</p>
         </div>
 
@@ -404,6 +404,39 @@
             box.scrollTop = box.scrollHeight;
         }
 
+        // ==========================================
+        // 4.5 防爆破與冷卻時間邏輯 (LocalStorage 跨刷新防護)
+        // ==========================================
+        const COOLDOWN_SECONDS = 10;
+        let cooldownTimer = null;
+
+        function updateCooldownUI() {
+            const btn = document.getElementById('btn-fetch');
+            const input = document.getElementById('player-id');
+            if (!btn || !input) return;
+            const lastTime = parseInt(localStorage.getItem('klh_reincarnation_last_time') || '0', 10);
+            const now = Date.now();
+            const elapsed = Math.floor((now - lastTime) / 1000);
+            
+            if (elapsed < COOLDOWN_SECONDS) {
+                const remaining = COOLDOWN_SECONDS - elapsed;
+                btn.disabled = true;
+                input.disabled = true;
+                btn.innerHTML = `請等待 ${remaining} 秒...`;
+                if (cooldownTimer) clearTimeout(cooldownTimer);
+                cooldownTimer = setTimeout(updateCooldownUI, 1000);
+            } else {
+                btn.disabled = false;
+                input.disabled = false;
+                btn.innerHTML = "讀取並匯出";
+                if (cooldownTimer) clearTimeout(cooldownTimer);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateCooldownUI();
+        });
+
         async function startReincarnation() {
             const btn = document.getElementById('btn-fetch');
             const input = document.getElementById('player-id');
@@ -416,6 +449,19 @@
                 alert("請輸入金鑰！");
                 return;
             }
+
+            // 雙重保險：檢查 localStorage 中的冷卻時間
+            const lastTime = parseInt(localStorage.getItem('klh_reincarnation_last_time') || '0', 10);
+            const now = Date.now();
+            const elapsed = Math.floor((now - lastTime) / 1000);
+            if (elapsed < COOLDOWN_SECONDS) {
+                alert(`請求過於頻繁，請等待 ${COOLDOWN_SECONDS - elapsed} 秒後再試`);
+                return;
+            }
+
+            // 寫入 localStorage 的最新請求時間戳記 (防 F5 刷新)
+            localStorage.setItem('klh_reincarnation_last_time', Date.now().toString());
+            updateCooldownUI();
 
             // UI Reset
             btn.disabled = true;

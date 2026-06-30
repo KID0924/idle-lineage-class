@@ -403,7 +403,7 @@
                     }
                 }
             }
-            const limitText = isGM ? `(已上架: ${activeListings} 件)` : `(已上架: ${activeListings}/4)`;
+            const limitText = isGM ? `(已上架: ${activeListings} 件)` : `(已上架: ${activeListings}/10)`;
 
             const claimSection = claimableGold > 0
                 ? `<div class="mt-2 p-2 bg-emerald-950/60 border border-emerald-800 rounded flex justify-between items-center text-xs text-emerald-300 w-full">
@@ -841,8 +841,8 @@
 
                 // 🌟 交易所總商品上限 200 件判定
                 const totalListings = Object.keys(latestStock).length;
-                if (totalListings >= 200) {
-                    showToast("交易所已滿（最大容納 200 件商品），請等待他人提領釋出空間後再上架！", "error");
+                if (totalListings >= 300) {
+                    showToast("交易所已滿（最大容納 300 件商品），請等待他人提領釋出空間後再上架！", "error");
                     if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
                     return;
                 }
@@ -856,8 +856,8 @@
                             activeListings++;
                         }
                     }
-                    if (activeListings >= 4) {
-                        showToast("您已達到上架數量限制（最大 4 個商品），請先下架或提領已售罄商品！", "error");
+                    if (activeListings >= 10) {
+                        showToast("您已達到上架數量限制（最大 10 個商品），請先下架或提領已售罄商品！", "error");
                         if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
                         return;
                     }
@@ -1323,7 +1323,7 @@
                     }
                 }
             }
-            const limitText = isGM ? `(已上架: ${activeListings} 件)` : `(已上架: ${activeListings}/4)`;
+            const limitText = isGM ? `(已上架: ${activeListings} 件)` : `(已上架: ${activeListings}/10)`;
 
             const claimSection = claimableGold > 0
                 ? `<div class="mt-2 p-2 bg-emerald-950/60 border border-emerald-800 rounded flex justify-between items-center text-xs text-emerald-300 w-full">
@@ -1496,6 +1496,23 @@
                 #interaction-content input[type="text"], 
                 #interaction-content input[type="number"] {
                     font-size: 16px !important;
+                }
+                
+                /* 🔧 注入被 Tailwind 預編譯過濾掉的交易所樣式 */
+                #interaction-content input[type="text"], 
+                #interaction-content input[type="number"] {
+                    background-color: #020617 !important; /* bg-slate-950 */
+                    border: 1px solid #334155 !important; /* border-slate-700 */
+                    color: #ffffff !important;           /* text-white */
+                }
+                #interaction-content input[type="text"]:focus, 
+                #interaction-content input[type="number"]:focus {
+                    border-color: #eab308 !important;     /* focus:border-yellow-500 */
+                    outline: none !important;
+                }
+                #interaction-content input[id^="shop-qty-"] {
+                    background-color: #0f172a !important; /* bg-slate-900 */
+                    border: 1px solid #475569 !important; /* border-slate-600 */
                 }
                 
                 /* 📱 解決 iOS WebKit 的 Flexbox 折行與寬度擠壓錯位 Bug */
