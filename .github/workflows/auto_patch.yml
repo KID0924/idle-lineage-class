@@ -97,7 +97,7 @@ jobs:
           <!-- 黃金交易所/限量資源商店模組 -->
           <script src="klh_Shop.js?v=20260619_defensive"></script>
           <!-- 傭兵生存戰鬥擴充模組 -->
-          <!--script src="klh_team.js?v=20260620"></script-->
+          <script src="klh_team.js?v=20260620"></script>
           <!-- 手機觸控卡死修復 -->
           <script src="klh_touch_fix.js?v=20260621_2"></script>
           <!-- 電腦版延展介面 -->
