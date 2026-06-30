@@ -1710,8 +1710,8 @@ window.clearAllJunkPrefs = function () {
 };
 
 window.sellAllJunkFromModal = function () {
-    if (typeof window.originalSellAllJunk === 'function') {
-        window.originalSellAllJunk();
+    if (typeof window.sellAllJunk === 'function') {
+        window.sellAllJunk();
         window.renderJunkListContent();
     }
 };
@@ -1907,47 +1907,49 @@ function startupGM2() {
     }
 
     // ==========================================
-    // 17. 廢品記憶清單管理與 UI 攔截
+    // 17. 廢品記憶清單管理與 UI 攔截 (移至統計分頁，小按鈕打開)
     // ==========================================
-    if (typeof window.sellAllJunk === 'function' && !window.sellAllJunk.__klhJunkWrapped) {
-        const originalSellAllJunk = window.sellAllJunk;
-        window.originalSellAllJunk = originalSellAllJunk;
-        window.sellAllJunk = function () {
+    if (typeof window.renderAuditTab === 'function' && !window.renderAuditTab.__klhJunkAuditWrapped) {
+        const originalRenderAuditTab = window.renderAuditTab;
+        window.renderAuditTab = function () {
+            originalRenderAuditTab();
             try {
-                if (typeof window.openJunkListModal === 'function') {
-                    window.openJunkListModal();
-                    return;
+                const el = document.getElementById('tab-audit');
+                if (el && !el.classList.contains('hidden')) {
+                    const btnToggle = el.querySelector('button[onclick^="toggleAuditView"]');
+                    if (btnToggle && !el.querySelector('#btn-open-junk-modal-audit')) {
+                        const junkBtn = document.createElement('button');
+                        junkBtn.id = 'btn-open-junk-modal-audit';
+                        junkBtn.onclick = function () {
+                            if (typeof window.openJunkListModal === 'function') {
+                                window.openJunkListModal();
+                            }
+                        };
+                        
+                        const parent = btnToggle.parentNode;
+                        if (parent.classList.contains('justify-between')) {
+                            // 本圖掉落物品分頁，按鈕在 justify-between 容器下，我們建一個 flex 小容器包起來
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'flex items-center gap-2';
+                            parent.replaceChild(wrapper, btnToggle);
+                            
+                            junkBtn.className = 'btn px-3 py-1 text-xs bg-amber-900 border-amber-600 text-amber-200 font-bold';
+                            junkBtn.innerText = '廢品清單';
+                            wrapper.appendChild(junkBtn);
+                            wrapper.appendChild(btnToggle);
+                        } else {
+                            // 本圖效率統計分頁，已經在 flex items-center gap-2 容器中
+                            junkBtn.className = 'btn px-3 py-1 text-xs bg-amber-900 border-amber-600 text-amber-200 font-bold';
+                            junkBtn.innerText = '廢品清單';
+                            parent.insertBefore(junkBtn, btnToggle);
+                        }
+                    }
                 }
             } catch (e) {
-                console.error("[klh_GM2] sellAllJunk hook error:", e);
-            }
-            if (typeof window.originalSellAllJunk === 'function') {
-                window.originalSellAllJunk();
+                console.error("[klh_GM2] renderAuditTab hook error:", e);
             }
         };
-        window.sellAllJunk.__klhJunkWrapped = true;
-    }
-
-    function initJunkButton() {
-        const btn = document.getElementById('btn-sell-junk');
-        if (btn) {
-            btn.innerText = "廢品清單";
-        }
-    }
-    initJunkButton();
-
-    // 由於可能存在延遲載入或重繪，Hook updateUI 同步更新按鈕文字
-    if (typeof window.updateUI === 'function' && !window.updateUI.__klhJunkBtnWrapped) {
-        const originalUpdateUI = window.updateUI;
-        window.updateUI = function () {
-            originalUpdateUI();
-            try {
-                initJunkButton();
-            } catch (e) {
-                console.error("[klh_GM2] updateUI hook error:", e);
-            }
-        };
-        window.updateUI.__klhJunkBtnWrapped = true;
+        window.renderAuditTab.__klhJunkAuditWrapped = true;
     }
 }
 
