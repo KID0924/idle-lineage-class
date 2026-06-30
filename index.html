@@ -302,7 +302,7 @@
                 <button class="btn text-base py-2 font-bold px-0" onclick="switchTab('items', this)">道具</button>
                 <button class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #565d68 0%, #6b7280 26%, #3f4651 48%, #5a6270 72%, #313740 100%); color: #f1f5f9; border-color: #6b7280;" onclick="switchTab('audit', this)">統計</button>
                 <button id="btn-sort-inv" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #0c4a5e 0%, #0e7490 28%, #0a3d4d 52%, #11657e 76%, #093440 100%); color: #a5f3fc; border-color: #0891b2;" onclick="sortInventory()">一鍵排列</button>
-                <button id="btn-sell-junk" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #6b2a10 0%, #b3490e 28%, #5a230e 52%, #9a3e0c 76%, #4a1d0c 100%); color: #fed7aa; border-color: #c2410c;" onclick="sellAllJunk()">賣出廢品</button>
+                <button id="btn-collection" class="btn text-base py-2 font-bold px-0" style="background: linear-gradient(135deg, #4a2f0c 0%, #b3850e 28%, #3f2a0c 52%, #9a720c 76%, #2e2008 100%); color: #fde68a; border-color: #d4a017;" onclick="openCollectionPanel()">收藏</button>
             </div>
 
             <div id="tab-content-panel" class="panel flex-1 flex flex-col overflow-hidden relative">
@@ -398,6 +398,33 @@
         </div>
     </div>
 
+    <!-- 🧰 道具收集冊 全螢幕書頁 -->
+    <div id="misc-book" class="hidden fixed inset-0 z-[45] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3" onclick="miscBookBackdrop(event)">
+        <div class="w-full max-w-5xl max-h-[92vh] flex flex-col bg-slate-900/95 rounded-2xl border-2 border-amber-900/60 shadow-[0_0_60px_rgba(0,0,0,0.85)] overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-gradient-to-b from-[#3a2f12] to-[#241c0c]">
+                <h2 class="text-2xl font-bold text-amber-300 tracking-wide">🧰 道具收集冊</h2>
+                <button onclick="closeMiscBook()" class="btn px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border-slate-500 text-slate-200 font-bold">✕ 關閉</button>
+            </div>
+            <div id="misc-book-tabs" class="flex flex-wrap gap-1.5 px-4 py-2.5 border-b border-slate-700 bg-slate-900/80"></div>
+            <div id="misc-book-body" class="flex-1 overflow-y-auto p-4"></div>
+        </div>
+    </div>
+
+    <!-- 📦 收藏面板（裝備 / 道具 / 怪物 三大入口）-->
+    <div id="collection-panel" class="hidden fixed inset-0 z-[46] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onclick="collectionPanelBackdrop(event)">
+        <div class="w-full max-w-sm flex flex-col bg-slate-900/95 rounded-2xl border-2 border-amber-700/60 shadow-[0_0_60px_rgba(0,0,0,0.85)] overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-gradient-to-b from-[#3a2f12] to-[#241c0c]">
+                <h2 class="text-2xl font-bold text-amber-300 tracking-wide">📦 收藏</h2>
+                <button onclick="closeCollectionPanel()" class="btn px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border-slate-500 text-slate-200 font-bold">✕</button>
+            </div>
+            <div class="flex flex-col gap-3 p-5">
+                <button onclick="collectionOpenEquip()" class="btn py-5 text-xl font-bold" style="background: linear-gradient(135deg, #10283a, #1d4ed8); color: #bfdbfe; border-color: #3b82f6;">🗡️ 裝備</button>
+                <button onclick="collectionOpenMisc()" class="btn py-5 text-xl font-bold" style="background: linear-gradient(135deg, #3a2f12, #b3850e); color: #fde68a; border-color: #d4a017;">🧰 道具</button>
+                <button onclick="collectionOpenCard()" class="btn py-5 text-xl font-bold" style="background: linear-gradient(135deg, #3a1230, #a21caf); color: #f5d0fe; border-color: #c026d3;">🎴 怪物</button>
+            </div>
+        </div>
+    </div>
+
 <script src="js/00-data.js"></script>
 <script src="js/01-drops-config.js"></script>
 <script src="js/02-stats-recompute.js"></script>
@@ -415,29 +442,30 @@
 <script src="js/14-craft-pandora.js"></script>
 <script src="js/15-cards.js"></script>
 <script src="js/16-equip-book.js"></script>
+<script src="js/18-misc-book.js"></script>
 <script src="js/17-audio.js"></script>
 
 <!-- pp771007 -->
 <!-- 離線掛機外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606292059"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-offline.js?v=202606300808"></script>
 <!-- 手機版介面外掛(可獨立維護;原作者更新後重新加回此行即可) -->      
-<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606292059"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-mobile.js?v=202606300808"></script>
 <!-- 怪物/掉落查詢外掛(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606292059"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-dex.js?v=202606300808"></script>
 <!-- 小百科外掛(專精/武器特性/職業魔法;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606292059"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-wiki.js?v=202606300808"></script>
 <!-- 通用修正外掛(補原作者坑,桌機/手機通用;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606292059"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-fixes.js?v=202606300808"></script>
 <!-- 背景大圖快取 Service Worker 註冊(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606292059"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-sw.js?v=202606300808"></script>
 <!-- 手機 toast 提示(點按鈕的系統日誌訊息浮現;可獨立維護,原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606292059"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-toast.js?v=202606300808"></script>
 <!-- 統一自製彈窗:全域接管 window.alert(可獨立維護;原作者更新後重新加回此行即可) -->
-<!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v=202606292059"></script-->
+<!--script src="https://pp771007.github.io/idle-lineage-class/afk-ui.js?v=202606300808"></script-->
 <!-- 能力值面板補點數分解 始/升/藥/總(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v=202606292059"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-statpts.js?v=202606300808"></script>
 <!-- 外掛自動購買:肉 / 魔法屏障卷軸(可獨立維護;原作者更新後重新加回此行即可) -->
-<script src="https://pp771007.github.io/idle-lineage-class/afk-autobuy.js?v=202606292059"></script>
+<script src="https://pp771007.github.io/idle-lineage-class/afk-autobuy.js?v=202606300808"></script>
 
 
 <!-- 整合外掛補丁模組 -->
@@ -471,7 +499,7 @@
       footer.style.marginTop = '10px';
       footer.style.lineHeight = '1.6';
       
-      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/30 04:59';
+      footer.innerHTML = '原作者：秋玥 <span style="margin:0 6px;opacity:0.6;">·</span> 原版最後同步：2026/06/30 16:08';
       menu.appendChild(footer);
     } else {
       console.warn("找不到 #main-menu，時間戳記外掛潛水去啦~");
