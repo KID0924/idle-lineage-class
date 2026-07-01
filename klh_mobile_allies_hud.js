@@ -325,6 +325,31 @@
                     color: #64748b;
                     pointer-events: none;
                 }
+
+                /* 方案 A 的 CSS 增強 */
+                /* 1. 卡片冷卻遮罩效果 */
+                .hud-item.hud-item-cooldown {
+                    position: relative;
+                }
+                .hud-item.hud-item-cooldown::after {
+                    content: '';
+                    position: absolute;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0, 0, 0, 0.35); /* 半透明暗色遮罩 */
+                    border-radius: 6px;
+                    z-index: 5;
+                    pointer-events: none; /* 僅作視覺遮罩，讓滑鼠事件仍由卡片接收（維持拖曳功能） */
+                }
+
+                /* 2. 餵藥按鈕冷卻樣式 */
+                .hud-pot-btn.hud-pot-cd {
+                    background: rgba(244, 63, 94, 0.2) !important;
+                    border-color: rgba(244, 63, 94, 0.4) !important;
+                    color: #f43f5e !important;
+                    font-size: 8px !important;
+                    font-weight: bold !important;
+                    min-width: 24px;
+                }
             `;
             document.head.appendChild(style);
         } catch (e) {
@@ -569,7 +594,7 @@
                                     <span class="hud-name">${name}</span>
                                     <div class="hud-meta-right">
                                         <span id="hud-lv-txt-${s}" class="hud-lv">Lv.${lv}</span>
-                                        <button class="hud-pot-btn hud-no-drag" onclick="window.tryFeedPotion('${s}')" title="手動使用隊長設定的藥水">🍶</button>
+                                        <button id="hud-pot-btn-${s}" class="hud-pot-btn hud-no-drag" onclick="window.tryFeedPotion('${s}')" title="手動使用隊長設定的藥水">🍶</button>
                                     </div>
                                 </div>
                                 <!-- HP 條 (保留文字覆蓋) -->
@@ -694,6 +719,25 @@
                         if (hpTxt) hpTxt.textContent = `${curHp}/${maxHp}`;
                         if (mpFill) mpFill.style.width = mpPct + '%';
                         if (mpTxt) mpTxt.textContent = `${curMp}/${maxMp}`;
+
+                        // 更新藥水冷卻狀態 (方案 C)
+                        const cd = a._potCd || 0;
+                        const itemEl = document.querySelector(`.hud-item[data-slot="${s}"]`);
+                        const potBtn = document.getElementById('hud-pot-btn-' + s);
+                        
+                        if (cd > 0) {
+                            if (itemEl) itemEl.classList.add('hud-item-cooldown');
+                            if (potBtn) {
+                                potBtn.classList.add('hud-pot-cd');
+                                potBtn.textContent = (cd / 10).toFixed(1) + 's';
+                            }
+                        } else {
+                            if (itemEl) itemEl.classList.remove('hud-item-cooldown');
+                            if (potBtn) {
+                                potBtn.classList.remove('hud-pot-cd');
+                                potBtn.textContent = '🍶';
+                            }
+                        }
                     }
                 });
             }
@@ -753,6 +797,8 @@
             
             ally.curHp = Math.min(ally.mhp || 1, (ally.curHp || 0) + h);
             ally._potCd = 10; // 10 ticks = ~1秒冷卻，比照自動吃藥冷卻
+
+
 
             // 6. 輸出戰鬥對話與介面更新
             if (typeof logCombat === 'function') {
