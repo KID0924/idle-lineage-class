@@ -1417,11 +1417,24 @@
         window.__klh_save_game_db_wrapped = true;
         const originalSaveGame = window.saveGame;
         window.saveGame = async function (isManual = false) {
-            try { await originalSaveGame(isManual); } catch (e) { console.error("[KLH] originalSaveGame error:", e); }
+            // 💡 動態偵測手動點擊：如果點擊了名為「存檔」或「儲存」的按鈕，自動判定為手動儲存，以啟用雲端同步彈窗
+            let manual = isManual;
+            if (!manual && typeof window !== 'undefined' && window.event && window.event.type === 'click') {
+                const target = window.event.target;
+                if (target) {
+                    const btn = target.closest('button');
+                    const text = (btn ? btn.textContent : target.textContent) || '';
+                    if (text.includes('存檔') || text.includes('儲存')) {
+                        manual = true;
+                    }
+                }
+            }
+
+            try { await originalSaveGame(manual); } catch (e) { console.error("[KLH] originalSaveGame error:", e); }
             try {
                 const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
-                if (storageMode === 'supabase' && allowSupabase) { if (typeof window.uploadToSupabase === 'function') return await window.uploadToSupabase(isManual); }
-                else if (storageMode === 'cloud' && allowJsonBlob) { if (typeof window.uploadToCloud === 'function') return await window.uploadToCloud(isManual); }
+                if (storageMode === 'supabase' && allowSupabase) { if (typeof window.uploadToSupabase === 'function') return await window.uploadToSupabase(manual); }
+                else if (storageMode === 'cloud' && allowJsonBlob) { if (typeof window.uploadToCloud === 'function') return await window.uploadToCloud(manual); }
             } catch (e) { console.error("[KLH] saveGame post-hook upload error:", e); }
         };
     }
