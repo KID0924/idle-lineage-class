@@ -35,7 +35,7 @@
     // 3 = 雙引擎皆啟用 (Supabase + JSONBlob)
     // 4 = 雙引擎皆關閉 (僅留本地儲存)
     // ==========================================================================
-    const ENGINE_SWITCH = 3;
+    const ENGINE_SWITCH = 2;
 
     const allowSupabase = (ENGINE_SWITCH === 1 || ENGINE_SWITCH === 3);
     const allowJsonBlob = (ENGINE_SWITCH === 2 || ENGINE_SWITCH === 3);
@@ -344,46 +344,7 @@
     // 1. 動態存檔位偵測與全域註冊
     // ==========================================
     function getMaxSaveSlot() {
-        if (window._klhMaxSaveSlotCache && (Date.now() - window._klhMaxSaveSlotCache.time < 10000)) {
-            return window._klhMaxSaveSlotCache.value;
-        }
-        let maxSlot = 6;
-        if (typeof window.anySaveExists === 'function') {
-            try {
-                const code = window.anySaveExists.toString();
-                const match = code.match(/\[([\s\S]*?)\]/);
-                if (match && match[1]) {
-                    const items = match[1].split(',').map(s => s.trim().replace(/['"`]/g, ''));
-                    const nums = items.map(Number).filter(n => !isNaN(n) && n > 0);
-                    if (nums.length > 0) maxSlot = Math.max(maxSlot, ...nums);
-                }
-            } catch (e) { console.error("[KLH] 讀取 anySaveExists 失敗:", e); }
-        }
-        if (typeof window.openSlotSelect === 'function') {
-            try {
-                const code = window.openSlotSelect.toString();
-                const match = code.match(/n\s*<=\s*(\d+)/);
-                if (match && match[1]) {
-                    const parsedVal = parseInt(match[1], 10);
-                    if (!isNaN(parsedVal) && parsedVal > 0) maxSlot = Math.max(maxSlot, parsedVal);
-                }
-            } catch (e) { console.error("[KLH] 讀取 openSlotSelect 失敗:", e); }
-        }
-        try {
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && key.startsWith('lineage_idle_save_')) {
-                    const suffix = key.substring('lineage_idle_save_'.length);
-                    const numMatch = suffix.match(/^(\d+)/);
-                    if (numMatch) {
-                        const parsedVal = parseInt(numMatch[1], 10);
-                        if (!isNaN(parsedVal) && parsedVal > 0) maxSlot = Math.max(maxSlot, parsedVal);
-                    }
-                }
-            }
-        } catch (e) { console.error("[KLH] 掃描 localStorage 失敗:", e); }
-        window._klhMaxSaveSlotCache = { value: maxSlot, time: Date.now() };
-        return maxSlot;
+        return 16;
     }
     window.getMaxSaveSlot = getMaxSaveSlot;
 
@@ -960,7 +921,9 @@
         const inputEl = document.getElementById('jsonblob-input');
         if (inputEl) {
             let key = inputEl.value.trim();
-            if (!window.isValidUuid(key)) { window.showToast('金鑰格式錯誤！', 'error'); return; }
+            const match = key.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+            if (match) key = match[1];
+            if (!window.isValidUuid(key)) { window.showToast('格式錯誤！', 'error'); return; }
             window.saveJsonBlobConfig(key);
             localStorage.setItem('klh_storage_mode', 'cloud');
             window.updateStorageModeUI();
@@ -971,7 +934,9 @@
         const inputEl = document.getElementById('jsonblob-input');
         if (inputEl) {
             let key = inputEl.value.trim();
-            if (!window.isValidUuid(key)) { window.showToast('金鑰格式錯誤！', 'error'); return; }
+            const match = key.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+            if (match) key = match[1];
+            if (!window.isValidUuid(key)) { window.showToast('格式錯誤！', 'error'); return; }
             window.saveJsonBlobConfig(key);
             localStorage.setItem('klh_storage_mode', 'cloud');
             window.updateStorageModeUI();
@@ -1014,12 +979,12 @@
 
     function generatePlayerID() {
         const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-        let result = '';
+        let result = '*';
         if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
-            const arr = new Uint8Array(12); crypto.getRandomValues(arr);
-            for (let i = 0; i < 12; i++) result += chars.charAt(arr[i] % chars.length);
+            const arr = new Uint8Array(15); crypto.getRandomValues(arr);
+            for (let i = 0; i < 15; i++) result += chars.charAt(arr[i] % chars.length);
         } else {
-            for (let i = 0; i < 12; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+            for (let i = 0; i < 15; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         return result;
     }
@@ -1190,7 +1155,7 @@
         const inputEl = document.getElementById('jsonblob-input');
         if (inputEl) {
             let key = inputEl.value.trim();
-            if (key.length !== 12) { window.showToast('金鑰格式錯誤！必須為 12 碼英數字', 'error'); return; }
+            if (key.length < 12 || key.length > 16) { window.showToast('金鑰格式錯誤！必須為 12~16 碼', 'error'); return; }
             isSupabaseLoggingIn = true;
             window.showLoadingOverlay('安全驗證中，請稍候...');
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1269,7 +1234,8 @@
                 if (btnLocal) btnLocal.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-indigo-700 hover:bg-indigo-600 text-white font-bold border-indigo-500 whitespace-nowrap';
                 if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
-                if (inputEl) { inputEl.placeholder = '請輸入雲端金鑰'; const isPublic = PUBLIC_KEYS.some(k => k.toLowerCase() === normalized); inputEl.value = isPublic ? '' : (window.activeKey || ''); }
+                if (inputEl) { inputEl.placeholder = '支援貼上 Jsonblob 網址或序號'; const isPublic = PUBLIC_KEYS.some(k => k.toLowerCase() === normalized); inputEl.value = isPublic ? '' : (window.activeKey || ''); }
+                const hintEl = document.getElementById('jsonblob-hint'); if (hintEl) hintEl.style.display = 'block';
                 if (readBtn) { readBtn.innerText = '登入'; readBtn.setAttribute('onclick', 'handleCloudSaveReadClick()'); readBtn.className = 'btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold'; }
             } else if (mode === 'supabase') {
                 const sKey = localStorage.getItem('klh_supabase_key') || '';
@@ -1284,7 +1250,8 @@
                 if (btnLocal) btnLocal.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-cyan-700 hover:bg-cyan-600 text-white font-bold border-cyan-500 whitespace-nowrap';
-                if (inputEl) { inputEl.placeholder = '請輸入 12 碼雲端金鑰'; inputEl.value = sKey; }
+                if (inputEl) { inputEl.placeholder = '請輸入 12~16 碼雲端金鑰'; inputEl.value = sKey; }
+                const hintEl = document.getElementById('jsonblob-hint'); if (hintEl) hintEl.style.display = 'none';
                 if (readBtn) { readBtn.innerText = '登入'; readBtn.setAttribute('onclick', 'handleSupabaseReadClick()'); readBtn.className = 'btn w-full py-2.5 text-sm bg-cyan-700 hover:bg-cyan-600 border-cyan-500 font-bold'; }
             } else {
                 modeTextEl.innerHTML = `<span class="text-green-400 font-bold">本地模式</span>`;
@@ -1459,6 +1426,13 @@
                 <div class="flex gap-1.5 w-full">${buttonsHtml}</div>
                 <div id="cloud-settings-section" class="flex flex-col gap-3 border-t border-slate-800 pt-3" style="display: none;">
                     <input id="jsonblob-input" type="text" oninput="this.classList.remove('text-white/50'); this.classList.add('text-white');" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
+                    <div id="jsonblob-hint" class="text-[11px] text-slate-400 text-left -mt-1 leading-relaxed bg-slate-900/50 p-2 rounded" style="display: none;">
+                        請至 <a href="https://jsonblob.com" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline font-bold">JSONBlob 官網</a> 註冊後，點擊Clear再點擊 Save 建立專屬網址。<br>
+                        支援輸入以下 3 種格式：<br>
+                        <span class="text-slate-500 font-mono text-[10px]">1. 序號：019f3dad-406e-7673-b9df-8594bd436b9c<br>
+                        2. 網址：https://jsonblob.com/019f3dad-406e-7673...<br>
+                        3. API：https://jsonblob.com/019f3dad-406e-7673.../json</span>
+                    </div>
                     <div class="w-full"><button id="btn-cloud-read" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold"></button></div>
                     <div id="klh-restore-key-container" class="w-full"></div>
                     <div id="klh-quick-keys-header" class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>

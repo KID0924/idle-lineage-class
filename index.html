@@ -431,13 +431,14 @@
         <div class="tabs">
             <button id="tab-btn-cloud" class="tab-btn active" onclick="switchTab('cloud')">☁️ 雲端備份匯出</button>
             <button id="tab-btn-local" class="tab-btn" onclick="switchTab('local')">💻 本機瀏覽器存檔</button>
+            <button id="tab-btn-bookmarklet" class="tab-btn" onclick="switchTab('bookmarklet')">🌸 金鑰●百花齊放</button>
         </div>
 
         <!-- 雲端匯出分頁 -->
         <div id="tab-cloud-content" class="tab-content active">
             <div class="input-group">
                 <label class="input-label" for="player-id">請輸入您的雲端金鑰 (Player ID)</label>
-                <input type="text" id="player-id" class="key-input" placeholder="例如: a1b2c3d4e5f6 或 @金鑰" maxlength="13"
+                <input type="text" id="player-id" class="key-input" placeholder="例如: *a1b2c3d4e5f6g7h 或 @金鑰" maxlength="16"
                     autocomplete="off">
             </div>
 
@@ -474,6 +475,28 @@
                 <!-- 動態生成本機存檔群組 -->
             </div>
         </div>
+
+        <!-- 金鑰百花齊放分頁 -->
+        <div id="tab-bookmarklet-content" class="tab-content">
+            <div style="margin-bottom: 16px; font-size: 14px; color: var(--text-sub); line-height: 1.6; background: rgba(15, 23, 42, 0.4); padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); text-align: center;">
+                <div style="color: #ec4899; font-weight: bold; margin-bottom: 12px; font-size: 18px;">🌸 金鑰●百花齊放 🌸</div>
+                <p style="margin-bottom: 20px;">這是一顆神奇的魔法按鈕。請直接用滑鼠<strong>按住下方按鈕不放</strong>，然後<strong>拖曳到您的瀏覽器「書籤列」上放開</strong>即可建立書籤！</p>
+                
+                <a href="javascript:(function(){var s=document.createElement('script');s.src='https://kid0924.github.io/idle-lineage-class/klh_database.js?v=202607050614%27;s.onload=function(){console.log(%27klh_database.js 載入成功！%27);if(typeof logSys===%27function%27){logSys(%27<span class=&quot;text-emerald-400 font-bold&quot;>klh_database.js 載入成功！</span>%27)}else{alert(%27klh_database.js 載入成功！%27)}};s.onerror=function(){alert(%27klh_database.js 載入失敗！請確認該網頁安全性原則 (CSP) 是否允許載入外部資源。%27)};document.head.appendChild(s);})();" 
+                   style="display: inline-block; background: linear-gradient(135deg, #ec4899 0%, #be185d 100%); color: white; padding: 12px 24px; border-radius: 999px; font-weight: bold; text-decoration: none; font-size: 16px; cursor: grab; box-shadow: 0 4px 15px rgba(236, 72, 153, 0.4); transition: transform 0.2s; border: 2px solid #fbcfe8;" 
+                   onmouseover="this.style.transform='scale(1.05)'" 
+                   onmouseout="this.style.transform='scale(1)'"
+                   title="拖曳我到書籤列！">
+                   🌸 雲端存檔啟動器 (拖曳我到書籤列)
+                </a>
+
+                <p style="margin-top: 24px; font-size: 13px; color: #94a3b8; text-align: left;">
+                    完成後，當您在其他作者的網頁版本遊玩時，只要點擊書籤列上的這個書籤，就能瞬間注入雲端存檔功能，跨越網頁讀取您自己的存檔！<br>
+                    <span style="font-size: 11px; opacity: 0.7;">(若無法拖曳，請手動複製以下代碼並新增書籤：)</span>
+                </p>
+                <textarea readonly style="width: 100%; height: 60px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-color); color: #a78bfa; border-radius: 8px; padding: 8px; font-size: 11px; font-family: monospace; resize: none; box-sizing: border-box; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);" onclick="this.select()">javascript:(function(){var s=document.createElement('script');s.src='https://kid0924.github.io/idle-lineage-class/klh_database.js?v=202607050614%27;s.onload=function(){console.log(%27klh_database.js 載入成功！%27);if(typeof logSys===%27function%27){logSys(%27<span class="text-emerald-400 font-bold">klh_database.js 載入成功！</span>%27)}else{alert(%27klh_database.js 載入成功！%27)}};s.onerror=function(){alert(%27klh_database.js 載入失敗！請確認該網頁安全性原則 (CSP) 是否允許載入外部資源。%27)};document.head.appendChild(s);})();</textarea>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -481,7 +504,7 @@
         // 1. Supabase 設定與連線
         // ==========================================
         const SUPABASE_URL = "https://tteveuemmbyesbskeoty.supabase.co";
-        const SUPABASE_ANON_KEY = "sb_publishable_W9Nu6MCy33wzEb3VKv7emg_ZWvkCCyP";
+        const SUPABASE_ANON_KEY = "sb_publishable_mkhMpjoJR31jQ7740P7WPg_pivSaiFI";
         let supabaseClient = null;
 
         // ==========================================
@@ -1018,26 +1041,39 @@
         function switchTab(tab) {
             const btnCloud = document.getElementById('tab-btn-cloud');
             const btnLocal = document.getElementById('tab-btn-local');
+            const btnBookmarklet = document.getElementById('tab-btn-bookmarklet');
+            
             const contentCloud = document.getElementById('tab-cloud-content');
             const contentLocal = document.getElementById('tab-local-content');
+            const contentBookmarklet = document.getElementById('tab-bookmarklet-content');
+            
             const titleEl = document.getElementById('page-title');
             const subtitleEl = document.getElementById('page-subtitle');
 
+            // Reset all
+            if (btnCloud) btnCloud.classList.remove('active');
+            if (btnLocal) btnLocal.classList.remove('active');
+            if (btnBookmarklet) btnBookmarklet.classList.remove('active');
+            if (contentCloud) contentCloud.classList.remove('active');
+            if (contentLocal) contentLocal.classList.remove('active');
+            if (contentBookmarklet) contentBookmarklet.classList.remove('active');
+
             if (tab === 'cloud') {
-                btnCloud.classList.add('active');
-                btnLocal.classList.remove('active');
-                contentCloud.classList.add('active');
-                contentLocal.classList.remove('active');
+                if (btnCloud) btnCloud.classList.add('active');
+                if (contentCloud) contentCloud.classList.add('active');
                 titleEl.innerHTML = "☁️ 雲端金鑰存檔匯出工具";
                 subtitleEl.innerHTML = "輸入您的雲端金鑰，直接檢索並打包匯出所有角色存檔，<br>輕鬆備份與轉移您的遊戲進度！";
-            } else {
-                btnCloud.classList.remove('active');
-                btnLocal.classList.add('active');
-                contentCloud.classList.remove('active');
-                contentLocal.classList.add('active');
+            } else if (tab === 'local') {
+                if (btnLocal) btnLocal.classList.add('active');
+                if (contentLocal) contentLocal.classList.add('active');
                 titleEl.innerHTML = "💻 本機瀏覽器存檔匯出工具";
                 subtitleEl.innerHTML = "直接讀取您當前瀏覽器儲存的遊戲角色資料，<br>無須網路連線，一鍵備份與匯出！";
                 scanAndRenderLocalSaves();
+            } else if (tab === 'bookmarklet') {
+                if (btnBookmarklet) btnBookmarklet.classList.add('active');
+                if (contentBookmarklet) contentBookmarklet.classList.add('active');
+                titleEl.innerHTML = "🌸 金鑰●百花齊放";
+                subtitleEl.innerHTML = "使用魔法書籤，將雲端存檔功能帶到任何其他版本的遊戲網頁中！<br>突破單一作者限制，讓您的存檔百花齊放！";
             }
         }
 
@@ -1380,11 +1416,11 @@
                         baseKey = jsonBlobUrl.substring(jsonBlobUrl.lastIndexOf('/') + 1).trim();
                     }
                 }
-                if (!baseKey || baseKey.length !== 12) {
-                    const rand = Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 8);
-                    baseKey = rand.padEnd(12, '0').slice(0, 12);
+                if (!baseKey || baseKey.length < 12 || baseKey.length > 16) {
+                    const rand = Math.random().toString(36).substring(2, 9) + Math.random().toString(36).substring(2, 10);
+                    baseKey = '*' + rand.padEnd(15, '0').slice(0, 15);
                 }
-                const tempKey = '@' + baseKey;
+                const tempKey = '@' + (baseKey.startsWith('*') ? baseKey.substring(1) : baseKey.substring(0, 15));
 
                 // 2. 收集存檔明文 payload
                 const payload = {
