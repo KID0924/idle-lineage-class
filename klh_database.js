@@ -39,7 +39,7 @@
     // 7 = 全引擎皆啟用 (Supabase + JSONBlob + Firebase)
     // 8 = 全引擎皆關閉 (僅留本地儲存)
     // ==========================================================================
-    const ENGINE_SWITCH = 7;
+    const ENGINE_SWITCH = 6;
 
     const allowSupabase = (ENGINE_SWITCH === 1 || ENGINE_SWITCH === 4 || ENGINE_SWITCH === 5 || ENGINE_SWITCH === 7);
     const allowJsonBlob = (ENGINE_SWITCH === 2 || ENGINE_SWITCH === 4 || ENGINE_SWITCH === 6 || ENGINE_SWITCH === 7);
