@@ -35,7 +35,7 @@
     // 3 = 雙引擎皆啟用 (Supabase + JSONBlob)
     // 4 = 雙引擎皆關閉 (僅留本地儲存)
     // ==========================================================================
-    const ENGINE_SWITCH = 2;
+    const ENGINE_SWITCH = 3;
 
     const allowSupabase = (ENGINE_SWITCH === 1 || ENGINE_SWITCH === 3);
     const allowJsonBlob = (ENGINE_SWITCH === 2 || ENGINE_SWITCH === 3);
@@ -326,16 +326,16 @@
         };
     })();
 
-    // Supabase 壓縮存檔解壓輔助函式
-    function decompressSupabasePayload(data) {
+    // 雲端存檔解壓輔助函式
+    function decompressCloudPayload(data) {
         if (data && typeof data === 'object' && data.__compressed__ === true && typeof data.data === 'string') {
             try {
                 const decompressed = LZString.decompressFromBase64(data.data);
-                if (!decompressed) { console.error("[Supabase] LZ-String 解壓失敗：結果為空"); return null; }
+                if (!decompressed) { console.error("[雲端存檔] LZ-String 解壓失敗：結果為空"); return null; }
                 const parsed = JSON.parse(decompressed);
-                console.log("[Supabase] 成功解壓縮雲端存檔 (壓縮長度:", data.data.length, "→ 還原長度:", decompressed.length, ")");
+                console.log("[雲端存檔] 成功解壓縮雲端存檔 (壓縮長度:", data.data.length, "→ 還原長度:", decompressed.length, ")");
                 return parsed;
-            } catch (e) { console.error("[Supabase] 解壓縮或 JSON 解析失敗:", e); return null; }
+            } catch (e) { console.error("[雲端存檔] 解壓縮或 JSON 解析失敗:", e); return null; }
         }
         return data;
     }
@@ -826,7 +826,10 @@
         }
         if (isManual) window.showLoadingOverlay('正在上傳雲端存檔中...');
         try {
-            const res = await fetchWithProxy(targetUrl, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const payloadStr = JSON.stringify(payload);
+            const compressed = LZString.compressToBase64(payloadStr);
+            const uploadBody = { __compressed__: true, data: compressed };
+            const res = await fetchWithProxy(targetUrl, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(uploadBody) });
             if (res.ok) {
                 const activeKeyLower = (window.activeKey || "").trim().toLowerCase();
                 if (window.isValidUuid(window.activeKey) && !PUBLIC_KEYS.includes(activeKeyLower)) localStorage.setItem('klh_custom_key', window.activeKey.trim());
@@ -850,7 +853,8 @@
             if (res.status === 200) {
                 const currentMode = originalGetItem.call(localStorage, 'klh_storage_mode') || 'local';
                 if (currentMode !== 'cloud') return;
-                const payload = await res.json();
+                const rawPayload = await res.json();
+                const payload = decompressCloudPayload(rawPayload);
                 if (payload) {
                     const activeKeyLower = (window.activeKey || "").trim().toLowerCase();
                     if (window.isValidUuid(window.activeKey) && !PUBLIC_KEYS.includes(activeKeyLower)) localStorage.setItem('klh_custom_key', window.activeKey.trim());
@@ -1039,7 +1043,7 @@
             }
             const currentMode = localStorage.getItem('klh_storage_mode') || 'local';
             if (currentMode !== 'supabase') return;
-            const payload = decompressSupabasePayload(rawData);
+            const payload = decompressCloudPayload(rawData);
             const maxSlots_sync = getMaxSaveSlot();
             for (let n = 1; n <= maxSlots_sync; n++) {
                 const val = payload['save_' + n];
