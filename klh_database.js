@@ -348,13 +348,7 @@
     }
     window.getMaxSaveSlot = getMaxSaveSlot;
 
-    // 每次重置防呆：防止重開網頁時自動進入 jsonblob 模式，自動退回到 supabase 雲端金鑰模式
-    try {
-        const storedMode = localStorage.getItem('klh_storage_mode');
-        if (storedMode === 'cloud') {
-            localStorage.setItem('klh_storage_mode', 'supabase');
-        }
-    } catch (e) {}
+
 
     // ==========================================
     // 2. localStorage 模式隔離代理 (Storage.prototype)
@@ -776,36 +770,14 @@
         return `${window.DEFAULT_CLOUD_URL}/${key}`;
     }
 
-    // CORS Proxy 請求封裝
+    // API 請求封裝 (依據使用者要求全面改為直接連線，移除代理備援機制)
     async function fetchWithProxy(targetUrl, options = {}) {
-        const method = options.method || 'GET';
-        const customProxy = localStorage.getItem('klh_custom_proxy') || "";
-        const isFileProtocol = window.location.protocol === 'file:';
-
-        async function tryDirect() {
-            if (isFileProtocol) throw new Error("File protocol forces proxy.");
-            const res = await fetch(targetUrl, options);
-            if (res.ok) { res.connectionMethod = "直接連線"; return res; }
-            throw new Error(`Direct connection returned status ${res.status}`);
+        const res = await fetch(targetUrl, options);
+        if (res.ok || res.status === 200 || res.status === 201) { 
+            res.connectionMethod = "直接連線"; 
+            return res; 
         }
-        async function tryProxy() {
-            if (!customProxy.trim()) throw new Error("No custom proxy defined.");
-            let p = customProxy.trim();
-            if (!p.endsWith('/')) p += '/';
-            const proxyUrl = p + targetUrl;
-            const fetchOptions = method === 'PUT' ? { ...options, mode: 'cors' } : options;
-            const res = await fetch(proxyUrl, fetchOptions);
-            if (res.status === 200 || res.status === 201 || res.ok) { res.connectionMethod = "主要代理"; return res; }
-            throw new Error(`Proxy connection returned status ${res.status}`);
-        }
-
-        if (isFileProtocol) {
-            try { return await tryProxy(); }
-            catch (err) { try { return await tryDirect(); } catch (err2) { throw err2; } }
-        } else {
-            try { return await tryDirect(); }
-            catch (err) { try { return await tryProxy(); } catch (err2) { throw err2; } }
-        }
+        throw new Error(`Direct connection returned status ${res.status}`);
     }
 
     window.saveJsonBlobConfig = function (key, remember = true) {
@@ -1236,6 +1208,7 @@
                 if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (inputEl) { inputEl.placeholder = '支援貼上 Jsonblob 網址或序號'; const isPublic = PUBLIC_KEYS.some(k => k.toLowerCase() === normalized); inputEl.value = isPublic ? '' : (window.activeKey || ''); }
                 const hintEl = document.getElementById('jsonblob-hint'); if (hintEl) hintEl.style.display = 'block';
+                const sHintEl = document.getElementById('supabase-hint'); if (sHintEl) sHintEl.style.display = 'none';
                 if (readBtn) { readBtn.innerText = '登入'; readBtn.setAttribute('onclick', 'handleCloudSaveReadClick()'); readBtn.className = 'btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold'; }
             } else if (mode === 'supabase') {
                 const sKey = localStorage.getItem('klh_supabase_key') || '';
@@ -1252,6 +1225,7 @@
                 if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-cyan-700 hover:bg-cyan-600 text-white font-bold border-cyan-500 whitespace-nowrap';
                 if (inputEl) { inputEl.placeholder = '請輸入 12~16 碼雲端金鑰'; inputEl.value = sKey; }
                 const hintEl = document.getElementById('jsonblob-hint'); if (hintEl) hintEl.style.display = 'none';
+                const sHintEl = document.getElementById('supabase-hint'); if (sHintEl) sHintEl.style.display = 'block';
                 if (readBtn) { readBtn.innerText = '登入'; readBtn.setAttribute('onclick', 'handleSupabaseReadClick()'); readBtn.className = 'btn w-full py-2.5 text-sm bg-cyan-700 hover:bg-cyan-600 border-cyan-500 font-bold'; }
             } else {
                 modeTextEl.innerHTML = `<span class="text-green-400 font-bold">本地模式</span>`;
@@ -1280,29 +1254,29 @@
             }
         }
 
-        // 快速公用金鑰清單
+        // 快速公用金鑰清單 (依據使用者要求全部隱藏)
         if (quickKeysHeader && quickKeysList) {
-            if (mode === 'cloud' && allowJsonBlob) {
-                quickKeysHeader.style.display = 'block';
-                quickKeysList.style.display = 'flex';
-                const showLock = (typeof window.openGMShop === 'function') ? '' : '🔒固定';
-                let html = '';
-                quickKeysHeader.innerHTML = `<div class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div><div class="text-[11px] text-rose-400 font-bold mt-1 mb-2 leading-normal text-left border border-rose-950/40 bg-rose-950/20 p-2 rounded">⚠️ 此為諸神共用殿堂，存檔隨時可能被覆蓋！推薦使用本機專屬金鑰。</div>`;
-                html += `<div id="klh-custom-key-btn-container" class="flex flex-col gap-1.5 w-full"></div>`;
-                const cloudKeys = [
-                    { idx: 1, name: "水蛇許德拉", key: "019ed445-679f-7ae4-9f05-f887591d1266", color: "text-sky-300", suffix: "(預設)" },
-                    { idx: 2, name: "太陽神阿波羅", key: "019ebb1f-b31c-769f-8475-02be610a13b0", color: "text-amber-300", suffix: "" },
-                    { idx: 3, name: "火神赫發斯特斯", key: "019ebb3a-0d11-7569-a341-463d28054478", color: "text-orange-300", suffix: "" },
-                    { idx: 4, name: "勝利女神雅典那", key: "019ebb3a-58de-78fd-8139-eca46c089de3", color: "text-green-300", suffix: "" },
-                    { idx: 5, name: "天后海拉", key: "019ebb3a-ad04-76f1-81df-d15d7b2d03d0", color: "text-rose-300", suffix: showLock },
-                    { idx: 6, name: "天神宙斯", key: "019ebb3a-e777-7ab7-b744-aaab13066231", color: "text-cyan-300", suffix: showLock }
-                ];
-                cloudKeys.forEach(k => { html += `<button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 ${k.color} font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="${k.key}"><span style="position: absolute; left: 16px;">${k.idx}.</span><span class="font-bold">${k.name}</span><span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${k.suffix}</span></button>`; });
-                quickKeysList.innerHTML = html;
-            } else {
+            // if (mode === 'cloud' && allowJsonBlob) {
+            //     quickKeysHeader.style.display = 'block';
+            //     quickKeysList.style.display = 'flex';
+            //     const showLock = (typeof window.openGMShop === 'function') ? '' : '🔒固定';
+            //     let html = '';
+            //     quickKeysHeader.innerHTML = `<div class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div><div class="text-[11px] text-rose-400 font-bold mt-1 mb-2 leading-normal text-left border border-rose-950/40 bg-rose-950/20 p-2 rounded">⚠️ 此為諸神共用殿堂，存檔隨時可能被覆蓋！推薦使用本機專屬金鑰。</div>`;
+            //     html += `<div id="klh-custom-key-btn-container" class="flex flex-col gap-1.5 w-full"></div>`;
+            //     const cloudKeys = [
+            //         { idx: 1, name: "水蛇許德拉", key: "019ed445-679f-7ae4-9f05-f887591d1266", color: "text-sky-300", suffix: "(預設)" },
+            //         { idx: 2, name: "太陽神阿波羅", key: "019ebb1f-b31c-769f-8475-02be610a13b0", color: "text-amber-300", suffix: "" },
+            //         { idx: 3, name: "火神赫發斯特斯", key: "019ebb3a-0d11-7569-a341-463d28054478", color: "text-orange-300", suffix: "" },
+            //         { idx: 4, name: "勝利女神雅典那", key: "019ebb3a-58de-78fd-8139-eca46c089de3", color: "text-green-300", suffix: "" },
+            //         { idx: 5, name: "天后海拉", key: "019ebb3a-ad04-76f1-81df-d15d7b2d03d0", color: "text-rose-300", suffix: showLock },
+            //         { idx: 6, name: "天神宙斯", key: "019ebb3a-e777-7ab7-b744-aaab13066231", color: "text-cyan-300", suffix: showLock }
+            //     ];
+            //     cloudKeys.forEach(k => { html += `<button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 ${k.color} font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="${k.key}"><span style="position: absolute; left: 16px;">${k.idx}.</span><span class="font-bold">${k.name}</span><span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${k.suffix}</span></button>`; });
+            //     quickKeysList.innerHTML = html;
+            // } else {
                 quickKeysHeader.style.display = 'none';
                 quickKeysList.style.display = 'none';
-            }
+            // }
         }
 
         // 歷史自訂金鑰按鈕
@@ -1427,11 +1401,15 @@
                 <div id="cloud-settings-section" class="flex flex-col gap-3 border-t border-slate-800 pt-3" style="display: none;">
                     <input id="jsonblob-input" type="text" oninput="this.classList.remove('text-white/50'); this.classList.add('text-white');" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
                     <div id="jsonblob-hint" class="text-[11px] text-slate-400 text-left -mt-1 leading-relaxed bg-slate-900/50 p-2 rounded" style="display: none;">
-                        請至 <a href="https://jsonblob.com" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline font-bold">JSONBlob 官網</a> 註冊後，點擊Clear再點擊 Save 建立專屬網址。<br>
+                        請至 <a href="https://jsonblob.com" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold">JSONBlob 官網 🔗</a> <span class="text-yellow-400 font-bold text-[13px] bg-yellow-900/30 px-1 rounded">註冊</span> 後，點擊Clear再點擊 Save 建立專屬網址。<br>
+                        <span class="text-rose-400 font-bold">⚠️ 注意：必須註冊才能保留存檔，未註冊建立的網址只會保留 24 小時！</span><br>
                         支援輸入以下 3 種格式：<br>
                         <span class="text-slate-500 font-mono text-[10px]">1. 序號：019f3dad-406e-7673-b9df-8594bd436b9c<br>
                         2. 網址：https://jsonblob.com/019f3dad-406e-7673...<br>
                         3. API：https://jsonblob.com/019f3dad-406e-7673.../json</span>
+                    </div>
+                    <div id="supabase-hint" class="text-[11px] text-slate-400 text-left -mt-1 leading-relaxed bg-slate-900/50 p-2 rounded" style="display: none;">
+                        伺服器頻寬有限，請盡量改用 Jsonblob 連線。
                     </div>
                     <div class="w-full"><button id="btn-cloud-read" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold"></button></div>
                     <div id="klh-restore-key-container" class="w-full"></div>
