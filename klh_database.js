@@ -35,7 +35,7 @@
     // 3 = 雙引擎皆啟用 (Supabase + JSONBlob)
     // 4 = 雙引擎皆關閉 (僅留本地儲存)
     // ==========================================================================
-    const ENGINE_SWITCH = 3;
+    const ENGINE_SWITCH = 2;
 
     const allowSupabase = (ENGINE_SWITCH === 1 || ENGINE_SWITCH === 3);
     const allowJsonBlob = (ENGINE_SWITCH === 2 || ENGINE_SWITCH === 3);
