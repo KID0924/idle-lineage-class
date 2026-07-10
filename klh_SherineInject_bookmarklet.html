@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>席琳注入外掛安裝說明</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            max-width: 480px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+        }
+        h1 {
+            color: #fbbf24;
+            font-size: 24px;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 15px;
+            color: #cbd5e1;
+            line-height: 1.6;
+        }
+        .bookmarklet {
+            display: inline-block;
+            background-color: #059669;
+            color: #ffffff;
+            border: 1px solid #10b981;
+            padding: 14px 28px;
+            font-size: 18px;
+            font-weight: bold;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 20px 0;
+            cursor: move;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+            transition: all 0.2s ease-in-out;
+        }
+        .bookmarklet:hover {
+            background-color: #047857;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(5, 150, 105, 0.4);
+        }
+        .instructions {
+            text-align: left;
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 1.6;
+            margin-top: 20px;
+            border-top: 1px solid #334155;
+            padding-top: 20px;
+        }
+        ol {
+            padding-left: 20px;
+            margin: 10px 0 0 0;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        code {
+            background-color: #0f172a;
+            color: #fbbf24;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💎 席琳結晶注入外掛</h1>
+        <p>Line 會阻擋 <code>javascript:</code> 網址直接傳送。您可以將這個 HTML 檔案傳給朋友，請他們雙擊開啟後，<strong>直接拖曳下方按鈕到書籤列</strong>即可完成安裝！</p>
+        
+        <a class="bookmarklet" href='javascript:(function(){if(typeof window.openModal==="function"&&!window.openModal.__sherineWrapped){const orig=window.openModal;window.openModal=function(item,isEq,slot){orig(item,isEq,slot);try{let d=DB.items[item.id];if(!d)return;let isSherine=d&&(d.type==="wpn"||d.type==="arm"||d.type==="acc")&&!d.isArrow&&d.slot!=="amulet";if(!isSherine)return;let actEl=document.getElementById("modal-actions");if(!actEl)return;let sc=player.inv.find(i=>i.id==="sherine_crystal");let btn=document.createElement("button");if(item.bless==="cursed"){btn.className="col-span-2 w-full btn border-slate-600 bg-slate-700 text-slate-400 py-3 text-lg font-bold cursor-not-allowed mt-2";btn.disabled=true;btn.innerHTML="🔒 席琳注入（詛咒中無法施加）"}else{btn.className="col-span-2 w-full btn border-emerald-700 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 py-3 text-lg font-bold mt-2";btn.innerHTML="💎 席琳注入（消耗 席琳結晶*1，擁有: "+(sc?sc.cnt:0)+"）";btn.onclick=()=>{let crystal=player.inv.find(i=>i.id==="sherine_crystal");if(!crystal||crystal.cnt<1)return logSys("<span class=\"text-red-400 font-bold\">缺少 席琳結晶*1。</span>");if(--crystal.cnt<=0)player.inv=player.inv.filter(i=>i.uid!==crystal.uid);item.seteff=SHERINE_EFFECTS[Math.floor(Math.random()*SHERINE_EFFECTS.length)];if(DB.items[item.id]?.grantSkills)renderSkillSelects();calcStats();updateUI();renderTabs(true);saveGame();logSys("成功為你的裝備注入了席琳的恩賜 → "+getItemFullName(item)+"（【"+item.seteff+"】）。");openModal(item,isEq,slot)}}let enhanceBtn=Array.from(actEl.querySelectorAll("button")).find(b=>b.getAttribute("onclick")?.includes("showEnhanceOptions"));if(enhanceBtn)enhanceBtn.parentNode.insertBefore(btn,enhanceBtn.nextSibling);else{let label=actEl.querySelector("label");if(label)label.parentNode.insertBefore(btn,label);else actEl.appendChild(btn)}}catch(e){console.error(e)}};window.openModal.__sherineWrapped=true;logSys("席琳結晶注入功能已成功載入！")}else{logSys("功能已經載入過囉！")}})();'>💎 拖曳我到書籤列</a>
+        
+        <div class="instructions">
+            <strong>安裝與使用方式：</strong>
+            <ol>
+                <li>在瀏覽器中顯示書籤列（Chrome 快速鍵為 <code>Ctrl + Shift + B</code> 或 <code>⌘ + Shift + B</code>）。</li>
+                <li>用滑鼠按住綠色的<strong>「💎 拖曳我到書籤列」</strong>按鈕，直接拉到瀏覽器的書籤列放開。</li>
+                <li>進入遊戲網頁後，點擊您剛剛新增的書籤。</li>
+                <li>當遊戲對話框顯示載入成功，點開裝備面板即可看到注入按鈕。</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>
