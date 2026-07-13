@@ -1781,6 +1781,81 @@
             }
         }, 100);
 
+        // 🌡️ 戰鬥動畫關閉優化 (將 Chaos 版最省電的「關閉戰鬥動畫」性能優化移植至原版主選單)
+        (function initKlhPowerSave() {
+            const key = 'lineage_anim_off';
+            const getAnimOff = () => localStorage.getItem(key) === '1';
+            const toggleAnim = () => {
+                const current = getAnimOff();
+                localStorage.setItem(key, current ? '0' : '1');
+                updateUI();
+                window.__animOff = !current;
+                applyAnimationsOverride();
+            };
+
+            const updateUI = () => {
+                const btn = document.getElementById('btn-anim-toggle');
+                if (btn) {
+                    const off = getAnimOff();
+                    btn.textContent = off ? '🎬 戰鬥動畫：關閉 (流暢/省電)' : '🎬 戰鬥動畫：開啟';
+                    btn.className = 'btn text-base w-72 py-2.5 ' + (off
+                        ? 'bg-emerald-800 hover:bg-emerald-700 border-emerald-600'
+                        : 'bg-slate-700 hover:bg-slate-600 border-slate-500');
+                }
+            };
+
+            const applyAnimationsOverride = () => {
+                if (getAnimOff()) {
+                    window.__animOff = true;
+                    // 覆寫怪物動畫更新
+                    if (typeof window._mobAnimApply === 'function' && !window._mobAnimApply_original) {
+                        window._mobAnimApply_original = window._mobAnimApply;
+                        window._mobAnimApply = function () {
+                            try { if (typeof _updateFreezeFx === 'function') _updateFreezeFx(); } catch (e) {}
+                            try { if (typeof _updateMobSkillFx === 'function') _updateMobSkillFx(); } catch (e) {}
+                        };
+                    }
+                    // 覆寫隊友/玩家動畫更新
+                    if (typeof window._allySpritesApply === 'function' && !window._allySpritesApply_original) {
+                        window._allySpritesApply_original = window._allySpritesApply;
+                        window._allySpritesApply = function () {};
+                    }
+                    if (typeof window._playerMorphApply === 'function' && !window._playerMorphApply_original) {
+                        window._playerMorphApply_original = window._playerMorphApply;
+                        window._playerMorphApply = function () {};
+                    }
+                } else {
+                    window.__animOff = false;
+                    // 還原原本的動畫更新
+                    if (window._mobAnimApply_original) {
+                        window._mobAnimApply = window._mobAnimApply_original;
+                        delete window._mobAnimApply_original;
+                    }
+                    if (window._allySpritesApply_original) {
+                        window._allySpritesApply = window._allySpritesApply_original;
+                        delete window._allySpritesApply_original;
+                    }
+                    if (window._playerMorphApply_original) {
+                        window._playerMorphApply = window._playerMorphApply_original;
+                        delete window._playerMorphApply_original;
+                    }
+                }
+            };
+
+            // 注入按鈕至原版主選單 (如果是在原版網站運行)
+            const menu = document.getElementById('main-menu');
+            const refBtn = document.getElementById('btn-vfxnum-toggle');
+            if (menu && refBtn && !document.getElementById('btn-anim-toggle')) {
+                const btn = document.createElement('button');
+                btn.id = 'btn-anim-toggle';
+                btn.onclick = toggleAnim;
+                menu.insertBefore(btn, refBtn.nextSibling);
+                updateUI();
+            }
+
+            // 初始執行覆寫
+            applyAnimationsOverride();
+        })();
     }
 
     document.addEventListener('DOMContentLoaded', startupInitial);
