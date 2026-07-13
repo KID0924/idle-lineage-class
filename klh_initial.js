@@ -1,5 +1,5 @@
 /* ============================================================================
- * klh_initial.js — 創角優化、多難度系統、數值 Patch、屬性擴充 & iOS 鍵盤修復
+ * klh_initial.js — 創角優化、多難度系統、數值 Patch、屬性擴充、戰鬥省電優化 & iOS 鍵盤修復
  *
  * 設計原則:
  *   1. 完全不改原作者程式碼 —— 僅透過從外部「包住」全域函式 (Monkey-Patch) 進行擴充。
@@ -7,28 +7,27 @@
  *                         若原作者未來改版導致函式或變數消失，外掛功能會默默安全降級或停用，
  *                         確保絕對不拋出致命 JS 錯誤，完全保障原版遊戲流程不中斷。
  *
- * 掛接方式: 在 index.html 中，於 klh_database.js 之前載入：
- *   <script src="klh_initial.js?v=20260628"></script>
- *   <script src="klh_database.js?v=20260628"></script>
+ * 掛接方式:
+ *   在 index.html 中，或使用瀏覽器書籤/篡改猴動態載入。
  *
  * 功能一覽:
- *   1. 創角數值優化       —— 初始屬性翻倍 (x2)，可分配點數雙倍 (x2)，創角上限各屬性 +20，長按按鈕連續分配點數。
+ *   1. 創角數值優化       —— 創角上限各屬性 +20，長按按鈕連續分配點數。
  *   2. 空存檔預填         —— 新存檔自動填入女騎士初始存檔，防止進入空白畫面。
  *   3. 多難度系統         —— 地獄/惡夢/標準/祝福/天堂五段難度，影響怪物強度、掉寶率、金幣量、藥水效力、出怪延遲。
  *   4. 數值 Patch 對接    —— 透過字串替換 patch 原生函式 (tick/killMob/recomputeStats/spawnMob等)，嵌入難度乘數運算。
  *   5. 遊戲內配點優化     —— 遊戲內配點上限 +20，萬能藥上限 +20，加入長按連續配點功能。
- *   7. 存檔槽整合         —— Hook 劫持 openSlotSelect/chooseSlot/slotSummary，在原版渲染基礎上整合難度顯示，防止特權金鑰覆蓋存檔。
- *   8. 更新說明面板       —— 在創角畫面注入可折疊的「與原版差異更新說明」面板。
- *   9. 鍵盤輸入錯位修復   —— 解決 iOS 鍵盤彈起時 fixed 元素錯位及輸入框自動放大網頁等 UI UX 問題。
- *  10. 傭兵存檔精簡       —— 存檔時自動清理協力傭兵背包（inv）以縮減存檔體積。若未來原作者新增「可移水/卷軸給傭兵消耗的功能」，請將 window.CLEAN_ALLY_DATA_ON_SAVE = true 改為 false。
+ *   6. 存檔槽整合         —— Hook 劫持 openSlotSelect/chooseSlot/slotSummary，在原版渲染基礎上整合難度顯示，防止特權金鑰覆蓋存檔。
+ *   7. 鍵盤輸入錯位修復   —— 解決 iOS 鍵盤彈起時 fixed 元素錯位及輸入框自動放大網頁等 UI UX 問題。
+ *   8. 傭兵存檔精簡       —— 存檔時自動清理協力傭兵背包（inv）以縮減存檔體積。
+ *   9. 離線掛機補丁勾子   —— 與 offline.js 深度對接，在 loadGame 讀檔與 saveGame 存檔時執行離線起點快取與收益結算。
+ *  10. 戰鬥動畫與省電優化 —— 主選單新增戰鬥動畫開關，支援在非 Chaos 版網站中關閉動態幀播放，徹底改善 CPU 負載與卡頓。
  * ========================================================================== */
-
 (function () {
     'use strict';
 
-    // ==========================================
-    // 0. 全域常數與設定
-    // ==========================================
+    /* ============================================================================
+     *  ⚡ 0. 全域常數與設定 (Global Constant Settings)
+     * ============================================================================ */
     window.gameDifficulty = window.gameDifficulty || 'standard';
     window.tempSelectedDifficulty = window.gameDifficulty;
     window._slotMode = window._slotMode || 'new';
@@ -43,28 +42,8 @@
         heaven: { name: "天堂", mobPower: 0.9, dropRate: 2.0, goldRate: 2.0, potionRate: 1.3, healRate: 1.75, noSunDelay: 25, sunDelay: 5 }
     };
 
-    const PRIVILEGED_KEYS = [
-        "019ebb3a-ad04-76f1-81df-d15d7b2d03d0", // 4. 天后海拉
-        "019ebb3a-e777-7ab7-b744-aaab13066231", // 5. 天神宙斯
-        "0012k1i6d229",                         // Supabase 5. 天后海拉
-        "0012k1i6d230"                          // Supabase 6. 天神宙斯
-    ];
-
     function checkIsPrivileged() {
-        if (typeof window.openGMShop === 'function') {
-            return false; // 開啟 GM 商店功能時，解除特權金鑰固定限制
-        }
-        const mode = localStorage.getItem('klh_storage_mode') || 'local';
-        if (mode === 'local') {
-            return false; // 本地模式不限制特權金鑰，允許匯入與刪除
-        }
-        if (mode === 'supabase') {
-            const normalized = (localStorage.getItem('klh_supabase_key') || "").trim().toLowerCase();
-            return PRIVILEGED_KEYS.some(k => k.toLowerCase() === normalized);
-        } else {
-            const normalized = (window.activeKey || "").trim().toLowerCase();
-            return PRIVILEGED_KEYS.some(k => k.toLowerCase() === normalized);
-        }
+        return false;
     }
     window.checkIsPrivileged = checkIsPrivileged;
 
@@ -178,9 +157,9 @@
         }
     }, 500);
 
-    // ==========================================
-    // 1. saveGame Hook (傭兵清理 + 難度/config 注入)
-    // ==========================================
+    /* ============================================================================
+     *  ⚡ 1. 存檔存取 Hooks 與傭兵清理 (saveGame Hook & Ally Backpack Cleanup)
+     * ============================================================================ */
     if (!window.__klh_save_game_initial_wrapped) {
         window.__klh_save_game_initial_wrapped = true;
         const originalSaveGame = window.saveGame;
@@ -265,9 +244,9 @@
         console.error("[KLH] 儲存按鈕重綁定失敗:", e);
     }
 
-    // ==========================================
-    // 2. loadGame Hook (讀取存檔難度)
-    // ==========================================
+    /* ============================================================================
+     *  ⚡ 2. 離線掛機前置快取與結算勾子 (Offline Catchup Engine Hooks)
+     * ============================================================================ */
     if (typeof window.loadGame === 'function' && !window.__klh_load_game_wrapped) {
         window.__klh_load_game_wrapped = true;
         const originalLoadGame = window.loadGame;
@@ -378,9 +357,9 @@
     }
     */
 
-    // ==========================================
-    // 3. slotSummary Hook (難度顯示)
-    // ==========================================
+    /* ============================================================================
+     *  ⚡ 3. 存檔列表與難度資訊顯示 Hook (Slot Selection & Difficulty Display Hooks)
+     * ============================================================================ */
     if (typeof window.slotSummary === 'function' && !window.__klh_slot_summary_wrapped) {
         window.__klh_slot_summary_wrapped = true;
         const originalSlotSummary = window.slotSummary;
@@ -415,9 +394,9 @@
         };
     }
 
-    // ==========================================
-    // 4. 創角數值優化與長按連續點擊 (Character Creation)
-    // ==========================================
+    /* ============================================================================
+     *  ⚡ 4. 創角點數上限擴充與長按連續配點 (Creation Stats Cap & Fast Allocation)
+     * ============================================================================ */
     const rawCreateBase = {
         knight: { str: 16, dex: 12, con: 14, int: 8, wis: 9, cha: 8, pts: 8 },
         mage: { str: 8, dex: 7, con: 12, int: 12, wis: 12, cha: 8, pts: 16 },
@@ -426,31 +405,8 @@
     };
 
     window.applyCreateBaseModifiers = function () {
-        const mode = localStorage.getItem('klh_storage_mode') || 'local';
-        let isMultiplied = false;
-        if (mode === 'cloud') {
-            const activeKeyLower = (window.activeKey || "").trim().toLowerCase();
-            const MULTIPLIED_KEYS = [
-                "019ebb1f-b31c-769f-8475-02be610a13b0",
-                "019ebb3a-0d11-7569-a341-463d28054478",
-                "019ebb3a-58de-78fd-8139-eca46c089de3",
-                "019ebb3a-ad04-76f1-81df-d15d7b2d03d0",
-                "019ebb3a-e777-7ab7-b744-aaab13066231"
-            ];
-            isMultiplied = MULTIPLIED_KEYS.includes(activeKeyLower);
-        } else if (mode === 'supabase') {
-            const activeKeyLower = (localStorage.getItem('klh_supabase_key') || "").trim().toLowerCase();
-            const SUPABASE_MULTIPLIED_KEYS = [
-                "0012k1i6d226", // 太陽神阿波羅
-                "0012k1i6d227", // 火神赫發斯特斯
-                "0012k1i6d228", // 勝利女神雅典那
-                "0012k1i6d229", // 天后海拉
-                "0012k1i6d230"  // 天神宙斯
-            ];
-            isMultiplied = SUPABASE_MULTIPLIED_KEYS.includes(activeKeyLower);
-        }
-        const multStats = isMultiplied ? 2 : 1;
-        const multPts = isMultiplied ? 2 : 1;
+        const multStats = 1;
+        const multPts = 1;
         if (typeof createBase !== 'undefined') {
             for (let cls in rawCreateBase) {
                 if (createBase[cls]) {
@@ -480,30 +436,7 @@
 
     function adjStatCustom(s, dir, amount) {
         let b = createBase[curCreate.cls];
-        const mode = localStorage.getItem('klh_storage_mode') || 'local';
-        let isMultiplied = false;
-        if (mode === 'cloud') {
-            const activeKeyLower = (window.activeKey || "").trim().toLowerCase();
-            const MULTIPLIED_KEYS = [
-                "019ebb1f-b31c-769f-8475-02be610a13b0",
-                "019ebb3a-0d11-7569-a341-463d28054478",
-                "019ebb3a-58de-78fd-8139-eca46c089de3",
-                "019ebb3a-ad04-76f1-81df-d15d7b2d03d0",
-                "019ebb3a-e777-7ab7-b744-aaab13066231"
-            ];
-            isMultiplied = MULTIPLIED_KEYS.includes(activeKeyLower);
-        } else if (mode === 'supabase') {
-            const activeKeyLower = (localStorage.getItem('klh_supabase_key') || "").trim().toLowerCase();
-            const SUPABASE_MULTIPLIED_KEYS = [
-                "0012k1i6d226",
-                "0012k1i6d227",
-                "0012k1i6d228",
-                "0012k1i6d229",
-                "0012k1i6d230"
-            ];
-            isMultiplied = SUPABASE_MULTIPLIED_KEYS.includes(activeKeyLower);
-        }
-        const multStats = isMultiplied ? 2 : 1;
+        const multStats = 1;
         let capN = 20 * multStats;
         if (dir > 0) {
             let spent = curCreate.str + curCreate.dex + curCreate.con + curCreate.int + curCreate.wis + curCreate.cha;
@@ -589,9 +522,9 @@
         };
     }
 
-    // ==========================================
-    // 5. 空存檔預填與安全限制 (Save Slot Prepopulation)
-    // ==========================================
+    /* ============================================================================
+     *  ⚡ 5. 空存檔預填與安全限制 (Save Slot Prepopulation Setup)
+     * ============================================================================ */
     window.createDefaultFemaleKnightSave = function (slotNumber) {
         const daggerUid = Math.random().toString(36).substr(2, 9);
         const jacketUid = Math.random().toString(36).substr(2, 9);
@@ -764,9 +697,9 @@
         showCreation();
     };
 
-    // ==========================================
-    // 6. 多難度系統整合 (Difficulty Selection)
-    // ==========================================
+    /* ============================================================================
+     *  ⚡ 6. 多難度選擇與切換系統 (Multi-Difficulty Selection System)
+     * ============================================================================ */
     window.selectDifficulty = function (diff, isManual = true) {
         // 向後相容：舊存檔可能含 nightmare/blessing，自動歸類
         if (diff === 'nightmare') diff = 'hell';
@@ -1227,9 +1160,9 @@
     }
 
 
-    // ==========================================
-    // 7. 數值與效果對接 (Game Patches)
-    // ==========================================
+    /* ============================================================================
+     *  ⚡ 7. 核心函數字串修改補丁工具與多難度掛接 (Monkey Patch Tools & Multipliers Injection)
+     * ============================================================================ */
     function patchGlobalFunctionMultiple(name, patches) {
         if (typeof window[name] !== 'function') {
             console.error(`Global function ${name} not found for patching`);
@@ -1389,13 +1322,7 @@
         }
     ]);
 
-    // 創角階段上限為原本+20
-    patchGlobalFunctionMultiple('adjStat', [
-        {
-            find: /let capN = (\d+);/,
-            replace: "let capN = parseInt($1) * ((['019ebb1f-b31c-769f-8475-02be610a13b0', '019ebb3a-0d11-7569-a341-463d28054478', '019ebb3a-58de-78fd-8139-eca46c089de3', '019ebb3a-ad04-76f1-81df-d15d7b2d03d0', '019ebb3a-e777-7ab7-b744-aaab13066231'].includes((window.activeKey || '').trim().toLowerCase()) && (localStorage.getItem('klh_storage_mode') || 'local') === 'cloud') ? 2 : 1);"
-        }
-    ]);
+
 
     // 遊戲內配點上限為原本+20
     patchGlobalFunctionMultiple('adjBonusStat', [
@@ -1429,9 +1356,9 @@
 
 
 
-    // ==========================================
-    // 9. iOS 鍵盤彈起/縮放/錯位修復
-    // ==========================================
+    /* ============================================================================
+     *  ⚡ 8. iOS 行動版虛擬鍵盤彈起防錯位與縮放修復 (iOS Input Keyboard & Viewport Fixes)
+     * ============================================================================ */
     if (!window.__klh_keyboard_listeners_attached) {
         window.__klh_keyboard_listeners_attached = true;
         let isKeyboardOpened = false;
@@ -1491,9 +1418,9 @@
         }
     }
 
-    // ==========================================
-    // 10. 初始化執行
-    // ==========================================
+    /* ============================================================================
+     *  ⚡ 9. 初始化啟動執行與動畫省電設定 (Initialization Startup & Power Saving Executor)
+     * ============================================================================ */
     let started = false;
     function startupInitial() {
         if (started) return;
@@ -1518,96 +1445,7 @@
             creationScreen.style.overflowY = 'auto';
         }
 
-        // 增添感謝文字與更新說明按鈕
-        const headerDiv = document.querySelector('#creation-screen > div.text-center') || document.querySelector('#creation-screen > div:first-child');
-        if (headerDiv) {
-            const btn = document.createElement('button');
-            btn.id = 'thanks-btn';
-            btn.className = 'w-full text-center py-2.5 px-4 bg-slate-800/30 hover:bg-slate-800/60 border border-slate-700/85 hover:border-yellow-500/50 text-slate-300 rounded-xl transition-all duration-300 flex flex-col items-center justify-center gap-1 mt-2 focus:outline-none cursor-pointer';
-            btn.innerHTML = `
-                <div class="text-sm font-semibold text-slate-300">感謝原作者(秋玥)的分享，創造出色的放置天堂</div>
-                <div class="text-sm font-semibold text-slate-300">感謝作者(Chaos)的改良，提供了滑順的使用體驗</div>
-                <span class="text-xs text-yellow-500 font-bold mt-1 flex items-center gap-1">
-                    🛠️ 與原版差異更新說明 (點擊<span id="thanks-btn-state">展開</span>) <span id="thanks-arrow" style="display:inline-block; transition: transform 0.2s;">▼</span>
-                </span>
-            `;
 
-            const panel = document.createElement('div');
-            panel.id = 'thanks-panel';
-            panel.className = 'hidden w-full max-w-2xl mx-auto bg-slate-950/80 border border-slate-800 rounded-xl p-4 mt-3 text-left overflow-y-auto max-h-[260px] transition-all duration-300 shadow-inner';
-            panel.innerHTML = `
-                <div class="text-yellow-400 font-bold text-base border-b border-slate-800 pb-2 mb-3 flex items-center gap-1.5">
-                    🛠️ 與原版差異更新說明
-                </div>
-                <div class="flex flex-col gap-3.5 text-sm text-slate-300 leading-relaxed">
-                    <div>
-                        <span class="font-bold text-cyan-400">📖 完整遊戲更新與常見問答 (QA.html)</span>
-                        <p class="pl-4 text-slate-400">
-                            完整更新內容、常見問答及仇恨計算機：
-                            <a href="QA.html" target="_blank" class="text-yellow-400 hover:text-yellow-300 font-bold underline inline-flex items-center gap-1 ml-1">
-                                🔗 點我開啟【更新指南 & 常見問答】
-                            </a>
-                        </p>
-                    </div>
-                    <div>
-                        <span class="font-bold text-amber-300">1. 全新雲端存檔功能</span>
-                        <p class="pl-4 text-slate-400">支援系統自然產出的專屬雲端金鑰。<strong class="text-rose-400">（⚠️請務必熟記並保存金鑰。）</strong></p>
-                    </div>
-                    <div>
-                        <span class="font-bold text-amber-300">2. 難易度自由切換</span>
-                        <p class="pl-4 text-slate-400">新增遊戲難易度隨時、隨意切換功能，關卡挑戰更彈性。</p>
-                    </div>
-                    <div>
-                        <span class="font-bold text-amber-300">3. 全新金幣抽獎系統</span>
-                        <p class="pl-4 text-slate-400">「潘朵拉的妹妹」神秘降臨！她偷偷帶走了姐姐藏寶庫中的稀世神裝，讓冒險者能用閃亮的金幣進行轉蛋。不過，為了維護亞丁大陸的物價平衡，諸神稍微對她的魔法機率動了點手腳，以免神裝氾濫成災！</p>
-                    </div>
-                    <div>
-                        <span class="font-bold text-amber-300">4. 煉金術的究極補給</span>
-                        <p class="pl-4 text-slate-400">象牙塔研究室的瘋狂煉金術士們終於爆肝研發出突破性成果！現在可在商店購得「濃縮白水」與「超級濃縮白水」，更有能獲得幸運女神微笑的「掉寶藥水」與「神之祝福藥水」，讓你的獵殺之旅效率倍增！</p>
-                    </div>
-                    <div>
-                        <span class="font-bold text-amber-300">5. 時光裂縫與重獲新生</span>
-                        <p class="pl-4 text-slate-400">象牙塔的「時光使者」開啟了禁忌的轉生法陣！當你的實力達到 75 級的凡人極限，即可選擇打破肉身重獲新生，不僅能保留你強大的天賦，還能獲得神明額外賜予的屬性點數，重登巔峰！</p>
-                    </div>
-                    <div>
-                        <span class="font-bold text-amber-300">6. 赫爾溫的背包整理術</span>
-                        <p class="pl-4 text-slate-400">總是為雜亂的背包頭痛嗎？赫爾溫大師為你解鎖了強大的次元背包整理術！新增「批量賣出」與「模糊搜尋」功能，彈指間就能清除海量垃圾廢品，讓你的行囊如施展了極道防護般清爽！</p>
-                    </div>
-                    <div>
-                        <span class="font-bold text-amber-300">7. 奇岩「財富收割者」黑市</span>
-                        <p class="pl-4 text-slate-400">財富收割者跑路了 收割了大家的財富</p>
-                    </div>
-                    <div>
-                        <span class="font-bold text-amber-300">8. 死神席琳的禁忌共鳴</span>
-                        <p class="pl-4 text-slate-400">死神席琳的眼淚落入凡間，化為了蘊含無盡黑暗力量的「席琳結晶」！只要在裝備介面輕輕捏碎一顆結晶，就能為你手中的特定神兵防具注入禁忌的靈魂共鳴，強行激活傳說中的九大混沌套裝效果！</p>
-                    </div>
-                    <div>
-                        <span class="font-bold text-amber-300">9. 屬性配點與萬能藥上限提升</span>
-                        <p class="pl-4 text-slate-400">屬性升級配點上限提升 +20，萬能藥使用上限也提升 +20。</p>
-                    </div>
-                </div>
-            `;
-
-            btn.onclick = function (e) {
-                e.preventDefault();
-                const isHidden = panel.classList.contains('hidden');
-                const stateText = document.getElementById('thanks-btn-state');
-                const arrow = document.getElementById('thanks-arrow');
-
-                if (isHidden) {
-                    panel.classList.remove('hidden');
-                    if (stateText) stateText.textContent = '收合';
-                    if (arrow) arrow.style.transform = 'rotate(180deg)';
-                } else {
-                    panel.classList.add('hidden');
-                    if (stateText) stateText.textContent = '展開';
-                    if (arrow) arrow.style.transform = 'rotate(0deg)';
-                }
-            };
-
-            headerDiv.appendChild(btn);
-            headerDiv.appendChild(panel);
-        }
 
         attachHoldEventsToStatButtons();
         attachHoldEventsToInGameStatButtons();
@@ -1824,6 +1662,47 @@
                         window._playerMorphApply_original = window._playerMorphApply;
                         window._playerMorphApply = function () {};
                     }
+                    // 覆寫寵物/召喚物動畫與尋路更新
+                    if (typeof window._petWanderStep === 'function' && !window._petWanderStep_original) {
+                        window._petWanderStep_original = window._petWanderStep;
+                        window._petWanderStep = function () {};
+                    }
+                    if (typeof window._petAnimApply === 'function' && !window._petAnimApply_original) {
+                        window._petAnimApply_original = window._petAnimApply;
+                        window._petAnimApply = function () {
+                            try {
+                                if (typeof document !== 'undefined' && document.hidden) return;
+                                let bv = document.getElementById('battle-view');
+                                let host = _petLayerHost();
+                                let layer = _petLayerEl();
+                                if (!host || !layer) return;
+                                let outs = (typeof player !== 'undefined' && player && player.cls) ? petsOutList() : [];
+                                if (typeof summonRenderList === 'function') outs = outs.concat(summonRenderList());
+                                let show = _petInWild() && !(bv && bv.classList.contains('hidden'));
+                                
+                                layer.querySelectorAll('[data-pet]').forEach(el => {
+                                    if (!show || !outs.some(p => p.uid === el.getAttribute('data-pet'))) el.remove();
+                                });
+                                if (!show) return;
+                                
+                                for (let p of outs) {
+                                    let el = _petSpriteEl(layer, p);
+                                    el.style.left = (p._px * 100) + '%';
+                                    el.style.top = (p._py * 100) + '%';
+                                    
+                                    let im = el.querySelector('.pet-body'), sh = el.querySelector('.pet-shadow');
+                                    if (im && !im.src) {
+                                        let gfxForm = p.formGfx || p.form;
+                                        let a = _pet8Cache[gfxForm + '#6']; // default direction 6
+                                        if (a && a.idle && a.idle[0]) {
+                                            im.src = a.idle[0].src;
+                                        }
+                                    }
+                                    if (sh && sh.style.visibility !== 'hidden') sh.style.visibility = 'hidden';
+                                }
+                            } catch (e) {}
+                        };
+                    }
                 } else {
                     window.__animOff = false;
                     // 還原原本的動畫更新
@@ -1838,6 +1717,14 @@
                     if (window._playerMorphApply_original) {
                         window._playerMorphApply = window._playerMorphApply_original;
                         delete window._playerMorphApply_original;
+                    }
+                    if (window._petWanderStep_original) {
+                        window._petWanderStep = window._petWanderStep_original;
+                        delete window._petWanderStep_original;
+                    }
+                    if (window._petAnimApply_original) {
+                        window._petAnimApply = window._petAnimApply_original;
+                        delete window._petAnimApply_original;
                     }
                 }
             };
@@ -1855,6 +1742,101 @@
 
             // 初始執行覆寫
             applyAnimationsOverride();
+        })();
+
+        // 🔇 離線/快速結算靜音防卡死攔截器
+        (function patchAudioForFastForward() {
+            const audioFuncs = ['playSfx', '_sfxPlayPool', '_bgmTick', '_bgmSwitch'];
+            audioFuncs.forEach(funcName => {
+                if (typeof window[funcName] === 'function' && !window[funcName].__klh_patched) {
+                    const original = window[funcName];
+                    window[funcName] = function () {
+                        if (window.state && window.state.ff) {
+                            return (funcName === '_sfxPlayPool') ? false : undefined;
+                        }
+                        return original.apply(this, arguments);
+                    };
+                    window[funcName].__klh_patched = true;
+                }
+            });
+        })();
+
+        // 📈 實時效能監控器 (FPS & Game Tick Monitor)
+        (function initPerfMonitor() {
+            if (document.getElementById('klh-perf-monitor')) return;
+            const monitor = document.createElement('div');
+            monitor.id = 'klh-perf-monitor';
+            monitor.setAttribute('style', `
+                position: fixed;
+                top: 4px;
+                right: 4px;
+                z-index: 100000;
+                background: rgba(15, 23, 42, 0.85);
+                backdrop-filter: blur(4px);
+                border: 1px solid rgba(51, 65, 85, 0.7);
+                border-radius: 6px;
+                padding: 3px 6px;
+                font-family: monospace;
+                font-size: 10px;
+                color: #cbd5e1;
+                pointer-events: auto;
+                cursor: pointer;
+                user-select: none;
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5);
+                transition: opacity 0.3s;
+                opacity: 0.8;
+            `);
+            document.body.appendChild(monitor);
+
+            let fps = 0;
+            let lastFrameTime = performance.now();
+            let frameCount = 0;
+            let lastTickTimeMs = 0;
+
+            if (typeof window.tick === 'function') {
+                const originalTick = window.tick;
+                window.tick = function () {
+                    const t0 = performance.now();
+                    originalTick.apply(this, arguments);
+                    lastTickTimeMs = performance.now() - t0;
+                };
+            }
+
+            function updateUI() {
+                const animOff = localStorage.getItem('lineage_anim_off') === '1';
+                let fpsColor = '#22c55e';
+                if (fps < 45) fpsColor = '#eab308';
+                if (fps < 25) fpsColor = '#ef4444';
+
+                let tickColor = '#cbd5e1';
+                if (lastTickTimeMs > 16) tickColor = '#eab308';
+                if (lastTickTimeMs > 50) tickColor = '#ef4444';
+
+                monitor.innerHTML = `
+                    <span style="color: ${fpsColor}; font-weight: bold;">FPS: ${fps}</span> | 
+                    <span style="color: ${tickColor};">Tick: ${lastTickTimeMs.toFixed(1)}ms</span> | 
+                    <span style="color: ${animOff ? '#10b981' : '#f43f5e'}; font-weight: bold;">Anim: ${animOff ? 'OFF' : 'ON'}</span>
+                `;
+            }
+
+            function measureFps() {
+                const now = performance.now();
+                frameCount++;
+                if (now >= lastFrameTime + 1000) {
+                    fps = Math.round((frameCount * 1000) / (now - lastFrameTime));
+                    frameCount = 0;
+                    lastFrameTime = now;
+                    updateUI();
+                }
+                requestAnimationFrame(measureFps);
+            }
+            requestAnimationFrame(measureFps);
+
+            let collapsed = false;
+            monitor.onclick = function() {
+                collapsed = !collapsed;
+                monitor.style.opacity = collapsed ? '0.1' : '0.8';
+            };
         })();
     }
 
