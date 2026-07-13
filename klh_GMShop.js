@@ -594,6 +594,38 @@
                     padding: 8px 12px !important;
                     font-size: 12px !important;
                 }
+                .gm-shop-char-input-row {
+                    gap: 3px !important;
+                    justify-content: flex-end !important;
+                }
+                .gm-shop-char-btn-adj {
+                    padding: 4px 6px !important;
+                    font-size: 11px !important;
+                    border-radius: 6px !important;
+                    min-width: 32px !important;
+                    height: 28px !important;
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                }
+                .gm-shop-char-input {
+                    padding: 4px 6px !important;
+                    font-size: 13px !important;
+                    max-width: 48px !important;
+                    height: 28px !important;
+                    text-align: center !important;
+                }
+                #gm-char-gold-input {
+                    max-width: 100% !important;
+                    text-align: left !important;
+                }
+                #gm-char-lvl-input, #gm-char-bonus-input {
+                    max-width: 65px !important;
+                }
+                .gm-shop-char-section .text-xs.w-10 {
+                    width: 30px !important;
+                    flex-shrink: 0 !important;
+                }
             }
         `;
         let style = document.createElement('style');
@@ -667,7 +699,7 @@
 
             // 1. 主分類過濾
             if (mainCat !== 'all' && item.type !== mainCat) return false;
-            
+
             // 2. 子部位/武器類型過濾
             if (subCat !== 'all') {
                 if (mainCat === 'wpn') {
@@ -680,6 +712,18 @@
                     if (subCat === 'wand' && !isWand) return false;
                     if (subCat === 'twohand' && !isTwoHand) return false;
                     if (subCat === 'onehand' && !isOneHand) return false;
+                } else if (mainCat === 'relic') {
+                    let rawType = DB.items[item.id] ? DB.items[item.id].type : '';
+                    if (subCat === 'wpn' && rawType !== 'wpn') return false;
+                    if (subCat === 'arm' && rawType !== 'arm') return false;
+                    if (subCat === 'acc' && rawType !== 'acc') return false;
+                } else if (mainCat === 'acc') {
+                    if (subCat === 'remains') {
+                        let isRemains = !!item.remains || item.id.startsWith('rem_');
+                        if (!isRemains) return false;
+                    } else {
+                        if (item.slot !== subCat) return false;
+                    }
                 } else if (mainCat === 'scroll') {
                     let isEnchant = item.id.includes('weapon') || item.id.includes('armor') || item.id.includes('acc');
                     if (subCat === 'enchant' && !isEnchant) return false;
@@ -726,7 +770,7 @@
                     if (subCat === 'tier5' && tier !== 5) return false;
                     if (subCat === 'tier6' && tier !== 6) return false;
                 } else {
-                    if (item.slot !== subCat) return false;
+                    if (mainCat !== 'acc' && item.slot !== subCat) return false;
                 }
             }
 
@@ -772,7 +816,7 @@
             let iconUrl = getIconUrl(d);
             let glowClass = getGlowClass(mockItem, d) || '';
             let fullName = getItemFullName(mockItem);
-            
+
             // 處理物品描述 HTML
             let descHtml = '';
             try {
@@ -938,7 +982,7 @@
 
         // 狀態更新
         if (typeof calcStats === 'function') calcStats();
-        
+
         // 更新 GM 商店金幣及重量顯示
         document.getElementById('gm-shop-player-gold').innerText = (player.gold || 0).toLocaleString();
         if (player.d) {
@@ -966,15 +1010,15 @@
             val = 999999999999;
         }
         player.gold = val;
-        
+
         // 更新 GM 商店金幣顯示
         document.getElementById('gm-shop-player-gold').innerText = player.gold.toLocaleString();
-        
+
         // 觸發遊戲原生界面重繪與存檔
         if (typeof updateUI === 'function') updateUI();
         if (typeof renderTabs === 'function') renderTabs(true);
         if (typeof saveGame === 'function') saveGame();
-        
+
         if (typeof showToast === 'function') {
             showToast(`金幣已成功修改為 ${val.toLocaleString()}`, 'success');
         }
@@ -988,20 +1032,20 @@
             alert("請輸入 1 到 999 之間的有效等級！");
             return;
         }
-        
+
         let oldLv = player.lv || 1;
         player.lv = val;
         player.exp = 0; // 重置經驗值為 0
-        
+
         // 根據等級變化自動補償或扣除「未分配點數」
         let diff = Math.max(0, val - 49) - Math.max(0, oldLv - 49);
         player.bonus = Math.max(0, (player.bonus || 0) + diff);
-        
+
         // 重新計算屬性與 UI 刷新
         if (typeof calcStats === 'function') calcStats();
         if (typeof updateUI === 'function') updateUI();
         if (typeof saveGame === 'function') saveGame();
-        
+
         if (typeof showToast === 'function') {
             showToast(`等級已成功修改為 Lv.${val}`, 'success');
         }
@@ -1015,8 +1059,12 @@
                 let item = DB.items[id];
                 if (!item) continue;
 
+                // 0. 遺物類
+                if (item.isRelic || (typeof isRelic === 'function' && isRelic(item)) || id.startsWith('relic_')) {
+                    equipments.push({ id: id, ...item, type: 'relic' });
+                }
                 // 1. 魔法娃娃類
-                if (item.doll || item.slot === 'doll' || id.startsWith('doll_')) {
+                else if (item.doll || item.slot === 'doll' || id.startsWith('doll_')) {
                     equipments.push({ id: id, ...item, type: 'doll' });
                 }
                 // 2. 裝備類 (武器/防具/飾品)
@@ -1041,9 +1089,9 @@
                     equipments.push({ id: id, ...item, type: 'etc' });
                 }
             }
-            // 排序: 武器 -> 防具 -> 飾品 -> 魔法娃娃 -> 卷軸 -> 魔法書 -> 卡片圖鑑 -> 材料其他 (內部以售價排序)
+            // 排序: 武器 -> 防具 -> 飾品 -> 遺物 -> 魔法娃娃 -> 卷軸 -> 魔法書 -> 卡片圖鑑 -> 材料其他 (內部以售價排序)
             equipments.sort((a, b) => {
-                const typeOrder = { wpn: 1, arm: 2, acc: 3, doll: 4, scroll: 5, skillbk: 6, card: 7, etc: 8 };
+                const typeOrder = { wpn: 1, arm: 2, acc: 3, relic: 3.5, doll: 4, scroll: 5, skillbk: 6, card: 7, etc: 8 };
                 let orderA = typeOrder[a.type] || 99;
                 let orderB = typeOrder[b.type] || 99;
                 if (orderA !== orderB) return orderA - orderB;
@@ -1106,7 +1154,7 @@
                                 <span class="gm-shop-control-label">自訂強化等級</span>
                                 <div class="flex gap-2">
                                     <select id="gm-enhance-select" class="gm-shop-select" onchange="onGMEnhanceSelectChange()">
-                                        ${[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].map(v => `<option value="${v}">+${v}</option>`).join('')}
+                                        ${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(v => `<option value="${v}">+${v}</option>`).join('')}
                                         <option value="custom">自訂</option>
                                     </select>
                                     <input type="number" id="gm-enhance-custom-input" value="0" min="0" max="999" class="gm-shop-search-input hidden" style="width: 80px;" oninput="onGMShopOptionChange()">
@@ -1194,6 +1242,7 @@
                                     <option value="wpn">武器</option>
                                     <option value="arm">防具</option>
                                     <option value="acc">飾品</option>
+                                    <option value="relic">遺物</option>
                                     <option value="doll">魔法娃娃</option>
                                     <option value="scroll">卷軸</option>
                                     <option value="skillbk">魔法書</option>
@@ -1264,27 +1313,33 @@
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-slate-400 w-10">起始</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-base-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-base-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-str-base-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-base-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-base-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-emerald-400 w-10">升級</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-alloc-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-alloc-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-str-alloc-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-alloc-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-alloc-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-pink-400 w-10">萬能</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-panacea-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-panacea-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-str-panacea-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-panacea-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-str-panacea-input', 10)">+10</button>
                                             </div>
                                         </div>
                                     </div>
@@ -1296,27 +1351,33 @@
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-slate-400 w-10">起始</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-base-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-base-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-dex-base-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-base-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-base-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-emerald-400 w-10">升級</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-alloc-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-alloc-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-dex-alloc-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-alloc-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-alloc-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-pink-400 w-10">萬能</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-panacea-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-panacea-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-dex-panacea-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-panacea-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-dex-panacea-input', 10)">+10</button>
                                             </div>
                                         </div>
                                     </div>
@@ -1328,27 +1389,33 @@
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-slate-400 w-10">起始</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-base-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-base-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-con-base-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-base-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-base-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-emerald-400 w-10">升級</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-alloc-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-alloc-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-con-alloc-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-alloc-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-alloc-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-pink-400 w-10">萬能</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-panacea-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-panacea-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-con-panacea-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-panacea-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-con-panacea-input', 10)">+10</button>
                                             </div>
                                         </div>
                                     </div>
@@ -1360,27 +1427,33 @@
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-slate-400 w-10">起始</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-base-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-base-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-int-base-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-base-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-base-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-emerald-400 w-10">升級</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-alloc-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-alloc-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-int-alloc-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-alloc-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-alloc-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-pink-400 w-10">萬能</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-panacea-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-panacea-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-int-panacea-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-panacea-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-int-panacea-input', 10)">+10</button>
                                             </div>
                                         </div>
                                     </div>
@@ -1392,27 +1465,33 @@
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-slate-400 w-10">起始</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-base-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-base-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-wis-base-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-base-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-base-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-emerald-400 w-10">升級</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-alloc-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-alloc-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-wis-alloc-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-alloc-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-alloc-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-pink-400 w-10">萬能</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-panacea-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-panacea-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-wis-panacea-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-panacea-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-wis-panacea-input', 10)">+10</button>
                                             </div>
                                         </div>
                                     </div>
@@ -1424,27 +1503,33 @@
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-slate-400 w-10">起始</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-base-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-base-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-cha-base-input" class="gm-shop-char-input text-center" min="1" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-base-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-base-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-emerald-400 w-10">升級</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-alloc-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-alloc-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-cha-alloc-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-alloc-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-alloc-input', 10)">+10</button>
                                             </div>
                                         </div>
                                         
                                         <div class="flex items-center justify-between mt-1">
                                             <span class="text-xs text-pink-400 w-10">萬能</span>
                                             <div class="gm-shop-char-input-row" style="flex:1; justify-content: flex-end;">
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-panacea-input', -10)">-10</button>
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-panacea-input', -1)">-1</button>
                                                 <input type="number" id="gm-char-cha-panacea-input" class="gm-shop-char-input text-center" min="0" max="9999" style="max-width: 60px;">
                                                 <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-panacea-input', 1)">+1</button>
+                                                <button class="gm-shop-char-btn-adj" onclick="adjustGMCharAttr('gm-char-cha-panacea-input', 10)">+10</button>
                                             </div>
                                         </div>
                                     </div>
@@ -1495,10 +1580,10 @@
 
         const stats = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
         stats.forEach(st => {
-            let bInput = document.getElementById('gm-char-'+st+'-base-input');
-            let aInput = document.getElementById('gm-char-'+st+'-alloc-input');
-            let pInput = document.getElementById('gm-char-'+st+'-panacea-input');
-            
+            let bInput = document.getElementById('gm-char-' + st + '-base-input');
+            let aInput = document.getElementById('gm-char-' + st + '-alloc-input');
+            let pInput = document.getElementById('gm-char-' + st + '-panacea-input');
+
             if (bInput) bInput.value = (player.base && player.base[st]) ? player.base[st] : 0;
             if (aInput) aInput.value = (player.alloc && player.alloc[st]) ? player.alloc[st] : 0;
             if (pInput) pInput.value = (player.panacea && player.panacea[st]) ? player.panacea[st] : 0;
@@ -1537,13 +1622,13 @@
 
         const stats = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
         let baseVals = {}, allocVals = {}, panaceaVals = {};
-        
+
         let valid = true;
         stats.forEach(st => {
-            baseVals[st] = parseInt(document.getElementById('gm-char-'+st+'-base-input').value) || 0;
-            allocVals[st] = parseInt(document.getElementById('gm-char-'+st+'-alloc-input').value) || 0;
-            panaceaVals[st] = parseInt(document.getElementById('gm-char-'+st+'-panacea-input').value) || 0;
-            
+            baseVals[st] = parseInt(document.getElementById('gm-char-' + st + '-base-input').value) || 0;
+            allocVals[st] = parseInt(document.getElementById('gm-char-' + st + '-alloc-input').value) || 0;
+            panaceaVals[st] = parseInt(document.getElementById('gm-char-' + st + '-panacea-input').value) || 0;
+
             if (baseVals[st] < 1 || allocVals[st] < 0 || panaceaVals[st] < 0) valid = false;
         });
 
@@ -1554,17 +1639,17 @@
 
         // 套用修改
         player.gold = goldVal;
-        
+
         let oldLv = player.lv || 1;
         player.lv = lvlVal;
         player.exp = 0; // 重置經驗值為 0
-        
+
         // 根據等級變化自動補償或扣除「未分配點數」
         let diff = Math.max(0, lvlVal - 49) - Math.max(0, oldLv - 49);
         player.bonus = Math.max(0, bonusVal + diff);
 
         if (!player.base) player.base = {};
-        if (!player.alloc) player.alloc = { str:0, dex:0, con:0, int:0, wis:0, cha:0 };
+        if (!player.alloc) player.alloc = { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 };
         if (!player.panacea) player.panacea = {};
 
         stats.forEach(st => {
@@ -1695,6 +1780,7 @@
                     <option value="gloves">手套</option>
                     <option value="boots">靴子</option>
                     <option value="cloak">斗篷</option>
+                    <option value="petarm">寵物防具</option>
                 `;
             } else if (cat === 'acc') {
                 subSel.style.display = 'block';
@@ -1703,6 +1789,16 @@
                     <option value="amulet">項鍊</option>
                     <option value="ring">戒指</option>
                     <option value="belt">腰帶</option>
+                    <option value="petwpn">寵物武器</option>
+                    <option value="remains">席琳遺骸</option>
+                `;
+            } else if (cat === 'relic') {
+                subSel.style.display = 'block';
+                subSel.innerHTML = `
+                    <option value="all">全部遺物</option>
+                    <option value="wpn">遺物武器</option>
+                    <option value="arm">遺物防具</option>
+                    <option value="acc">遺物飾品</option>
                 `;
             } else if (cat === 'scroll') {
                 subSel.style.display = 'block';
@@ -1772,7 +1868,7 @@
     function checkGMShopBtnVisibility() {
         let btn = document.getElementById('klh-gm-shop-btn');
         if (!btn) return;
-        
+
         let hasPlayer = !!(typeof player !== 'undefined' && player && player.cls);
         if (lastBtnState !== hasPlayer) {
             btn.style.setProperty('display', hasPlayer ? 'flex' : 'none', 'important');
@@ -1874,7 +1970,7 @@
             const originalOpenSlotSelect = window.openSlotSelect;
             window.openSlotSelect = function (mode) {
                 originalOpenSlotSelect(mode);
-                
+
                 // 強制顯示清除所有存檔按鈕，並移除🔒固定
                 const clearAllBtn = document.getElementById('btn-clear-all');
                 if (clearAllBtn) {
@@ -1902,7 +1998,7 @@
     // 7. 初始化外掛
     function startupGMShop() {
         if (typeof DB === 'undefined' || !DB.items) return;
-        
+
         injectStyles();
 
         // 🌟 開啟 GMShop 時，直接覆寫短劍與木棒為測試超高數值

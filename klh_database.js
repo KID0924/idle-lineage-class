@@ -506,8 +506,8 @@
             const key = localStorage.key(i);
             if (!key) continue;
             
-            // 識別是否為該玩家產生的雲端導向快取
-            if (key.startsWith('klh_cloud_save_') || key.startsWith('klh_cloud_warehouse') || key.startsWith('afk_ts_') || key.startsWith('afk_map_') || key.startsWith('afk_pride_')) {
+            // 🔒 快取安全限制：僅允許清理以 klh_ 開頭的雲端存檔/倉庫快取，絕不碰觸原版或任何插件的 afk_ 等非 klh_ 鍵值以防未來出錯
+            if (key.startsWith('klh_cloud_save_') || key.startsWith('klh_cloud_warehouse')) {
                 let isOrphan = true;
                 for (const actKey of activeKeys) {
                     if (key.endsWith('_' + actKey)) {
