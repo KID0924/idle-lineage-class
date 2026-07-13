@@ -1643,33 +1643,105 @@
             };
 
             const applyAnimationsOverride = () => {
-                if (getAnimOff()) {
-                    window.__animOff = true;
-                    // 覆寫怪物動畫更新
-                    if (typeof window._mobAnimApply === 'function' && !window._mobAnimApply_original) {
-                        window._mobAnimApply_original = window._mobAnimApply;
-                        window._mobAnimApply = function () {
+                // 動態綁定 __animOff 全域 Getter，保證離線快轉期間原生模組也能偵測到動畫關閉
+                try {
+                    if (!Object.getOwnPropertyDescriptor(window, '__animOff')?.get) {
+                        Object.defineProperty(window, '__animOff', {
+                            get: function () {
+                                return getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
+                            },
+                            set: function (v) {},
+                            configurable: true
+                        });
+                    }
+                } catch (e) {}
+
+                // 覆寫怪物動畫更新
+                if (typeof window._mobAnimApply === 'function' && !window._mobAnimApply_original) {
+                    window._mobAnimApply_original = window._mobAnimApply;
+                    window._mobAnimApply = function () {
+                        const isOff = getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
+                        if (isOff) {
                             try { if (typeof _updateFreezeFx === 'function') _updateFreezeFx(); } catch (e) {}
                             try { if (typeof _updateMobSkillFx === 'function') _updateMobSkillFx(); } catch (e) {}
-                        };
-                    }
-                    // 覆寫隊友/玩家動畫更新
-                    if (typeof window._allySpritesApply === 'function' && !window._allySpritesApply_original) {
-                        window._allySpritesApply_original = window._allySpritesApply;
-                        window._allySpritesApply = function () {};
-                    }
-                    if (typeof window._playerMorphApply === 'function' && !window._playerMorphApply_original) {
-                        window._playerMorphApply_original = window._playerMorphApply;
-                        window._playerMorphApply = function () {};
-                    }
-                    // 覆寫寵物/召喚物動畫與尋路更新
-                    if (typeof window._petWanderStep === 'function' && !window._petWanderStep_original) {
-                        window._petWanderStep_original = window._petWanderStep;
-                        window._petWanderStep = function () {};
-                    }
-                    if (typeof window._petAnimApply === 'function' && !window._petAnimApply_original) {
-                        window._petAnimApply_original = window._petAnimApply;
-                        window._petAnimApply = function () {
+                        } else {
+                            window._mobAnimApply_original.apply(this, arguments);
+                        }
+                    };
+                }
+                
+                // 覆寫隊友/玩家動畫更新為「靜態顯現」
+                if (typeof window._allySpritesApply === 'function' && !window._allySpritesApply_original) {
+                    window._allySpritesApply_original = window._allySpritesApply;
+                    window._allySpritesApply = function () {
+                        const isOff = getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
+                        if (isOff) {
+                            if (window._allySpriteStates) {
+                                for (let slot in window._allySpriteStates) {
+                                    const st = window._allySpriteStates[slot];
+                                    if (st) {
+                                        st.act = null;
+                                        st.pendAtk = false;
+                                        st.atkBurst = false;
+                                        st.atkRepeat = 0;
+                                    }
+                                }
+                            }
+                            const originalNow = Date.now;
+                            Date.now = function () { return 0; };
+                            try {
+                                window._allySpritesApply_original.apply(this, arguments);
+                            } finally {
+                                Date.now = originalNow;
+                            }
+                        } else {
+                            window._allySpritesApply_original.apply(this, arguments);
+                        }
+                    };
+                }
+                
+                if (typeof window._playerMorphApply === 'function' && !window._playerMorphApply_original) {
+                    window._playerMorphApply_original = window._playerMorphApply;
+                    window._playerMorphApply = function () {
+                        const isOff = getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
+                        if (isOff) {
+                            if (window._pmState) {
+                                window._pmState.act = null;
+                                window._pmState.pendAtk = false;
+                                window._pmState.atkBurst = false;
+                                window._pmState.atkRepeat = 0;
+                            }
+                            const originalNow = Date.now;
+                            Date.now = function () { return 0; };
+                            try {
+                                window._playerMorphApply_original.apply(this, arguments);
+                            } finally {
+                                Date.now = originalNow;
+                            }
+                        } else {
+                            window._playerMorphApply_original.apply(this, arguments);
+                        }
+                    };
+                }
+                
+                // 覆寫寵物/召喚物動畫與尋路更新
+                if (typeof window._petWanderStep === 'function' && !window._petWanderStep_original) {
+                    window._petWanderStep_original = window._petWanderStep;
+                    window._petWanderStep = function () {
+                        const isOff = getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
+                        if (isOff) {
+                            // do nothing!
+                        } else {
+                            window._petWanderStep_original.apply(this, arguments);
+                        }
+                    };
+                }
+                
+                if (typeof window._petAnimApply === 'function' && !window._petAnimApply_original) {
+                    window._petAnimApply_original = window._petAnimApply;
+                    window._petAnimApply = function () {
+                        const isOff = getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
+                        if (isOff) {
                             try {
                                 if (typeof document !== 'undefined' && document.hidden) return;
                                 let bv = document.getElementById('battle-view');
@@ -1701,31 +1773,10 @@
                                     if (sh && sh.style.visibility !== 'hidden') sh.style.visibility = 'hidden';
                                 }
                             } catch (e) {}
-                        };
-                    }
-                } else {
-                    window.__animOff = false;
-                    // 還原原本的動畫更新
-                    if (window._mobAnimApply_original) {
-                        window._mobAnimApply = window._mobAnimApply_original;
-                        delete window._mobAnimApply_original;
-                    }
-                    if (window._allySpritesApply_original) {
-                        window._allySpritesApply = window._allySpritesApply_original;
-                        delete window._allySpritesApply_original;
-                    }
-                    if (window._playerMorphApply_original) {
-                        window._playerMorphApply = window._playerMorphApply_original;
-                        delete window._playerMorphApply_original;
-                    }
-                    if (window._petWanderStep_original) {
-                        window._petWanderStep = window._petWanderStep_original;
-                        delete window._petWanderStep_original;
-                    }
-                    if (window._petAnimApply_original) {
-                        window._petAnimApply = window._petAnimApply_original;
-                        delete window._petAnimApply_original;
-                    }
+                        } else {
+                            window._petAnimApply_original.apply(this, arguments);
+                        }
+                    };
                 }
             };
 
@@ -1744,21 +1795,18 @@
             applyAnimationsOverride();
         })();
 
-        // 🔇 離線/快速結算靜音防卡死攔截器
+        // 🔇 離線/快速結算靜音防卡死攔截器 (核心級音軌阻斷)
         (function patchAudioForFastForward() {
-            const audioFuncs = ['playSfx', '_sfxPlayPool', '_bgmTick', '_bgmSwitch'];
-            audioFuncs.forEach(funcName => {
-                if (typeof window[funcName] === 'function' && !window[funcName].__klh_patched) {
-                    const original = window[funcName];
-                    window[funcName] = function () {
-                        if (window.state && window.state.ff) {
-                            return (funcName === '_sfxPlayPool') ? false : undefined;
-                        }
-                        return original.apply(this, arguments);
-                    };
-                    window[funcName].__klh_patched = true;
-                }
-            });
+            if (typeof HTMLAudioElement !== 'undefined' && HTMLAudioElement.prototype.play && !HTMLAudioElement.prototype.play.__klh_patched) {
+                const originalPlay = HTMLAudioElement.prototype.play;
+                HTMLAudioElement.prototype.play = function () {
+                    if (typeof state !== 'undefined' && state && state.ff) {
+                        return Promise.resolve(); // 離線快轉期間，直接阻斷播放 Promise
+                    }
+                    return originalPlay.apply(this, arguments);
+                };
+                HTMLAudioElement.prototype.play.__klh_patched = true;
+            }
         })();
 
         // 📈 實時效能監控器 (FPS & Game Tick Monitor)
