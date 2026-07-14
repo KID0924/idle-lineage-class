@@ -17,7 +17,7 @@
 
   /* ═══════════════ 常數與狀態 ═══════════════ */
   var PERF_KEY = 'fb5_mobilePerf';
-  var _cfg = { enabled: false, level: 2, adv: { audio: 2, anim: 2, vfx: 2, log: 2, css: 2 } };
+  var _cfg = { enabled: false, level: 2, adv: { audio: 3, anim: 1, vfx: 1, log: 1, css: 1 } };
   var _orig = {};        // 被替換的原始函式 / 原始值備份
   var _st = {            // 執行時狀態
     applied: false,
@@ -51,11 +51,11 @@
         _cfg.level = [1, 2, 3, 4].indexOf(o.level) >= 0 ? o.level : 2; 
         if (o.adv) {
           _cfg.adv = {
-            audio: o.adv.audio !== undefined ? o.adv.audio : 2,
-            anim:  o.adv.anim  !== undefined ? o.adv.anim  : 2,
-            vfx:   o.adv.vfx   !== undefined ? o.adv.vfx   : 2,
-            log:   o.adv.log   !== undefined ? o.adv.log   : 2,
-            css:   o.adv.css   !== undefined ? o.adv.css   : 2
+            audio: o.adv.audio !== undefined ? o.adv.audio : 3,
+            anim:  o.adv.anim  !== undefined ? o.adv.anim  : 1,
+            vfx:   o.adv.vfx   !== undefined ? o.adv.vfx   : 1,
+            log:   o.adv.log   !== undefined ? o.adv.log   : 1,
+            css:   o.adv.css   !== undefined ? o.adv.css   : 1
           };
         }
       }
@@ -334,6 +334,12 @@
   function applyVfx(lv) {
     revertVfx();
     if (lv === 0) return; // 0 = 正常 (不套用優化，完整繪製)
+
+    // 立即清空畫面上殘留的舊特效 DOM 節點，釋放記憶體
+    if (lv >= 2) {
+      var vLayer = document.getElementById('vfx-layer');
+      if (vLayer) vLayer.innerHTML = '';
+    }
 
     // _vfxBlood — 命中濺血粒子
     if (typeof _vfxBlood === 'function') {
