@@ -575,16 +575,24 @@
           return;
         }
 
+        // 💡 手機版滾動優化：檢測背包面板是否在可視區 (Viewport) 內。若滑出畫面，則全部標記為隱藏，走 Dummy 虛擬渲染
+        var panelEl = document.getElementById('tab-content-panel');
+        var panelVisible = true;
+        if (panelEl) {
+          var rect = panelEl.getBoundingClientRect();
+          panelVisible = (rect.top < window.innerHeight && rect.bottom > 0);
+        }
+
         var wDiv = document.getElementById('tab-weapons');
-        var wVis = wDiv && !wDiv.classList.contains('hidden');
+        var wVis = panelVisible && wDiv && !wDiv.classList.contains('hidden');
         var aDiv = document.getElementById('tab-armors');
-        var aVis = aDiv && !aDiv.classList.contains('hidden');
+        var aVis = panelVisible && aDiv && !aDiv.classList.contains('hidden');
         var iDiv = document.getElementById('tab-items');
-        var iVis = iDiv && !iDiv.classList.contains('hidden');
+        var iVis = panelVisible && iDiv && !iDiv.classList.contains('hidden');
         var eDiv = document.getElementById('tab-equip');
-        var eVis = eDiv && !eDiv.classList.contains('hidden');
+        var eVis = panelVisible && eDiv && !eDiv.classList.contains('hidden');
         var sDiv = document.getElementById('tab-skill');
-        var sVis = sDiv && !sDiv.classList.contains('hidden');
+        var sVis = panelVisible && sDiv && !sDiv.classList.contains('hidden');
 
         var origGetElementById = document.getElementById;
         var dummies = {};
@@ -630,6 +638,50 @@
         }
       };
     }
+
+    // 🔄 監聽手機版頁面滾動：當背包重新滑入畫面時，立即強制重繪以顯現最新資料
+    // 💡 註：手機版滾動容器是 #game-screen 而非 body/window，scroll 事件不冒泡，因此必須在捕獲階段 (capture: true) 監聽
+    var _tabPanelWasVisible = false;
+    var _lastScrollRenderTime = 0;
+    window.addEventListener('scroll', function () {
+      if (!_cfg.enabled) return;
+      var now = Date.now();
+      if (now - _lastScrollRenderTime < 100) return; // 100ms 節流，防止滾動期間連續重算與高頻渲染
+      _lastScrollRenderTime = now;
+
+      var el = document.getElementById('tab-content-panel');
+      if (!el) return;
+      var rect = el.getBoundingClientRect();
+      var isNowVisible = (rect.top < window.innerHeight && rect.bottom > 0);
+
+      // 當狀態由「看不見」轉為「看得見」的瞬間，強制重新渲染以載入真實 DOM
+      if (isNowVisible && !_tabPanelWasVisible) {
+        _tabPanelWasVisible = true;
+        console.log('📱 [手機優化] 背包滑入畫面：還原為真實 DOM 並重繪');
+        if (typeof renderTabs === 'function') {
+          try { renderTabs(true); } catch (e) {}
+        }
+      } else if (!isNowVisible && _tabPanelWasVisible) {
+        _tabPanelWasVisible = false;
+        console.log('📱 [手機優化] 背包滑出畫面：切換為虛擬 DOM (跳過繪製)');
+      }
+    }, { capture: true, passive: true });
+
+    // 🔬 提供 Console 除錯工具
+    window.checkMobilePerf = function() {
+      var panelEl = document.getElementById('tab-content-panel');
+      if (!panelEl) return "Error: tab-content-panel not found";
+      var rect = panelEl.getBoundingClientRect();
+      var visible = (rect.top < window.innerHeight && rect.bottom > 0);
+      return {
+        "優化是否啟用 (cfgEnabled)": _cfg.enabled,
+        "背包目前是否在視野內 (panelVisible)": visible,
+        "背包頂部與視窗頂部距離 (rectTop)": rect.top,
+        "背包底部與視窗頂部距離 (rectBottom)": rect.bottom,
+        "視窗高度 (windowHeight)": window.innerHeight,
+        "當前背包運作模式": visible ? "真實 DOM 渲染 (Normal)" : "虛擬 DOM 渲染 (Skip DOM Paint)"
+      };
+    };
   })();
 
   /* ═══════════════ 啟動流程 ═══════════════ */
