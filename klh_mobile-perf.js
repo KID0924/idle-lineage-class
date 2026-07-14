@@ -332,6 +332,46 @@
     document.head.appendChild(_st.styleEl);
   }
 
+  /* ═══════════════ 動態注入 UI ═══════════════ */
+  function injectUI() {
+    if (document.getElementById('btn-mobile-perf')) return;
+    var mainMenu = document.getElementById('main-menu');
+    if (!mainMenu) return;
+
+    var btn = document.createElement('button');
+    btn.id = 'btn-mobile-perf';
+    btn.className = 'btn text-base w-72 py-2.5';
+    btn.style.background = '#334155';
+    btn.style.borderColor = '#475569';
+    btn.onclick = function () { window.toggleMobilePerf(); };
+    btn.textContent = '📱 手機優化：關閉';
+
+    var sel = document.createElement('select');
+    sel.id = 'sel-mobile-level';
+    sel.className = 'bg-slate-800 border border-slate-600 text-white px-3 py-1.5 text-sm rounded outline-none w-72 hidden';
+    sel.onchange = function () { window.setMobilePerfLevel(this.value); };
+    sel.innerHTML = '<option value="1">🟢 輕度 — 降低音效頻率、修剪日誌</option>' +
+                    '<option value="2" selected>🟡 中度 — 動畫減半、減少特效粒子</option>' +
+                    '<option value="3">🔴 強力 — 關閉音效與特效、最大效能</option>';
+
+    var hint = document.createElement('p');
+    hint.id = 'hint-mobile-perf';
+    hint.className = 'text-xs text-slate-500 -mt-2 w-72 text-center';
+    hint.textContent = '手機/平板卡頓時開啟；首次在手機開啟預設「中度」，可隨時切換等級';
+
+    var pEls = mainMenu.getElementsByTagName('p');
+    if (pEls.length > 0) {
+      var lastP = pEls[pEls.length - 1];
+      lastP.parentNode.insertBefore(hint, lastP.nextSibling);
+      lastP.parentNode.insertBefore(sel, hint);
+      lastP.parentNode.insertBefore(btn, sel);
+    } else {
+      mainMenu.appendChild(btn);
+      mainMenu.appendChild(sel);
+      mainMenu.appendChild(hint);
+    }
+  }
+
   /* ═══════════════ 啟動流程 ═══════════════ */
   loadCfg();
 
@@ -342,12 +382,17 @@
   }
 
   function boot() {
+    injectUI();
     syncUI();
     if (_cfg.enabled) setTimeout(applyAll, 200);
-    setInterval(syncUI, 2000);
+    setInterval(function () {
+      injectUI();
+      syncUI();
+    }, 2000);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 
 })();
+
