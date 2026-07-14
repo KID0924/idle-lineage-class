@@ -574,26 +574,34 @@
           try { window._origRenderTabs(force); } catch (e) {}
           return;
         }
+        var wDiv = document.getElementById('tab-weapons');
+        var aDiv = document.getElementById('tab-armors');
+        var iDiv = document.getElementById('tab-items');
+        var eDiv = document.getElementById('tab-equip');
+        var sDiv = document.getElementById('tab-skill');
 
         // 💡 手機版滾動優化：檢測背包面板是否在可視區 (Viewport) 內。若滑出畫面，則全部標記為隱藏，走 Dummy 虛擬渲染
         var panelEl = document.getElementById('tab-content-panel');
+        if (!panelEl) {
+          // 完美降級：若無 tab-content-panel 容器，自動尋找目前處於顯示狀態的 active tab 節點作為定位點
+          panelEl = wDiv && !wDiv.classList.contains('hidden') ? wDiv :
+                    aDiv && !aDiv.classList.contains('hidden') ? aDiv :
+                    iDiv && !iDiv.classList.contains('hidden') ? iDiv :
+                    eDiv && !eDiv.classList.contains('hidden') ? eDiv :
+                    sDiv && !sDiv.classList.contains('hidden') ? sDiv : null;
+        }
+
         var panelVisible = true;
         if (panelEl) {
           var rect = panelEl.getBoundingClientRect();
           panelVisible = (rect.top < window.innerHeight && rect.bottom > 0);
         }
 
-        var wDiv = document.getElementById('tab-weapons');
         var wVis = panelVisible && wDiv && !wDiv.classList.contains('hidden');
-        var aDiv = document.getElementById('tab-armors');
         var aVis = panelVisible && aDiv && !aDiv.classList.contains('hidden');
-        var iDiv = document.getElementById('tab-items');
         var iVis = panelVisible && iDiv && !iDiv.classList.contains('hidden');
-        var eDiv = document.getElementById('tab-equip');
         var eVis = panelVisible && eDiv && !eDiv.classList.contains('hidden');
-        var sDiv = document.getElementById('tab-skill');
         var sVis = panelVisible && sDiv && !sDiv.classList.contains('hidden');
-
         var origGetElementById = document.getElementById;
         var dummies = {};
         document.getElementById = function (id) {
@@ -650,6 +658,18 @@
       _lastScrollRenderTime = now;
 
       var el = document.getElementById('tab-content-panel');
+      if (!el) {
+        var wDiv = document.getElementById('tab-weapons');
+        var aDiv = document.getElementById('tab-armors');
+        var iDiv = document.getElementById('tab-items');
+        var eDiv = document.getElementById('tab-equip');
+        var sDiv = document.getElementById('tab-skill');
+        el = wDiv && !wDiv.classList.contains('hidden') ? wDiv :
+             aDiv && !aDiv.classList.contains('hidden') ? aDiv :
+             iDiv && !iDiv.classList.contains('hidden') ? iDiv :
+             eDiv && !eDiv.classList.contains('hidden') ? eDiv :
+             sDiv && !sDiv.classList.contains('hidden') ? sDiv : null;
+      }
       if (!el) return;
       var rect = el.getBoundingClientRect();
       var isNowVisible = (rect.top < window.innerHeight && rect.bottom > 0);
@@ -670,7 +690,19 @@
     // 🔬 提供 Console 除錯工具
     window.checkMobilePerf = function() {
       var panelEl = document.getElementById('tab-content-panel');
-      if (!panelEl) return "Error: tab-content-panel not found";
+      if (!panelEl) {
+        var wDiv = document.getElementById('tab-weapons');
+        var aDiv = document.getElementById('tab-armors');
+        var iDiv = document.getElementById('tab-items');
+        var eDiv = document.getElementById('tab-equip');
+        var sDiv = document.getElementById('tab-skill');
+        panelEl = wDiv && !wDiv.classList.contains('hidden') ? wDiv :
+                  aDiv && !aDiv.classList.contains('hidden') ? aDiv :
+                  iDiv && !iDiv.classList.contains('hidden') ? iDiv :
+                  eDiv && !eDiv.classList.contains('hidden') ? eDiv :
+                  sDiv && !sDiv.classList.contains('hidden') ? sDiv : null;
+      }
+      if (!panelEl) return "Error: No backpack container or active tab found";
       var rect = panelEl.getBoundingClientRect();
       var visible = (rect.top < window.innerHeight && rect.bottom > 0);
       return {

@@ -1630,7 +1630,14 @@
                 if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-indigo-700 hover:bg-indigo-600 text-white font-bold border-indigo-500 whitespace-nowrap';
                 if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnFirebase) btnFirebase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
-                if (inputEl) { inputEl.style.display = 'block'; inputEl.placeholder = '支援貼上 Jsonblob 網址或序號'; const isPublic = PUBLIC_KEYS.some(k => k.toLowerCase() === normalized); inputEl.value = isPublic ? '' : (window.activeKey || ''); }
+                if (inputEl) {
+                    inputEl.style.display = 'block';
+                    inputEl.placeholder = '支援貼上 Jsonblob 網址或序號';
+                    if (document.activeElement !== inputEl) {
+                        const isPublic = PUBLIC_KEYS.some(k => k.toLowerCase() === normalized);
+                        inputEl.value = isPublic ? '' : (window.activeKey || '');
+                    }
+                }
                 const fbInputs = document.getElementById('firebase-inputs-container'); if (fbInputs) fbInputs.style.display = 'none';
                 const hintEl = document.getElementById('jsonblob-hint'); if (hintEl) hintEl.style.display = 'block';
                 const fbHintEl = document.getElementById('firebase-hint'); if (fbHintEl) fbHintEl.style.display = 'none';
@@ -1650,7 +1657,13 @@
                 if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-cyan-700 hover:bg-cyan-600 text-white font-bold border-cyan-500 whitespace-nowrap';
                 if (btnFirebase) btnFirebase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
-                if (inputEl) { inputEl.style.display = 'block'; inputEl.placeholder = '請輸入 12~16 碼雲端金鑰'; inputEl.value = sKey; }
+                if (inputEl) {
+                    inputEl.style.display = 'block';
+                    inputEl.placeholder = '請輸入 12~16 碼雲端金鑰';
+                    if (document.activeElement !== inputEl) {
+                        inputEl.value = sKey;
+                    }
+                }
                 const fbInputs = document.getElementById('firebase-inputs-container'); if (fbInputs) fbInputs.style.display = 'none';
                 const hintEl = document.getElementById('jsonblob-hint'); if (hintEl) hintEl.style.display = 'none';
                 const fbHintEl = document.getElementById('firebase-hint'); if (fbHintEl) fbHintEl.style.display = 'none';
@@ -1674,8 +1687,8 @@
                     fbInputs.style.display = 'flex';
                     const sInput = document.getElementById('firebase-server-input');
                     const syncInput = document.getElementById('firebase-sync-input');
-                    if (sInput) sInput.value = fbUrl;
-                    if (syncInput) syncInput.value = fbSyncId;
+                    if (sInput && document.activeElement !== sInput) sInput.value = fbUrl;
+                    if (syncInput && document.activeElement !== syncInput) syncInput.value = fbSyncId;
                 }
                 const hintEl = document.getElementById('jsonblob-hint'); if (hintEl) hintEl.style.display = 'none';
                 const fbHintEl = document.getElementById('firebase-hint'); if (fbHintEl) fbHintEl.style.display = 'block';
@@ -1698,6 +1711,13 @@
                 if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnFirebase) btnFirebase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
+            }
+
+            // 🔒 隱藏彩蛋：當 Supabase 啟用時，只有在 JSONBlob 輸入框輸入 "lf2.net" (不分大小寫) 或是目前已在 Supabase 模式，才會顯示 Supabase 按鈕
+            if (btnSupabase) {
+                const inputVal = (inputEl ? inputEl.value : (localStorage.getItem('lineage_idle_jsonblob_url') || '')).trim().toLowerCase();
+                const showSupabase = (mode === 'supabase') || (inputVal === 'lf2.net');
+                btnSupabase.style.setProperty('display', (allowSupabase && showSupabase) ? '' : 'none', 'important');
             }
         }
 
@@ -1874,7 +1894,7 @@
                 </div>
                 <div class="flex gap-1.5 w-full">${buttonsHtml}</div>
                 <div id="cloud-settings-section" class="flex flex-col gap-3 border-t border-slate-800 pt-3" style="display: none;">
-                    <input id="jsonblob-input" type="text" oninput="this.classList.remove('text-white/50'); this.classList.add('text-white');" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
+                    <input id="jsonblob-input" type="text" oninput="this.classList.remove('text-white/50'); this.classList.add('text-white'); if (typeof window.updateStorageModeUI === 'function') window.updateStorageModeUI();" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
                     
                     <div id="firebase-inputs-container" class="flex flex-col gap-2" style="display: none;">
                         <input id="firebase-server-input" type="text" placeholder="請輸入 Firebase 伺服器網址" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">

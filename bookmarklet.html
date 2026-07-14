@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>放置天堂外掛書籤產生器 | Fable 5 Bookmarklet Builder</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* ═══════════════ 全域與主題設計 ═══════════════ */
+        :root {
+            --bg-color: #080c14;
+            --panel-bg: rgba(15, 23, 42, 0.65);
+            --border-color: rgba(71, 85, 105, 0.4);
+            --primary: #00f2fe;
+            --primary-glow: rgba(0, 242, 254, 0.35);
+            --secondary: #9d4edd;
+            --secondary-glow: rgba(157, 78, 221, 0.35);
+            --accent: #4facfe;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(17, 24, 39, 0.8) 0, transparent 50%),
+                radial-gradient(at 50% 0%, rgba(157, 78, 221, 0.15) 0, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(0, 242, 254, 0.08) 0, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            font-family: 'Noto Sans TC', 'Rajdhani', sans-serif;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* 輪廓發光裝飾 */
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            background: var(--panel-bg);
+            padding: 2.5rem;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 40px rgba(157, 78, 221, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+        }
+
+        /* ═══════════════ 標題設計 ═══════════════ */
+        header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        h1 {
+            font-family: 'Orbitron', 'Noto Sans TC', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 900;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(0, 242, 254, 0.2);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+        }
+
+        /* ═══════════════ 主佈局 ═══════════════ */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 868px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .section-title {
+            font-family: 'Orbitron', 'Noto Sans TC', sans-serif;
+            font-size: 1.15rem;
+            color: var(--text-main);
+            border-left: 4px solid var(--primary);
+            padding-left: 10px;
+            margin-bottom: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .section-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: -0.8rem;
+            margin-bottom: 1.2rem;
+        }
+
+        /* ═══════════════ 左側：檔案清單 ═══════════════ */
+        .files-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        /* 卡片設計 */
+        .file-card {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 0.9rem 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            cursor: grab;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+        }
+
+        .file-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(0, 242, 254, 0.3);
+            background: rgba(30, 41, 59, 0.6);
+            box-shadow: 0 5px 15px rgba(0, 242, 254, 0.05);
+        }
+
+        .file-card.checked {
+            border-color: rgba(157, 78, 221, 0.35);
+            background: rgba(157, 78, 221, 0.06);
+        }
+
+        /* 拖曳中樣式 */
+        .file-card.dragging {
+            opacity: 0.4;
+            border: 1px dashed var(--primary);
+            background: rgba(0, 242, 254, 0.05);
+        }
+
+        /* 拖曳手柄與排序 */
+        .drag-handle {
+            color: var(--text-muted);
+            cursor: grab;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+        }
+
+        /* 勾選框優化 */
+        .custom-checkbox {
+            position: relative;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .custom-checkbox input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .checkmark {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .custom-checkbox input:checked ~ .checkmark {
+            background: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .checkmark::after {
+            content: "";
+            position: absolute;
+            display: none;
+            left: 6px;
+            top: 2px;
+            width: 5px;
+            height: 10px;
+            border: solid #080c14;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .custom-checkbox input:checked ~ .checkmark::after {
+            display: block;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.3;
+        }
+
+        /* 標籤 */
+        .badge {
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .badge-core {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .badge-utility {
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        /* ═══════════════ 右側：書籤生成區 ═══════════════ */
+        .result-panel {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            position: sticky;
+            top: 20px;
+        }
+
+        /* 拖曳按鈕 */
+        .bookmarklet-btn-wrapper {
+            text-align: center;
+            padding: 1.5rem 1rem;
+            background: radial-gradient(circle at center, rgba(157, 78, 221, 0.1) 0%, transparent 70%);
+            border: 1px dashed rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .bookmarklet-link {
+            display: inline-block;
+            padding: 0.9rem 2.2rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: #080c14;
+            font-family: 'Orbitron', 'Noto Sans TC', sans-serif;
+            font-weight: 900;
+            font-size: 1.1rem;
+            border-radius: 30px;
+            text-decoration: none;
+            cursor: grab;
+            box-shadow: 0 0 20px var(--primary-glow), 0 0 35px var(--secondary-glow);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            text-shadow: 0 1px 1px rgba(255, 255, 255, 0.4);
+        }
+
+        .bookmarklet-link:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px var(--primary), 0 0 45px var(--secondary);
+        }
+
+        .bookmarklet-link:active {
+            cursor: grabbing;
+        }
+
+        .link-hint {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* 複製區塊 */
+        .code-box-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .code-box-wrapper code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        .btn-copy {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-copy:hover {
+            background: var(--primary);
+            color: #080c14;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+            font-weight: bold;
+        }
+
+        textarea.code-box {
+            width: 100%;
+            height: 100px;
+            background: rgba(8, 12, 20, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: #38bdf8;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.75rem;
+            padding: 8px 12px;
+            resize: none;
+            outline: none;
+            user-select: text;
+        }
+
+        /* 說明指南 */
+        .guide-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 1rem;
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
+        .guide-title {
+            font-weight: bold;
+            color: var(--text-main);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .guide-steps {
+            list-style: decimal;
+            padding-left: 1.2rem;
+            color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        /* 底部資訊 */
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* 提示動畫 */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 15px var(--primary-glow); }
+            50% { box-shadow: 0 0 25px rgba(0, 242, 254, 0.6); }
+            100% { box-shadow: 0 0 15px var(--primary-glow); }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>⚡ 放置天堂外掛書籤產生器</h1>
+            <div class="subtitle">自訂載入外掛模組，打造專屬您的輔助工具箱</div>
+        </header>
+
+        <div class="main-layout">
+            <!-- 左側：勾選清單 -->
+            <div>
+                <div class="section-title">
+                    <span>📦 外掛元件庫</span>
+                    <span style="font-size: 11px; color: var(--text-muted); font-weight: normal; font-family: sans-serif;">🖱️ 可上下拖曳調整載入順序</span>
+                </div>
+                <p class="section-desc">請勾選想要啟用的外掛。推薦將 <b>klh_initial.js</b> 置於最上方，以確保其他功能正常初始化。</p>
+                
+                <div class="files-container" id="files-list">
+                    <!-- 檔案項目會在此處動態生成 -->
+                </div>
+            </div>
+
+            <!-- 右側：書籤生成與複製區 -->
+            <div>
+                <div class="section-title">
+                    <span>🔮 書籤生成區</span>
+                </div>
+                
+                <div class="result-panel">
+                    <!-- 拖曳區 -->
+                    <div class="bookmarklet-btn-wrapper">
+                        <a href="#" id="bookmarklet-link" class="bookmarklet-link pulse" onclick="return false;">🐾 放置天堂啟動</a>
+                        <div class="link-hint">
+                            <b>💻 電腦使用者：</b><br>請將上方按鈕直接「拖曳」到您的瀏覽器書籤列（Bookmarks Bar）中。
+                        </div>
+                    </div>
+
+                    <!-- 複製區 -->
+                    <div class="code-box-wrapper">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.82rem; color: var(--text-muted);">
+                            <span>📋 書籤代碼（不支援拖曳時使用）：</span>
+                            <button class="btn-copy" id="btn-copy">一鍵複製</button>
+                        </div>
+                        <textarea class="code-box" id="code-box" readonly></textarea>
+                    </div>
+
+                    <!-- 說明指南 -->
+                    <div class="guide-box">
+                        <div class="guide-title">📱 手機/行動裝置使用教學：</div>
+                        <ul class="guide-steps">
+                            <li>複製上方「書籤代碼」。</li>
+                            <li>在當前網頁隨便建立一個書籤（例如按星號）。</li>
+                            <li>編輯該書籤：把名字改為「放置天堂啟動」，並把<b>網址/URL 欄位清空，貼上複製的代碼</b>。</li>
+                            <li>進入遊戲網頁後，點開書籤列，點擊該書籤即可執行啟動！</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        © 2026 放置天堂輔助外掛組 | 根目錄配置為：https://kid0924.github.io/idle-lineage-class/
+    </footer>
+
+    <script>
+        // ═══════════════ 外掛資料定義 ═══════════════
+        const ALL_PLUGINS = [
+            { id: 'klh_initial.js', name: 'klh_initial.js', desc: '核心初始化模組。載入全域資源與基本變數（必選，需放在最上方）。', isCore: true, checked: true },
+            { id: 'klh_database.js', name: 'klh_database.js', desc: '雲端存檔引擎。提供 Supabase / JSONBlob 雙引擎雲端備份同步與防衝突機制。', isCore: true, checked: true },
+            { id: 'klh_GMShop.js', name: 'klh_GMShop.js', desc: 'GM 商店與修改面板。整合一鍵滿級、怪物卡片/裝備直接解鎖編輯功能。', isCore: false, checked: true },
+            { id: 'klh_mobile-perf.js', name: 'klh_mobile-perf.js', desc: '效能降級與優化。提供音效節流、降低動畫影格與自動日誌清理，防發熱。', isCore: false, checked: true },
+            { id: 'klh_perf-monitor.js', name: 'klh_perf-monitor.js', desc: '即時效能監測面板。在右上角顯示目前 FPS 與記憶體開銷。', isCore: false, checked: false },
+            { id: 'klh_mobile_allies_hud.js', name: 'klh_mobile_allies_hud.js', desc: '手機傭兵快速欄。專為觸控裝置設計的傭兵出戰與狀態快捷監控欄。', isCore: false, checked: false },
+            { id: 'klh_Addition.js', name: 'klh_Addition.js', desc: '額外輔助增強模組。包含各類輔助邏輯與便利性調整。', isCore: false, checked: false },
+            { id: 'klh_Pandora.js', name: 'klh_Pandora.js', desc: '潘朵拉系統擴充。自訂抽獎與特定兌換防 SL 封裝。', isCore: false, checked: false },
+            { id: 'klh_PC_fix.js', name: 'klh_PC_fix.js', desc: '電腦版版面修正。微調電腦大螢幕版面寬度與側邊配置。', isCore: false, checked: false },
+            { id: 'klh_Shop.js', name: 'klh_Shop.js', desc: '商店功能擴充。調整商店購買數量上限與快捷介面。', isCore: false, checked: false },
+            { id: 'klh_run.js', name: 'klh_run.js', desc: '自啟動引導載入。彙整所有配置並正式引導各模組自啟（通常放在最下方）。', isCore: true, checked: true }
+        ];
+
+        const BASE_URL = 'https://kid0924.github.io/idle-lineage-class/';
+        let activePlugins = [...ALL_PLUGINS];
+
+        // ═══════════════ 動態渲染檔案清單 ═══════════════
+        const filesListContainer = document.getElementById('files-list');
+
+        function renderList() {
+            filesListContainer.innerHTML = '';
+            activePlugins.forEach((p, index) => {
+                const card = document.createElement('div');
+                card.className = `file-card ${p.checked ? 'checked' : ''}`;
+                card.draggable = true;
+                card.dataset.id = p.id;
+                
+                card.innerHTML = `
+                    <div class="drag-handle">☰</div>
+                    <label class="custom-checkbox">
+                        <input type="checkbox" ${p.checked ? 'checked' : ''} onchange="togglePlugin('${p.id}')">
+                        <span class="checkmark"></span>
+                    </label>
+                    <div class="file-info">
+                        <div class="file-name">
+                            <span>${p.name}</span>
+                            ${p.isCore ? '<span class="badge badge-core">核心</span>' : '<span class="badge badge-utility">模組</span>'}
+                        </div>
+                        <div class="file-desc">${p.desc}</div>
+                    </div>
+                `;
+
+                // 註冊拖曳相關事件
+                card.addEventListener('dragstart', handleDragStart);
+                card.addEventListener('dragover', handleDragOver);
+                card.addEventListener('dragend', handleDragEnd);
+                card.addEventListener('drop', handleDrop);
+
+                filesListContainer.appendChild(card);
+            });
+
+            generateBookmarklet();
+        }
+
+        // ═══════════════ 狀態操作 ═══════════════
+        window.togglePlugin = function(id) {
+            const plugin = activePlugins.find(p => p.id === id);
+            if (plugin) {
+                plugin.checked = !plugin.checked;
+                renderList();
+            }
+        };
+
+        // ═══════════════ 拖曳排序實作 ═══════════════
+        let dragSrcEl = null;
+
+        function handleDragStart(e) {
+            this.classList.add('dragging');
+            dragSrcEl = this;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.dataset.id);
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.file-card').forEach(c => c.classList.remove('drag-over'));
+        }
+
+        function handleDrop(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            if (dragSrcEl !== this) {
+                const srcId = e.dataTransfer.getData('text/plain');
+                const destId = this.dataset.id;
+                
+                const srcIndex = activePlugins.findIndex(p => p.id === srcId);
+                const destIndex = activePlugins.findIndex(p => p.id === destId);
+                
+                // 重新排序陣列
+                const [removed] = activePlugins.splice(srcIndex, 1);
+                activePlugins.splice(destIndex, 0, removed);
+                
+                renderList();
+            }
+            return false;
+        }
+
+        // ═══════════════ 書籤代碼生成邏輯 ═══════════════
+        const bookmarkletLink = document.getElementById('bookmarklet-link');
+        const codeBox = document.getElementById('code-box');
+
+        function generateBookmarklet() {
+            const checkedPlugins = activePlugins.filter(p => p.checked).map(p => p.id);
+            if (checkedPlugins.length === 0) {
+                bookmarkletLink.removeAttribute('href');
+                bookmarkletLink.style.opacity = '0.5';
+                bookmarkletLink.style.pointerEvents = 'none';
+                codeBox.value = '請至少勾選一個外掛元件以生成書籤代碼。';
+                return;
+            }
+
+            bookmarkletLink.style.opacity = '1';
+            bookmarkletLink.style.pointerEvents = 'auto';
+
+            // 產生壓縮版書籤代碼
+            const scriptArrStr = JSON.stringify(checkedPlugins);
+            const bookmarkletCode = `javascript:(function(){var s=${scriptArrStr},b="${BASE_URL}";function l(i){if(i>=s.length)return;var d=document,g=d.createElement("script");g.src=b+s[i]+"?v="+Date.now();g.onload=function(){l(i+1)};g.onerror=function(){console.error("Load failed:"+s[i]);l(i+1)};d.head.appendChild(g)}l(0)})();`;
+
+            // 更新按鈕超連結與文字區塊
+            bookmarkletLink.href = bookmarkletCode;
+            codeBox.value = bookmarkletCode;
+        }
+
+        // ═══════════════ 複製功能 ═══════════════
+        const btnCopy = document.getElementById('btn-copy');
+        btnCopy.addEventListener('click', function() {
+            const checkedPlugins = activePlugins.filter(p => p.checked).map(p => p.id);
+            if (checkedPlugins.length === 0) return;
+
+            codeBox.select();
+            codeBox.setSelectionRange(0, 99999); // 行動裝置相容
+
+            try {
+                navigator.clipboard.writeText(codeBox.value).then(() => {
+                    const originalText = btnCopy.textContent;
+                    btnCopy.textContent = '✔ 已複製';
+                    btnCopy.style.background = 'var(--success)';
+                    btnCopy.style.borderColor = 'var(--success)';
+                    btnCopy.style.color = '#fff';
+                    setTimeout(() => {
+                        btnCopy.textContent = originalText;
+                        btnCopy.style.background = '';
+                        btnCopy.style.borderColor = '';
+                        btnCopy.style.color = '';
+                    }, 1500);
+                });
+            } catch (err) {
+                // 退回舊式複製法
+                document.execCommand('copy');
+                alert('複製成功！');
+            }
+        });
+
+        // ═══════════════ 頁面初始化 ═══════════════
+        renderList();
+    </script>
+</body>
+</html>

@@ -1578,222 +1578,9 @@
             }
         ]);
 
-        // 延遲修正手機版存檔列表格式
-        setTimeout(() => {
-            if (typeof window.openSlotSelect === 'function') {
-                const wrappedOpenSlotSelect = window.openSlotSelect;
-                window.openSlotSelect = function (mode) {
-                    wrappedOpenSlotSelect(mode);
-                    // 手機版格式修正
-                    if (document.body.classList.contains('m-mobile')) {
-                        const list = document.getElementById('slot-list');
-                        if (list && typeof slotSummary === 'function') {
-                            const rows = list.children;
-                            for (let i = 0; i < rows.length; i++) {
-                                const btn = rows[i].children[0];
-                                if (!btn) continue;
-                                const sum = slotSummary(i + 1);
-                                if (!sum) continue;
-                                const l1 = btn.querySelector('.m-slot-l1');
-                                const l2 = btn.querySelector('.m-slot-l2');
-                                if (l1 && l2) {
-                                    l1.style.display = 'flex';
-                                    l1.style.width = '100%';
-                                    l1.style.padding = '0 12px';
-                                    l1.style.boxSizing = 'border-box';
-                                    l1.innerHTML = `<span style="flex: 1; text-align: left;">存檔 ${i + 1}</span>`
-                                        + `<span style="flex: 1; text-align: center;">${sum.cls}</span>`
-                                        + `<span style="flex: 1; text-align: right;">Lv.${sum.lv}</span>`;
+        // 手機版存檔清單排版修正已移除
 
-                                    l2.style.display = 'flex';
-                                    l2.style.width = '100%';
-                                    l2.style.padding = '0 12px';
-                                    l2.style.boxSizing = 'border-box';
-                                    l2.innerHTML = `<span style="flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sum.name}</span>`
-                                        + `<span style="flex: 1; text-align: right;">[${sum.difficultyName}]</span>`;
-                                }
-                            }
-                        }
-                    }
-                };
-            }
-        }, 100);
-
-        // 🌡️ 戰鬥動畫關閉優化 (將 Chaos 版最省電的「關閉戰鬥動畫」性能優化移植至原版主選單)
-        (function initKlhPowerSave() {
-            const key = 'lineage_anim_off';
-            const getAnimOff = () => localStorage.getItem(key) === '1';
-            const toggleAnim = () => {
-                const current = getAnimOff();
-                localStorage.setItem(key, current ? '0' : '1');
-                updateUI();
-                window.__animOff = !current;
-                applyAnimationsOverride();
-            };
-
-            const updateUI = () => {
-                const btn = document.getElementById('btn-anim-toggle');
-                if (btn) {
-                    const off = getAnimOff();
-                    btn.textContent = off ? '🎬 戰鬥動畫：關閉 (流暢/省電)' : '🎬 戰鬥動畫：開啟';
-                    btn.className = 'btn text-base w-72 py-2.5 ' + (off
-                        ? 'bg-emerald-800 hover:bg-emerald-700 border-emerald-600'
-                        : 'bg-slate-700 hover:bg-slate-600 border-slate-500');
-                }
-            };
-
-            const applyAnimationsOverride = () => {
-                // 動態綁定 __animOff 全域 Getter，保證離線快轉期間原生模組也能偵測到動畫關閉
-                try {
-                    if (!Object.getOwnPropertyDescriptor(window, '__animOff')?.get) {
-                        Object.defineProperty(window, '__animOff', {
-                            get: function () {
-                                return getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
-                            },
-                            set: function (v) {},
-                            configurable: true
-                        });
-                    }
-                } catch (e) {}
-
-                // 覆寫怪物動畫更新
-                if (typeof window._mobAnimApply === 'function' && !window._mobAnimApply_original) {
-                    window._mobAnimApply_original = window._mobAnimApply;
-                    window._mobAnimApply = function () {
-                        const isOff = getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
-                        if (isOff) {
-                            try { if (typeof _updateFreezeFx === 'function') _updateFreezeFx(); } catch (e) {}
-                            try { if (typeof _updateMobSkillFx === 'function') _updateMobSkillFx(); } catch (e) {}
-                        } else {
-                            window._mobAnimApply_original.apply(this, arguments);
-                        }
-                    };
-                }
-                
-                // 覆寫隊友/玩家動畫更新為「靜態顯現」
-                if (typeof window._allySpritesApply === 'function' && !window._allySpritesApply_original) {
-                    window._allySpritesApply_original = window._allySpritesApply;
-                    window._allySpritesApply = function () {
-                        const isOff = getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
-                        if (isOff) {
-                            if (window._allySpriteStates) {
-                                for (let slot in window._allySpriteStates) {
-                                    const st = window._allySpriteStates[slot];
-                                    if (st) {
-                                        st.act = null;
-                                        st.pendAtk = false;
-                                        st.atkBurst = false;
-                                        st.atkRepeat = 0;
-                                    }
-                                }
-                            }
-                            const originalNow = Date.now;
-                            Date.now = function () { return 0; };
-                            try {
-                                window._allySpritesApply_original.apply(this, arguments);
-                            } finally {
-                                Date.now = originalNow;
-                            }
-                        } else {
-                            window._allySpritesApply_original.apply(this, arguments);
-                        }
-                    };
-                }
-                
-                if (typeof window._playerMorphApply === 'function' && !window._playerMorphApply_original) {
-                    window._playerMorphApply_original = window._playerMorphApply;
-                    window._playerMorphApply = function () {
-                        const isOff = getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
-                        if (isOff) {
-                            if (window._pmState) {
-                                window._pmState.act = null;
-                                window._pmState.pendAtk = false;
-                                window._pmState.atkBurst = false;
-                                window._pmState.atkRepeat = 0;
-                            }
-                            const originalNow = Date.now;
-                            Date.now = function () { return 0; };
-                            try {
-                                window._playerMorphApply_original.apply(this, arguments);
-                            } finally {
-                                Date.now = originalNow;
-                            }
-                        } else {
-                            window._playerMorphApply_original.apply(this, arguments);
-                        }
-                    };
-                }
-                
-                // 覆寫寵物/召喚物動畫與尋路更新
-                if (typeof window._petWanderStep === 'function' && !window._petWanderStep_original) {
-                    window._petWanderStep_original = window._petWanderStep;
-                    window._petWanderStep = function () {
-                        const isOff = getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
-                        if (isOff) {
-                            // do nothing!
-                        } else {
-                            window._petWanderStep_original.apply(this, arguments);
-                        }
-                    };
-                }
-                
-                if (typeof window._petAnimApply === 'function' && !window._petAnimApply_original) {
-                    window._petAnimApply_original = window._petAnimApply;
-                    window._petAnimApply = function () {
-                        const isOff = getAnimOff() || (typeof state !== 'undefined' && state && state.ff);
-                        if (isOff) {
-                            try {
-                                if (typeof document !== 'undefined' && document.hidden) return;
-                                let bv = document.getElementById('battle-view');
-                                let host = _petLayerHost();
-                                let layer = _petLayerEl();
-                                if (!host || !layer) return;
-                                let outs = (typeof player !== 'undefined' && player && player.cls) ? petsOutList() : [];
-                                if (typeof summonRenderList === 'function') outs = outs.concat(summonRenderList());
-                                let show = _petInWild() && !(bv && bv.classList.contains('hidden'));
-                                
-                                layer.querySelectorAll('[data-pet]').forEach(el => {
-                                    if (!show || !outs.some(p => p.uid === el.getAttribute('data-pet'))) el.remove();
-                                });
-                                if (!show) return;
-                                
-                                for (let p of outs) {
-                                    let el = _petSpriteEl(layer, p);
-                                    el.style.left = (p._px * 100) + '%';
-                                    el.style.top = (p._py * 100) + '%';
-                                    
-                                    let im = el.querySelector('.pet-body'), sh = el.querySelector('.pet-shadow');
-                                    if (im && !im.src) {
-                                        let gfxForm = p.formGfx || p.form;
-                                        let a = _pet8Cache[gfxForm + '#6']; // default direction 6
-                                        if (a && a.idle && a.idle[0]) {
-                                            im.src = a.idle[0].src;
-                                        }
-                                    }
-                                    if (sh && sh.style.visibility !== 'hidden') sh.style.visibility = 'hidden';
-                                }
-                            } catch (e) {}
-                        } else {
-                            window._petAnimApply_original.apply(this, arguments);
-                        }
-                    };
-                }
-            };
-
-            // 注入按鈕至原版主選單 (如果是在原版網站運行)
-            const menu = document.getElementById('main-menu');
-            const refBtn = document.getElementById('btn-vfxnum-toggle');
-            if (menu && refBtn && !document.getElementById('btn-anim-toggle')) {
-                const btn = document.createElement('button');
-                btn.id = 'btn-anim-toggle';
-                btn.onclick = toggleAnim;
-                menu.insertBefore(btn, refBtn.nextSibling);
-                updateUI();
-            }
-
-            // 初始執行覆寫
-            applyAnimationsOverride();
-        })();
+        // 🎬 戰鬥動畫一鍵關閉省電功能已移除（移交 klh_mobile-perf.js 統一管理與微調）
 
         // 🔇 離線/快速結算靜音防卡死攔截器 (核心級音軌阻斷)
         (function patchAudioForFastForward() {
@@ -1851,7 +1638,6 @@
             }
 
             function updateUI() {
-                const animOff = localStorage.getItem('lineage_anim_off') === '1';
                 let fpsColor = '#22c55e';
                 if (fps < 45) fpsColor = '#eab308';
                 if (fps < 25) fpsColor = '#ef4444';
@@ -1862,8 +1648,7 @@
 
                 monitor.innerHTML = `
                     <span style="color: ${fpsColor}; font-weight: bold;">FPS: ${fps}</span> | 
-                    <span style="color: ${tickColor};">Tick: ${lastTickTimeMs.toFixed(1)}ms</span> | 
-                    <span style="color: ${animOff ? '#10b981' : '#f43f5e'}; font-weight: bold;">Anim: ${animOff ? 'OFF' : 'ON'}</span>
+                    <span style="color: ${tickColor};">Tick: ${lastTickTimeMs.toFixed(1)}ms</span>
                 `;
             }
 
