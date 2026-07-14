@@ -6,9 +6,10 @@
 // 桌機預設不啟用，不影響 any 既有行為。
 //
 // 優化等級：
-//   1 = 輕度：音效節流 ×2、日誌修剪 150 筆、移除 CSS backdrop-blur
-//   2 = 中度：音效節流 ×3、動畫幀率減半、VFX 粒子減半、日誌 80 筆、CSS 簡化
-//   3 = 強力：關閉音效/BGM、動畫幀率 1/3、僅爆擊顯示傷害、日誌 40 筆、隱藏大部分圖層
+//   1 = 輕度：音效節流 250ms、動畫幀率正常、日誌 150 筆、CSS 拔除毛玻璃背景
+//   2 = 中度：關閉音效/BGM、動畫幀率正常、VFX 減半、日誌 80 筆、CSS 簡化色彩與過渡
+//   3 = 強力：關閉音效/BGM、動畫幀率減半、VFX 最小化、日誌 40 筆、CSS 拔除怪物影子與武器特效
+//   4 = 進階：自訂各系統細項參數（音效 250ms/500ms/關、動畫正常/減半/1/3、特效、日誌、CSS）
 // ═══════════════════════════════════════════════════════════════════════════
 
 (function () {
@@ -108,8 +109,8 @@
 
   function applyAll() {
     var lv = _cfg.level;
-    var aAudio = lv === 4 ? _cfg.adv.audio : lv;
-    var aAnim  = lv === 4 ? _cfg.adv.anim  : lv;
+    var aAudio = lv === 4 ? _cfg.adv.audio : (lv === 1 ? 1 : 3);
+    var aAnim  = lv === 4 ? _cfg.adv.anim  : (lv === 3 ? 2 : 1);
     var aVfx   = lv === 4 ? _cfg.adv.vfx   : lv;
     var aLog   = lv === 4 ? _cfg.adv.log   : lv;
     var aCss   = lv === 4 ? _cfg.adv.css   : lv;
@@ -138,8 +139,8 @@
      ────────────────────────────────────────────── */
   function applyAudio(lv) {
     revertAudio();
-    if (lv >= 3) {
-      // 強力：關閉音效 + BGM
+    if (lv === 3) {
+      // 關閉音效 + BGM
       if (typeof _sfxCfg !== 'undefined') { _orig._sfxOn = _sfxCfg.on; _sfxCfg.on = false; }
       if (typeof _bgmCfg !== 'undefined') { _orig._bgmOn = _bgmCfg.on; _bgmCfg.on = false; }
       // 同步 UI checkbox（自動化設定面板）
@@ -147,15 +148,64 @@
       var bgmEl = document.getElementById('set-bgm-on'); if (bgmEl) bgmEl.checked = false;
       return;
     }
-    // 輕度 / 中度：加大節流間隔（原間隔 × 倍率）
+    
+    var throttleVal = lv === 1 ? 250 : 500;
+    // 1. 玩家與通用音效節流
     if (typeof SFX_DEFS !== 'undefined') {
-      var mult = lv === 1 ? 2 : 3;
       _orig.sfxThrottle = {};
       for (var k in SFX_DEFS) {
         if (!SFX_DEFS.hasOwnProperty(k)) continue;
         _orig.sfxThrottle[k] = SFX_DEFS[k].throttle;
-        SFX_DEFS[k].throttle = (SFX_DEFS[k].throttle || 0) * mult;
+        SFX_DEFS[k].throttle = throttleVal;
       }
+    }
+    
+    // 2. 專屬怪物擊殺音效節流（playMobKill 攔截，原硬編碼為 80ms）
+    if (typeof playMobKill === 'function') {
+      _orig.playMobKill = playMobKill;
+      var lastKill = 0;
+      window.playMobKill = function (mob) {
+        var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        if (now - lastKill < throttleVal) return;
+        lastKill = now;
+        try { _orig.playMobKill(mob); } catch (e) {}
+      };
+    }
+
+    // 3. 專屬怪物受傷音效節流（playMobHurt 攔截，原硬編碼為 100ms）
+    if (typeof playMobHurt === 'function') {
+      _orig.playMobHurt = playMobHurt;
+      var lastHurt = 0;
+      window.playMobHurt = function (mob) {
+        var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        if (now - lastHurt < throttleVal) return;
+        lastHurt = now;
+        try { _orig.playMobHurt(mob); } catch (e) {}
+      };
+    }
+
+    // 4. 專屬怪物普攻音效節流（playMobAttack 攔截，原硬編碼為 90ms）
+    if (typeof playMobAttack === 'function') {
+      _orig.playMobAttack = playMobAttack;
+      var lastAtk = 0;
+      window.playMobAttack = function (mob) {
+        var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        if (now - lastAtk < throttleVal) return;
+        lastAtk = now;
+        try { _orig.playMobAttack(mob); } catch (e) {}
+      };
+    }
+
+    // 5. 專屬怪物技能音效節流（playMobSkill 攔截，原硬編碼為 110ms）
+    if (typeof playMobSkill === 'function') {
+      _orig.playMobSkill = playMobSkill;
+      var lastSk = 0;
+      window.playMobSkill = function (mob) {
+        var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        if (now - lastSk < throttleVal) return;
+        lastSk = now;
+        try { _orig.playMobSkill(mob); } catch (e) {}
+      };
     }
   }
   function revertAudio() {
@@ -165,6 +215,10 @@
     }
     if ('_sfxOn' in _orig && typeof _sfxCfg !== 'undefined') { _sfxCfg.on = _orig._sfxOn; delete _orig._sfxOn; }
     if ('_bgmOn' in _orig && typeof _bgmCfg !== 'undefined') { _bgmCfg.on = _orig._bgmOn; delete _orig._bgmOn; }
+    if (_orig.playMobKill) { window.playMobKill = _orig.playMobKill; delete _orig.playMobKill; }
+    if (_orig.playMobHurt) { window.playMobHurt = _orig.playMobHurt; delete _orig.playMobHurt; }
+    if (_orig.playMobAttack) { window.playMobAttack = _orig.playMobAttack; delete _orig.playMobAttack; }
+    if (_orig.playMobSkill) { window.playMobSkill = _orig.playMobSkill; delete _orig.playMobSkill; }
   }
 
   /* ──────────────────────────────────────────────
@@ -172,8 +226,8 @@
      ────────────────────────────────────────────── */
   function applyAnim(lv) {
     revertAnim();
-    if (lv < 2) return;   // 輕度不動
-    var skip = lv >= 3 ? 3 : 2;   // 強力每 3 幀才執行 1 幀；中度每 2 幀
+    if (lv === 1) return;   // 1 = 正常 (不套用降頻，不攔截)
+    var skip = lv === 2 ? 2 : 3;   // 2 = 減半 (每2幀播放1幀), 3 = 1/3 (每3幀播放1幀)
 
     // _mobAnimApply — 怪物序列幀動畫主驅動
     if (typeof _mobAnimApply === 'function') {
@@ -431,7 +485,13 @@
     advItems.forEach(function(item) {
         html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;align-items:center"><span>'+item.label+'</span>';
         html += '<select id="klh-perf-adv-'+item.id+'" style="background:#1e293b;color:#f8fafc;border:1px solid #475569;border-radius:4px;padding:0 2px">';
-        html += '<option value="1">1 (輕度)</option><option value="2">2 (中度)</option><option value="3">3 (強力)</option>';
+        if (item.id === 'audio') {
+            html += '<option value="1">250ms</option><option value="2">500ms</option><option value="3">關閉</option>';
+        } else if (item.id === 'anim') {
+            html += '<option value="1">正常</option><option value="2">減半</option><option value="3">1/3 幀率</option>';
+        } else {
+            html += '<option value="1">1 (輕度)</option><option value="2">2 (中度)</option><option value="3">3 (強力)</option>';
+        }
         html += '</select></div>';
     });
     html += '</div>';
