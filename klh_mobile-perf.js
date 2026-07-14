@@ -6,9 +6,9 @@
 // 桌機預設不啟用，不影響 any 既有行為。
 //
 // 優化等級：
-//   1 = 輕度：音效節流 250ms、動畫幀率正常、日誌 150 筆、CSS 拔除毛玻璃背景
-//   2 = 中度：關閉音效/BGM、動畫幀率正常、VFX 減半、日誌 80 筆、CSS 簡化色彩與過渡
-//   3 = 強力：關閉音效/BGM、動畫幀率減半、VFX 最小化、日誌 40 筆、CSS 拔除怪物影子與武器特效
+//   1 = 輕度：音效節流 250ms、動畫幀率正常、VFX/日誌/CSS 皆為「正常」(不進行任何降級)
+//   2 = 中度：關閉音效/BGM、動畫幀率正常、VFX/日誌/CSS 皆為「1 (輕度)」
+//   3 = 強力：關閉音效/BGM、動畫幀率正常、VFX/日誌/CSS 皆為「3 (強力)」
 //   4 = 進階：自訂各系統細項參數（音效 250ms/500ms/關、動畫正常/減半/1/3、特效、日誌、CSS）
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -49,7 +49,15 @@
         var o = JSON.parse(s); 
         _cfg.enabled = !!o.enabled; 
         _cfg.level = [1, 2, 3, 4].indexOf(o.level) >= 0 ? o.level : 2; 
-        if(o.adv) _cfg.adv = { audio: o.adv.audio||2, anim: o.adv.anim||2, vfx: o.adv.vfx||2, log: o.adv.log||2, css: o.adv.css||2 };
+        if (o.adv) {
+          _cfg.adv = {
+            audio: o.adv.audio !== undefined ? o.adv.audio : 2,
+            anim:  o.adv.anim  !== undefined ? o.adv.anim  : 2,
+            vfx:   o.adv.vfx   !== undefined ? o.adv.vfx   : 2,
+            log:   o.adv.log   !== undefined ? o.adv.log   : 2,
+            css:   o.adv.css   !== undefined ? o.adv.css   : 2
+          };
+        }
       }
     } catch (e) {}
   }
@@ -57,6 +65,23 @@
 
   /* ═══════════════ 首頁 UI 同步 ═══════════════ */
   var _LABELS = { 1: '輕度', 2: '中度', 3: '強力', 4: '進階' };
+  function updateHintText(lv) {
+    var hint = document.getElementById('hint-mobile-perf');
+    if (!hint) return;
+    if (!_cfg.enabled) {
+      hint.textContent = '手機/平板卡頓時開啟；首次在手機開啟預設「中度」，可隨時切換等級';
+      return;
+    }
+    if (lv == 1) {
+      hint.innerHTML = '<span class="text-emerald-400">🟢 輕度：</span>音效 250ms，特效/日誌/CSS 正常';
+    } else if (lv == 2) {
+      hint.innerHTML = '<span class="text-yellow-400">🟡 中度：</span>關閉音效，特效/日誌/CSS 輕度優化';
+    } else if (lv == 3) {
+      hint.innerHTML = '<span class="text-rose-400">🔴 強力：</span>關閉音效，特效/日誌/CSS 強力優化';
+    } else {
+      hint.innerHTML = '<span class="text-purple-400">🟣 進階：</span>請使用遊戲內右上角懸浮面板微調';
+    }
+  }
   function syncUI() {
     var btn = document.getElementById('btn-mobile-perf');
     var sel = document.getElementById('sel-mobile-level');
@@ -77,6 +102,7 @@
       sel.value = '' + _cfg.level;
       sel.classList.toggle('hidden', !_cfg.enabled);
     }
+    updateHintText(_cfg.level);
     
     // 同步懸浮面板 UI
     var modal = document.getElementById('klh-perf-modal');
@@ -109,11 +135,33 @@
 
   function applyAll() {
     var lv = _cfg.level;
-    var aAudio = lv === 4 ? _cfg.adv.audio : (lv === 1 ? 1 : 3);
-    var aAnim  = lv === 4 ? _cfg.adv.anim  : (lv === 3 ? 2 : 1);
-    var aVfx   = lv === 4 ? _cfg.adv.vfx   : lv;
-    var aLog   = lv === 4 ? _cfg.adv.log   : lv;
-    var aCss   = lv === 4 ? _cfg.adv.css   : lv;
+    var aAudio, aAnim, aVfx, aLog, aCss;
+
+    if (lv === 4) {
+      aAudio = _cfg.adv.audio;
+      aAnim  = _cfg.adv.anim;
+      aVfx   = _cfg.adv.vfx;
+      aLog   = _cfg.adv.log;
+      aCss   = _cfg.adv.css;
+    } else if (lv === 1) {
+      aAudio = 1; // 250ms
+      aAnim  = 1; // 正常
+      aVfx   = 0; // 正常
+      aLog   = 0; // 正常
+      aCss   = 0; // 正常
+    } else if (lv === 2) {
+      aAudio = 3; // 關閉
+      aAnim  = 1; // 正常
+      aVfx   = 1; // 輕度
+      aLog   = 1; // 輕度
+      aCss   = 1; // 輕度
+    } else { // lv === 3
+      aAudio = 3; // 關閉
+      aAnim  = 1; // 正常
+      aVfx   = 3; // 強力
+      aLog   = 3; // 強力
+      aCss   = 3; // 強力
+    }
 
     applyAudio(aAudio);
     applyAnim(aAnim);
@@ -285,6 +333,7 @@
      ────────────────────────────────────────────── */
   function applyVfx(lv) {
     revertVfx();
+    if (lv === 0) return; // 0 = 正常 (不套用優化，完整繪製)
 
     // _vfxBlood — 命中濺血粒子
     if (typeof _vfxBlood === 'function') {
@@ -368,7 +417,8 @@
      4. 日誌 DOM 修剪（防止無限膨脹）
      ────────────────────────────────────────────── */
   function applyLogTrim(lv) {
-    if (_st.trimTimer) clearInterval(_st.trimTimer);
+    if (_st.trimTimer) { clearInterval(_st.trimTimer); _st.trimTimer = null; }
+    if (lv === 0) return; // 0 = 正常 (不限制/不修剪日誌)
     var max = lv >= 3 ? 40 : (lv >= 2 ? 80 : 150);
     _st.trimTimer = setInterval(function () {
       try {
@@ -385,7 +435,8 @@
      5. CSS 效能降級（注入樣式表）
      ────────────────────────────────────────────── */
   function applyCss(lv) {
-    if (_st.styleEl && _st.styleEl.parentNode) _st.styleEl.remove();
+    if (_st.styleEl && _st.styleEl.parentNode) { _st.styleEl.remove(); _st.styleEl = null; }
+    if (lv === 0) return; // 0 = 正常 (不注入樣式表，不精簡 CSS)
     var css = '/* 📱 mobile-perf lv' + lv + ' */\n';
 
     // ── 所有等級 ──
@@ -428,14 +479,14 @@
         sel.id = 'sel-mobile-level';
         sel.className = 'bg-slate-800 border border-slate-600 text-white px-3 py-1.5 text-sm rounded outline-none w-72 hidden';
         sel.onchange = function () { window.setMobilePerfLevel(this.value); };
-        sel.innerHTML = '<option value="1">🟢 輕度 — 降低音效頻率、修剪日誌</option>' +
-                        '<option value="2" selected>🟡 中度 — 動畫減半、減少特效粒子</option>' +
-                        '<option value="3">🔴 強力 — 關閉音效與特效、最大效能</option>' +
-                        '<option value="4">🟣 進階 — 細部自訂各項參數</option>';
+        sel.innerHTML = '<option value="1">🟢 輕度 (音效節流，其餘正常)</option>' +
+                        '<option value="2" selected>🟡 中度 (關閉音效，輕度優化)</option>' +
+                        '<option value="3">🔴 強力 (關閉音效，強力優化)</option>' +
+                        '<option value="4">🟣 進階 (細部自訂參數)</option>';
 
         var hint = document.createElement('p');
         hint.id = 'hint-mobile-perf';
-        hint.className = 'text-xs text-slate-500 -mt-2 w-72 text-center';
+        hint.className = 'text-xs text-slate-500 -mt-2 w-72 text-center leading-relaxed px-1';
         hint.textContent = '手機/平板卡頓時開啟；首次在手機開啟預設「中度」，可隨時切換等級';
 
         var pEls = mainMenu.getElementsByTagName('p');
@@ -490,7 +541,7 @@
         } else if (item.id === 'anim') {
             html += '<option value="1">正常</option><option value="2">減半</option><option value="3">1/3 幀率</option>';
         } else {
-            html += '<option value="1">1 (輕度)</option><option value="2">2 (中度)</option><option value="3">3 (強力)</option>';
+            html += '<option value="0">正常</option><option value="1">1 (輕度)</option><option value="2">2 (中度)</option><option value="3">3 (強力)</option>';
         }
         html += '</select></div>';
     });
@@ -510,6 +561,73 @@
         };
     });
   }
+
+  /* ═══════════════ 背包分頁延遲渲染優化 (外掛層 Monkey-patch) ═══════════════ */
+  (function initLazyTabs() {
+    if (typeof renderTabs === 'function' && !window._origRenderTabs) {
+      window._origRenderTabs = renderTabs;
+      window.renderTabs = function (force) {
+        if (!_cfg.enabled) {
+          try { window._origRenderTabs(force); } catch (e) {}
+          return;
+        }
+
+        var wDiv = document.getElementById('tab-weapons');
+        var wVis = wDiv && !wDiv.classList.contains('hidden');
+        var aDiv = document.getElementById('tab-armors');
+        var aVis = aDiv && !aDiv.classList.contains('hidden');
+        var iDiv = document.getElementById('tab-items');
+        var iVis = iDiv && !iDiv.classList.contains('hidden');
+        var eDiv = document.getElementById('tab-equip');
+        var eVis = eDiv && !eDiv.classList.contains('hidden');
+        var sDiv = document.getElementById('tab-skill');
+        var sVis = sDiv && !sDiv.classList.contains('hidden');
+
+        var origGetElementById = document.getElementById;
+        var dummies = {};
+        document.getElementById = function (id) {
+          if (id === 'tab-weapons' && !wVis) return dummies[id] || (dummies[id] = document.createElement('div'));
+          if (id === 'tab-armors' && !aVis) return dummies[id] || (dummies[id] = document.createElement('div'));
+          if (id === 'tab-items' && !iVis) return dummies[id] || (dummies[id] = document.createElement('div'));
+          if (id === 'tab-equip' && !eVis) return dummies[id] || (dummies[id] = document.createElement('div'));
+          if (id === 'tab-skill' && !sVis) return dummies[id] || (dummies[id] = document.createElement('div'));
+          return origGetElementById.call(document, id);
+        };
+
+        var origInv = (typeof player !== 'undefined' && player) ? player.inv : null;
+        if (!wVis && !aVis && !iVis && origInv) {
+          player.inv = [];
+        }
+
+        try {
+          window._origRenderTabs(force);
+        } catch (e) {
+          try { console.error('[📱 手機優化] renderTabs 執行失敗:', e); } catch (ex) {}
+        } finally {
+          document.getElementById = origGetElementById;
+          if (origInv) player.inv = origInv;
+        }
+      };
+
+      // 完美代理 _sig 簽章屬性，防止重繪邏輯判定失效
+      Object.defineProperty(window.renderTabs, '_sig', {
+        get: function () { return window._origRenderTabs._sig; },
+        set: function (v) { window._origRenderTabs._sig = v; },
+        configurable: true
+      });
+    }
+
+    if (typeof switchTab === 'function' && !window._origSwitchTab) {
+      window._origSwitchTab = switchTab;
+      window.switchTab = function (t, btn) {
+        try { window._origSwitchTab(t, btn); } catch (e) {}
+        if (_cfg.enabled && typeof renderTabs === 'function') {
+          // 切換分頁時，如果開啟了優化，強制重建以繪製剛打開的分頁
+          try { renderTabs(true); } catch (e) {}
+        }
+      };
+    }
+  })();
 
   /* ═══════════════ 啟動流程 ═══════════════ */
   loadCfg();
