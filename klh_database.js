@@ -1971,10 +1971,49 @@
     // ==========================================
     // 10. saveGame / saveWarehouse Hook (雲端上傳)
     // ==========================================
+    if (typeof window.loadGame === 'function' && !window.__klh_load_game_db_wrapped) {
+        window.__klh_load_game_db_wrapped = true;
+        const originalLoadGame = window.loadGame;
+        window.loadGame = function () {
+            try {
+                let raw = (typeof _lzGet === 'function') ? _lzGet('lineage_idle_save_' + currentSlot) : localStorage.getItem('lineage_idle_save_' + currentSlot);
+                if (raw) {
+                    let unwrapped = _saveUnwrap(raw);
+                    if (unwrapped.ok && unwrapped.payload) {
+                        let data = JSON.parse(unwrapped.payload);
+                        if (data && data.p && data.p.klh_save_domain) {
+                            let saveDomain = data.p.klh_save_domain;
+                            let currentDomain = location.hostname;
+                            if (saveDomain !== currentDomain) {
+                                let yes = confirm(`⚠️ 【存檔來源網站衝突警告】\n\n載入的存檔來源網站為「${saveDomain}」，與當前網頁「${currentDomain}」不同。\n\n不同版本的網站存檔資料欄位可能存在衝突，確定要載入此存檔嗎？`);
+                                if (!yes) {
+                                    if (typeof window.hideLoadingOverlay === 'function') window.hideLoadingOverlay();
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("[KLH] loadGame check domain error:", e);
+            }
+            originalLoadGame();
+        };
+    }
+
     if (typeof window.saveGame === 'function' && !window.__klh_save_game_db_wrapped) {
         window.__klh_save_game_db_wrapped = true;
         const originalSaveGame = window.saveGame;
         window.saveGame = async function (isManual = false) {
+            // 注入當前網域標籤到記憶體中的 player 物件上
+            try {
+                if (typeof player !== 'undefined' && player) {
+                    player.klh_save_domain = location.hostname;
+                }
+            } catch (err) {
+                console.error("[KLH] Failed to inject domain into player:", err);
+            }
+
             // 💡 動態偵測手動點擊：如果點擊了名為「存檔」或「儲存」的按鈕，自動判定為手動儲存，以啟用雲端同步彈窗
             let manual = isManual;
             if (!manual && typeof window !== 'undefined' && window.event && window.event.type === 'click') {
@@ -1995,6 +2034,34 @@
                 else if (storageMode === 'cloud' && allowJsonBlob) { if (typeof window.uploadToCloud === 'function') return await window.uploadToCloud(manual); }
                 else if (storageMode === 'firebase' && allowFirebase) { if (typeof window.uploadToFirebase === 'function') return await window.uploadToFirebase(manual); }
             } catch (e) { console.error("[KLH] saveGame post-hook upload error:", e); }
+        };
+    }
+
+    if (typeof window.exportSave === 'function' && !window.__klh_export_save_db_wrapped) {
+        window.__klh_export_save_db_wrapped = true;
+        const originalExportSave = window.exportSave;
+        window.exportSave = async function () {
+            // 暫時攔截 _saveWrap，在匯出時清除網域資訊，保持檔案乾淨
+            const originalSaveWrap = window._saveWrap;
+            if (typeof originalSaveWrap === 'function') {
+                window._saveWrap = function (payloadStr) {
+                    try {
+                        let d = JSON.parse(payloadStr);
+                        if (d && d.p && d.p.klh_save_domain) {
+                            delete d.p.klh_save_domain;
+                        }
+                        payloadStr = JSON.stringify(d);
+                    } catch (e) {}
+                    return originalSaveWrap(payloadStr);
+                };
+            }
+            try {
+                await originalExportSave();
+            } finally {
+                if (typeof originalSaveWrap === 'function') {
+                    window._saveWrap = originalSaveWrap;
+                }
+            }
         };
     }
 
