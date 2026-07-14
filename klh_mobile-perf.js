@@ -7,8 +7,8 @@
 //
 // 優化等級：
 //   1 = 輕度：音效節流 250ms、動畫幀率正常、VFX/日誌/CSS 皆為「正常」(不進行任何降級)
-//   2 = 中度：關閉音效/BGM、動畫幀率正常、VFX/日誌/CSS 皆為「1 (輕度)」
-//   3 = 強力：關閉音效/BGM、動畫幀率正常、VFX/日誌/CSS 皆為「3 (強力)」
+//   2 = 中度：關閉音效 (BGM不更動)、動畫幀率正常、VFX/日誌/CSS 皆為「1 (輕度)」
+//   3 = 強力：關閉音效 (BGM不更動)、動畫幀率正常、VFX/日誌/CSS 皆為「3 (強力)」
 //   4 = 進階：自訂各系統細項參數（音效 250ms/500ms/關、動畫正常/減半/1/3、特效、日誌、CSS）
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -188,12 +188,10 @@
   function applyAudio(lv) {
     revertAudio();
     if (lv === 3) {
-      // 關閉音效 + BGM
+      // 僅關閉音效，背景 BGM 不更動
       if (typeof _sfxCfg !== 'undefined') { _orig._sfxOn = _sfxCfg.on; _sfxCfg.on = false; }
-      if (typeof _bgmCfg !== 'undefined') { _orig._bgmOn = _bgmCfg.on; _bgmCfg.on = false; }
-      // 同步 UI checkbox（自動化設定面板）
+      // 同步 UI checkbox（自動化設定面板，僅取消勾選音效）
       var sfxEl = document.getElementById('set-sfx-on'); if (sfxEl) sfxEl.checked = false;
-      var bgmEl = document.getElementById('set-bgm-on'); if (bgmEl) bgmEl.checked = false;
       return;
     }
     
@@ -262,7 +260,6 @@
       delete _orig.sfxThrottle;
     }
     if ('_sfxOn' in _orig && typeof _sfxCfg !== 'undefined') { _sfxCfg.on = _orig._sfxOn; delete _orig._sfxOn; }
-    if ('_bgmOn' in _orig && typeof _bgmCfg !== 'undefined') { _bgmCfg.on = _orig._bgmOn; delete _orig._bgmOn; }
     if (_orig.playMobKill) { window.playMobKill = _orig.playMobKill; delete _orig.playMobKill; }
     if (_orig.playMobHurt) { window.playMobHurt = _orig.playMobHurt; delete _orig.playMobHurt; }
     if (_orig.playMobAttack) { window.playMobAttack = _orig.playMobAttack; delete _orig.playMobAttack; }
