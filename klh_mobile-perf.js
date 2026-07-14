@@ -16,7 +16,7 @@
 
   /* ═══════════════ 常數與狀態 ═══════════════ */
   var PERF_KEY = 'fb5_mobilePerf';
-  var _cfg = { enabled: false, level: 2 };
+  var _cfg = { enabled: false, level: 2, adv: { audio: 2, anim: 2, vfx: 2, log: 2, css: 2 } };
   var _orig = {};        // 被替換的原始函式 / 原始值備份
   var _st = {            // 執行時狀態
     applied: false,
@@ -44,31 +44,49 @@
   function loadCfg() {
     try {
       var s = _ls('get', PERF_KEY);
-      if (s) { var o = JSON.parse(s); _cfg.enabled = !!o.enabled; _cfg.level = [1, 2, 3].indexOf(o.level) >= 0 ? o.level : 2; }
+      if (s) { 
+        var o = JSON.parse(s); 
+        _cfg.enabled = !!o.enabled; 
+        _cfg.level = [1, 2, 3, 4].indexOf(o.level) >= 0 ? o.level : 2; 
+        if(o.adv) _cfg.adv = { audio: o.adv.audio||2, anim: o.adv.anim||2, vfx: o.adv.vfx||2, log: o.adv.log||2, css: o.adv.css||2 };
+      }
     } catch (e) {}
   }
   function saveCfg() { _ls('set', PERF_KEY, JSON.stringify(_cfg)); }
 
   /* ═══════════════ 首頁 UI 同步 ═══════════════ */
-  var _LABELS = { 1: '輕度', 2: '中度', 3: '強力' };
+  var _LABELS = { 1: '輕度', 2: '中度', 3: '強力', 4: '進階' };
   function syncUI() {
     var btn = document.getElementById('btn-mobile-perf');
     var sel = document.getElementById('sel-mobile-level');
-    if (!btn) return;
-    if (_cfg.enabled) {
-      btn.textContent = '📱 手機優化：' + (_LABELS[_cfg.level] || '中度');
-      btn.style.background = '#065f46';
-      btn.style.borderColor = '#10b981';
-      btn.style.color = '#a7f3d0';
-    } else {
-      btn.textContent = '📱 手機優化：關閉';
-      btn.style.background = '#334155';
-      btn.style.borderColor = '#475569';
-      btn.style.color = '';
+    if (btn) {
+      if (_cfg.enabled) {
+        btn.textContent = '📱 手機優化：' + (_LABELS[_cfg.level] || '中度');
+        btn.style.background = '#065f46';
+        btn.style.borderColor = '#10b981';
+        btn.style.color = '#a7f3d0';
+      } else {
+        btn.textContent = '📱 手機優化：關閉';
+        btn.style.background = '#334155';
+        btn.style.borderColor = '#475569';
+        btn.style.color = '';
+      }
     }
     if (sel) {
       sel.value = '' + _cfg.level;
       sel.classList.toggle('hidden', !_cfg.enabled);
+    }
+    
+    // 同步懸浮面板 UI
+    var modal = document.getElementById('klh-perf-modal');
+    if (modal) {
+        var chk = document.getElementById('klh-perf-chk'); if(chk) chk.checked = _cfg.enabled;
+        var sl = document.getElementById('klh-perf-sel'); if(sl) sl.value = _cfg.level;
+        var adv = document.getElementById('klh-perf-adv'); if(adv) adv.style.display = (_cfg.level == 4) ? 'block' : 'none';
+        ['audio','anim','vfx','log','css'].forEach(function(k){
+            var el = document.getElementById('klh-perf-adv-' + k);
+            if(el) el.value = _cfg.adv[k];
+        });
     }
   }
 
@@ -90,11 +108,17 @@
 
   function applyAll() {
     var lv = _cfg.level;
-    applyAudio(lv);
-    applyAnim(lv);
-    applyVfx(lv);
-    applyLogTrim(lv);
-    applyCss(lv);
+    var aAudio = lv === 4 ? _cfg.adv.audio : lv;
+    var aAnim  = lv === 4 ? _cfg.adv.anim  : lv;
+    var aVfx   = lv === 4 ? _cfg.adv.vfx   : lv;
+    var aLog   = lv === 4 ? _cfg.adv.log   : lv;
+    var aCss   = lv === 4 ? _cfg.adv.css   : lv;
+
+    applyAudio(aAudio);
+    applyAnim(aAnim);
+    applyVfx(aVfx);
+    applyLogTrim(aLog);
+    applyCss(aCss);
     _st.applied = true;
     try { console.log('[📱 手機優化] 已啟用 — 等級 ' + lv + ' (' + _LABELS[lv] + ')'); } catch (e) {}
   }
@@ -334,42 +358,97 @@
 
   /* ═══════════════ 動態注入 UI ═══════════════ */
   function injectUI() {
-    if (document.getElementById('btn-mobile-perf')) return;
-    var mainMenu = document.getElementById('main-menu');
-    if (!mainMenu) return;
+    // 1. 首頁選單按鈕
+    if (!document.getElementById('btn-mobile-perf')) {
+      var mainMenu = document.getElementById('main-menu');
+      if (mainMenu) {
+        var btn = document.createElement('button');
+        btn.id = 'btn-mobile-perf';
+        btn.className = 'btn text-base w-72 py-2.5';
+        btn.style.background = '#334155';
+        btn.style.borderColor = '#475569';
+        btn.onclick = function () { window.toggleMobilePerf(); };
+        btn.textContent = '📱 手機優化：關閉';
 
-    var btn = document.createElement('button');
-    btn.id = 'btn-mobile-perf';
-    btn.className = 'btn text-base w-72 py-2.5';
-    btn.style.background = '#334155';
-    btn.style.borderColor = '#475569';
-    btn.onclick = function () { window.toggleMobilePerf(); };
-    btn.textContent = '📱 手機優化：關閉';
+        var sel = document.createElement('select');
+        sel.id = 'sel-mobile-level';
+        sel.className = 'bg-slate-800 border border-slate-600 text-white px-3 py-1.5 text-sm rounded outline-none w-72 hidden';
+        sel.onchange = function () { window.setMobilePerfLevel(this.value); };
+        sel.innerHTML = '<option value="1">🟢 輕度 — 降低音效頻率、修剪日誌</option>' +
+                        '<option value="2" selected>🟡 中度 — 動畫減半、減少特效粒子</option>' +
+                        '<option value="3">🔴 強力 — 關閉音效與特效、最大效能</option>' +
+                        '<option value="4">🟣 進階 — 細部自訂各項參數</option>';
 
-    var sel = document.createElement('select');
-    sel.id = 'sel-mobile-level';
-    sel.className = 'bg-slate-800 border border-slate-600 text-white px-3 py-1.5 text-sm rounded outline-none w-72 hidden';
-    sel.onchange = function () { window.setMobilePerfLevel(this.value); };
-    sel.innerHTML = '<option value="1">🟢 輕度 — 降低音效頻率、修剪日誌</option>' +
-                    '<option value="2" selected>🟡 中度 — 動畫減半、減少特效粒子</option>' +
-                    '<option value="3">🔴 強力 — 關閉音效與特效、最大效能</option>';
+        var hint = document.createElement('p');
+        hint.id = 'hint-mobile-perf';
+        hint.className = 'text-xs text-slate-500 -mt-2 w-72 text-center';
+        hint.textContent = '手機/平板卡頓時開啟；首次在手機開啟預設「中度」，可隨時切換等級';
 
-    var hint = document.createElement('p');
-    hint.id = 'hint-mobile-perf';
-    hint.className = 'text-xs text-slate-500 -mt-2 w-72 text-center';
-    hint.textContent = '手機/平板卡頓時開啟；首次在手機開啟預設「中度」，可隨時切換等級';
-
-    var pEls = mainMenu.getElementsByTagName('p');
-    if (pEls.length > 0) {
-      var lastP = pEls[pEls.length - 1];
-      lastP.parentNode.insertBefore(hint, lastP.nextSibling);
-      lastP.parentNode.insertBefore(sel, hint);
-      lastP.parentNode.insertBefore(btn, sel);
-    } else {
-      mainMenu.appendChild(btn);
-      mainMenu.appendChild(sel);
-      mainMenu.appendChild(hint);
+        var pEls = mainMenu.getElementsByTagName('p');
+        if (pEls.length > 0) {
+          var lastP = pEls[pEls.length - 1];
+          lastP.parentNode.insertBefore(hint, lastP.nextSibling);
+          lastP.parentNode.insertBefore(sel, hint);
+          lastP.parentNode.insertBefore(btn, sel);
+        } else {
+          mainMenu.appendChild(btn);
+          mainMenu.appendChild(sel);
+          mainMenu.appendChild(hint);
+        }
+      }
     }
+
+    // 2. 遊戲內懸浮介面
+    if (document.getElementById('klh-perf-float-btn')) return;
+
+    var fBtn = document.createElement('div');
+    fBtn.id = 'klh-perf-float-btn';
+    fBtn.innerHTML = '⚙️<div style="font-size:10px;margin-top:-2px">優化</div>';
+    fBtn.style.cssText = 'position:fixed;top:80px;right:10px;width:36px;height:36px;background:rgba(15,23,42,0.85);border:1px solid #475569;border-radius:8px;color:#94a3b8;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;z-index:99999;box-shadow:0 0 10px rgba(0,0,0,0.5);user-select:none;line-height:1;';
+    fBtn.onclick = function() {
+        var m = document.getElementById('klh-perf-modal');
+        if (m) m.style.display = m.style.display === 'none' ? 'block' : 'none';
+    };
+    document.body.appendChild(fBtn);
+
+    var modal = document.createElement('div');
+    modal.id = 'klh-perf-modal';
+    modal.style.cssText = 'position:fixed;top:125px;right:10px;width:240px;background:rgba(15,23,42,0.95);border:1px solid #475569;border-radius:8px;padding:12px;color:#f8fafc;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,0.5);display:none;font-family:sans-serif;font-size:13px;backdrop-filter:blur(4px);';
+    
+    var html = '<div style="font-weight:bold;font-size:14px;border-bottom:1px solid #334155;padding-bottom:8px;margin-bottom:8px;display:flex;justify-content:space-between"><span>📱 手機優化設定</span><span style="cursor:pointer;color:#94a3b8" onclick="document.getElementById(\'klh-perf-modal\').style.display=\'none\'">✖</span></div>';
+    html += '<label style="display:flex;align-items:center;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="klh-perf-chk" style="margin-right:6px"> 啟用優化</label>';
+    html += '<div style="margin-bottom:8px">等級: <select id="klh-perf-sel" style="background:#1e293b;color:#f8fafc;border:1px solid #475569;border-radius:4px;padding:2px;margin-left:4px;width:120px"><option value="1">🟢 輕度</option><option value="2">🟡 中度</option><option value="3">🔴 強力</option><option value="4">🟣 進階</option></select></div>';
+    
+    html += '<div id="klh-perf-adv" style="border:1px solid #334155;border-radius:4px;padding:8px;background:rgba(0,0,0,0.2);margin-top:8px">';
+    html += '<div style="color:#94a3b8;font-size:11px;margin-bottom:6px">進階微調選項</div>';
+    var advItems = [
+        {id: 'audio', label: '音效頻率'},
+        {id: 'anim', label: '動畫降幀'},
+        {id: 'vfx', label: '特效粒子'},
+        {id: 'log', label: '日誌數量'},
+        {id: 'css', label: '介面渲染'}
+    ];
+    advItems.forEach(function(item) {
+        html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;align-items:center"><span>'+item.label+'</span>';
+        html += '<select id="klh-perf-adv-'+item.id+'" style="background:#1e293b;color:#f8fafc;border:1px solid #475569;border-radius:4px;padding:0 2px">';
+        html += '<option value="1">1 (輕度)</option><option value="2">2 (中度)</option><option value="3">3 (強力)</option>';
+        html += '</select></div>';
+    });
+    html += '</div>';
+
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+
+    document.getElementById('klh-perf-chk').onchange = function(e) { _cfg.enabled = e.target.checked; saveCfg(); syncUI(); if(_cfg.enabled) { revertAll(); applyAll(); } else revertAll(); };
+    document.getElementById('klh-perf-sel').onchange = function(e) { _cfg.level = parseInt(e.target.value, 10); saveCfg(); syncUI(); if(_cfg.enabled){ revertAll(); applyAll(); } };
+    
+    ['audio','anim','vfx','log','css'].forEach(function(k){
+        document.getElementById('klh-perf-adv-' + k).onchange = function(e) { 
+            _cfg.adv[k] = parseInt(e.target.value, 10); 
+            saveCfg(); 
+            if(_cfg.enabled && _cfg.level == 4){ revertAll(); applyAll(); }
+        };
+    });
   }
 
   /* ═══════════════ 啟動流程 ═══════════════ */
