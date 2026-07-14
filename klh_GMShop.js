@@ -1,5 +1,5 @@
 /* ============================================================================
- * klh_GMShop.js — GM 裝備批發商店系統
+ * klh_GMShop.js — GM 商店系統
  *
  * 設計原則: 完全不改原作者程式碼，自定義浮動按鈕與玻璃摩砂 (Glassmorphism) 大視窗。
  * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
@@ -627,6 +627,16 @@
                     flex-shrink: 0 !important;
                 }
             }
+
+            /* 🎴 GM 模式收藏冊輔助列樣式 */
+            .gm-book-control-bar button {
+                padding: 4px 10px !important;
+                border-radius: 6px !important;
+                cursor: pointer !important;
+                line-height: 1.2 !important;
+                height: auto !important;
+                display: inline-block !important;
+            }
         `;
         let style = document.createElement('style');
         style.textContent = css;
@@ -741,7 +751,7 @@
                     if (subCat === 'general' && !isGeneral) return false;
                 } else if (mainCat === 'etc') {
                     let isPotion = item.type === 'pot' || item.id.startsWith('potion_') || (item.n && item.n.includes('藥水'));
-                    let isPet = item.id.includes('pet') || (item.n && (item.n.includes('果實') || item.n.includes('寵物') || item.n.includes('進化')));
+                    let isPet = item.id.includes('pet') || item.eff === 'petlure' || item.eff === 'dragonegg' || (item.n && (item.n.includes('果實') || item.n.includes('寵物') || item.n.includes('進化')));
                     let isMaterial = item.type === 'material' || item.id.startsWith('mat_') || item.id.includes('crystal') || (item.n && (item.n.includes('材料') || item.n.includes('結晶') || item.n.includes('礦石') || item.n.includes('皮革') || item.n.includes('骨頭') || item.n.includes('布料')));
                     let isTalisman = !!item.prideKind || item.id.includes('pride') || item.id.includes('talisman');
                     let isOther = !isPotion && !isPet && !isMaterial && !isTalisman;
@@ -1051,6 +1061,496 @@
         }
     };
 
+    /* 🐾 寵物測試功能 */
+    window.gmAddAllPets = function (lv) {
+        if (typeof player === 'undefined' || !player || !player.cls) {
+            alert("請先載入或建立角色！");
+            return;
+        }
+        let list = petRoster();
+        let petTypes = ['黃金龍', '頑皮龍', '淘氣龍', '虎男', '熊貓', '暴走兔', '浣熊', '狼', '熊', '貓'];
+        let count = 0;
+        let snap = _petMutationSnapshot();
+        list.length = 0; // 清空保管箱
+        petTypes.forEach(form => {
+            let p = petNewInstance(form, lv || 30);
+            if (p) {
+                list.push(p);
+                count++;
+            }
+        });
+        petMarkDirty();
+        if (petRosterSave()) {
+            if (typeof logSys === 'function') logSys(`<span class="text-green-300 font-bold">🐾 GM 測試：成功生成 ${count} 隻常用寵物（等級 ${lv || 30}）並送入包武保管箱！</span>`);
+            if (typeof updateUI === 'function') updateUI();
+            if (typeof renderTabs === 'function') renderTabs(true);
+            let _d = document.getElementById('interaction-content');
+            if (_d && _d.querySelector('[data-petui]')) renderPetStorageNPC(_d);
+        } else {
+            _petMutationRestore(snap);
+            alert("儲存寵物保管箱失敗！");
+        }
+    };
+
+    window.gmSetAllPetsLevel = function (lv) {
+        if (typeof player === 'undefined' || !player || !player.cls) {
+            alert("請先載入或建立角色！");
+            return;
+        }
+        let list = petRoster();
+        if (!list || list.length === 0) {
+            alert("目前保管箱沒有任何寵物！");
+            return;
+        }
+        let snap = _petMutationSnapshot();
+        list.forEach(p => {
+            p.lv = lv;
+            p.exp = 0;
+            let def = PET_BOOK[p.form];
+            if (def) {
+                let hpUp = def.hpUp ? def.hpUp[0] : 5;
+                let mpUp = def.mpUp ? def.mpUp[0] : 1;
+                p.mhp = (def.hp0 || 30) + (lv - (def.lv0 || 5)) * hpUp;
+                p.mmp = (def.mp0 || 0) + (lv - (def.lv0 || 5)) * mpUp;
+                p.hp = p.mhp;
+                p.mp = p.mmp;
+            }
+        });
+        petMarkDirty();
+        if (petRosterSave()) {
+            if (typeof logSys === 'function') logSys(`<span class="text-green-300 font-bold">🐾 GM 測試：成功將當前所有寵物等級設定為 Lv.${lv}！</span>`);
+            if (typeof updateUI === 'function') updateUI();
+            if (typeof renderTabs === 'function') renderTabs(true);
+            let _d = document.getElementById('interaction-content');
+            if (_d && _d.querySelector('[data-petui]')) renderPetStorageNPC(_d);
+        } else {
+            _petMutationRestore(snap);
+            alert("設定寵物等級失敗！");
+        }
+    };
+
+    window.gmClearAllPets = function () {
+        if (!confirm("確定要清空所有的寵物嗎？")) return;
+        
+        try {
+            let list = petRoster();
+            let snap = _petMutationSnapshot();
+            
+            // 將所有寵物記錄到已釋放名單中，避免被 merge-on-write 復活
+            if (typeof _petReleasedUids !== 'undefined') {
+                list.forEach(p => {
+                    _petReleasedUids[p.uid] = true;
+                });
+            }
+            
+            list.length = 0;
+            petMarkDirty();
+            
+            if (petRosterSave()) {
+                if (typeof logSys === 'function') logSys(`<span class="text-red-300 font-bold">🐾 GM 測試：已清空所有的寵物保管資料。</span>`);
+                if (typeof updateUI === 'function') updateUI();
+                if (typeof renderTabs === 'function') renderTabs(true);
+                let _d = document.getElementById('interaction-content');
+                if (_d && _d.querySelector('[data-petui]')) renderPetStorageNPC(_d);
+                if (typeof showToast === 'function') showToast("寵物保管箱已清空！", 'success');
+            } else {
+                _petMutationRestore(snap);
+                alert("清空寵物失敗！");
+            }
+        } catch (e) {
+            console.error("GM Clear Pets Error:", e);
+            alert("清空寵物時發生錯誤，請查看主控台。");
+        }
+    };
+
+    window.gmAddSinglePet = function () {
+        if (typeof player === 'undefined' || !player) {
+            alert("請先載入或建立角色！");
+            return;
+        }
+
+        let select = document.getElementById('gm-add-pet-form-select');
+        if (!select) return;
+        let form = select.value;
+        
+        let lvInput = document.getElementById('gm-add-pet-lv-input');
+        let lv = parseInt(lvInput ? lvInput.value : 30) || 30;
+        if (lv < 1) lv = 1;
+        if (lv > 999) lv = 999;
+
+        let list = petRoster();
+        if (list.length >= PET_STORAGE_MAX) {
+            alert(`寵物保管已滿（上限 ${PET_STORAGE_MAX} 隻），無法新增！`);
+            return;
+        }
+
+        let p = petNewInstance(form, lv);
+        if (!p) {
+            alert("新增寵物失敗：無效的寵物型態！");
+            return;
+        }
+
+        list.push(p);
+        petMarkDirty();
+        
+        if (petRosterSave()) {
+            if (typeof logSys === 'function') {
+                logSys(`<span class="text-green-300 font-bold">🐾 GM 測試：成功新增特定寵物 ${form}（Lv.${lv}）到寵物保管箱！</span>`);
+            }
+            if (typeof updateUI === 'function') updateUI();
+            if (typeof renderTabs === 'function') renderTabs(true);
+            let _d = document.getElementById('interaction-content');
+            if (_d && _d.querySelector('[data-petui]')) renderPetStorageNPC(_d);
+            if (typeof showToast === 'function') showToast("新增寵物成功！", 'success');
+            
+            // 刷新 GM 寵物編輯下拉選單
+            window.loadGMShopCharValues();
+        } else {
+            // 回滾
+            if (typeof _petRoster !== 'undefined') {
+                _petRoster = list.filter(x => x.uid !== p.uid);
+            }
+            petMarkDirty();
+            alert("保存新增寵物狀態失敗！");
+        }
+    };
+
+    /* 🌟 收藏圖鑑解鎖功能 */
+    /* 🌟 收藏圖鑑原版 UI 注入與輔助功能 */
+    window.gmBookEditModes = { card: false, equip: false, misc: false, relic: false };
+    
+    window.toggleGMBookEditMode = function (type, checked) {
+        window.gmBookEditModes[type] = checked;
+        if (type === 'card' && typeof renderCardBook === 'function') renderCardBook();
+        if (type === 'equip' && typeof renderEquipBook === 'function') renderEquipBook();
+        if (type === 'misc' && typeof renderMiscBook === 'function') renderMiscBook();
+        if (type === 'relic' && typeof renderRelicBook === 'function') renderRelicBook();
+    };
+
+    window.toggleGMBookItemState = function (type, idOrName) {
+        if (typeof player === 'undefined' || !player || !idOrName) return;
+
+        if (type === 'card') {
+            if (!player.cardDex) player.cardDex = {};
+            let cur = player.cardDex[idOrName] || 0;
+            let next = 0;
+            if (cur === 0) next = 1;
+            else if (cur === 1) next = 11;
+            else if (cur === 11) next = 111;
+            else next = 0;
+            
+            player.cardDex[idOrName] = next;
+            if (typeof saveCardDex === 'function') saveCardDex();
+        } else if (type === 'equip') {
+            if (!player.equipDex) player.equipDex = {};
+            player.equipDex[idOrName] = !player.equipDex[idOrName];
+            if (typeof saveEquipDex === 'function') saveEquipDex();
+        } else if (type === 'misc') {
+            if (!player.miscDex) player.miscDex = {};
+            player.miscDex[idOrName] = !player.miscDex[idOrName];
+            if (typeof saveMiscDex === 'function') saveMiscDex();
+        } else if (type === 'relic') {
+            if (!player.relicDex) player.relicDex = {};
+            player.relicDex[idOrName] = !player.relicDex[idOrName];
+            if (typeof saveRelicDex === 'function') saveRelicDex();
+        }
+
+        if (typeof calcStats === 'function') calcStats();
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof renderTabs === 'function') renderTabs(true);
+        if (typeof saveGame === 'function') saveGame();
+
+        if (type === 'card' && typeof renderCardBook === 'function') renderCardBook();
+        if (type === 'equip' && typeof renderEquipBook === 'function') renderEquipBook();
+        if (type === 'misc' && typeof renderMiscBook === 'function') renderMiscBook();
+        if (type === 'relic' && typeof renderRelicBook === 'function') renderRelicBook();
+    };
+
+    window.gmBookUnlockCategory = function (type) {
+        if (typeof player === 'undefined' || !player) return;
+        
+        if (type === 'card') {
+            let names = (typeof CARD_REGION_MOBS !== 'undefined' && CARD_REGION_MOBS[_cardBookRegion]) || [];
+            if (!player.cardDex) player.cardDex = {};
+            names.forEach(nm => { player.cardDex[nm] = 111; });
+            if (typeof saveCardDex === 'function') saveCardDex();
+        } else if (type === 'equip') {
+            let ids = (typeof EQUIP_CAT_ITEMS !== 'undefined' && EQUIP_CAT_ITEMS[_equipBookCat]) || [];
+            if (!player.equipDex) player.equipDex = {};
+            ids.forEach(id => { player.equipDex[id] = true; });
+            if (typeof saveEquipDex === 'function') saveEquipDex();
+        } else if (type === 'misc') {
+            let ids = (typeof MISC_CAT_ITEMS !== 'undefined' && MISC_CAT_ITEMS[_miscBookCat]) || [];
+            if (!player.miscDex) player.miscDex = {};
+            ids.forEach(id => { player.miscDex[id] = true; });
+            if (typeof saveMiscDex === 'function') saveMiscDex();
+        } else if (type === 'relic') {
+            let ids = (typeof RELIC_CAT_ITEMS !== 'undefined' && RELIC_CAT_ITEMS[_relicBookCat]) || [];
+            if (!player.relicDex) player.relicDex = {};
+            ids.forEach(id => { player.relicDex[id] = true; });
+            if (typeof saveRelicDex === 'function') saveRelicDex();
+        }
+
+        if (typeof calcStats === 'function') calcStats();
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof renderTabs === 'function') renderTabs(true);
+        if (typeof saveGame === 'function') saveGame();
+
+        if (type === 'card' && typeof renderCardBook === 'function') renderCardBook();
+        if (type === 'equip' && typeof renderEquipBook === 'function') renderEquipBook();
+        if (type === 'misc' && typeof renderMiscBook === 'function') renderMiscBook();
+        if (type === 'relic' && typeof renderRelicBook === 'function') renderRelicBook();
+        if (typeof showToast === 'function') showToast("本分頁圖鑑已解鎖！", 'success');
+    };
+
+    window.gmBookClearCategory = function (type) {
+        if (typeof player === 'undefined' || !player) return;
+        if (!confirm("確定要將本分頁的所有收集項目改為未解鎖嗎？")) return;
+
+        if (type === 'card') {
+            let names = (typeof CARD_REGION_MOBS !== 'undefined' && CARD_REGION_MOBS[_cardBookRegion]) || [];
+            if (player.cardDex) { names.forEach(nm => { delete player.cardDex[nm]; }); }
+            if (typeof saveCardDex === 'function') saveCardDex();
+        } else if (type === 'equip') {
+            let ids = (typeof EQUIP_CAT_ITEMS !== 'undefined' && EQUIP_CAT_ITEMS[_equipBookCat]) || [];
+            if (player.equipDex) { ids.forEach(id => { delete player.equipDex[id]; }); }
+            if (typeof saveEquipDex === 'function') saveEquipDex();
+        } else if (type === 'misc') {
+            let ids = (typeof MISC_CAT_ITEMS !== 'undefined' && MISC_CAT_ITEMS[_miscBookCat]) || [];
+            if (player.miscDex) { ids.forEach(id => { delete player.miscDex[id]; }); }
+            if (typeof saveMiscDex === 'function') saveMiscDex();
+        } else if (type === 'relic') {
+            let ids = (typeof RELIC_CAT_ITEMS !== 'undefined' && RELIC_CAT_ITEMS[_relicBookCat]) || [];
+            if (player.relicDex) { ids.forEach(id => { delete player.relicDex[id]; }); }
+            if (typeof saveRelicDex === 'function') saveRelicDex();
+        }
+
+        if (typeof calcStats === 'function') calcStats();
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof renderTabs === 'function') renderTabs(true);
+        if (typeof saveGame === 'function') saveGame();
+
+        if (type === 'card' && typeof renderCardBook === 'function') renderCardBook();
+        if (type === 'equip' && typeof renderEquipBook === 'function') renderEquipBook();
+        if (type === 'misc' && typeof renderMiscBook === 'function') renderMiscBook();
+        if (type === 'relic' && typeof renderRelicBook === 'function') renderRelicBook();
+        if (typeof showToast === 'function') showToast("本分頁圖鑑已重置！", 'success');
+    };
+
+    window.gmBookUnlockAll = function (type) {
+        if (typeof player === 'undefined' || !player) return;
+        
+        if (type === 'card' && typeof CARD_MOB_INFO !== 'undefined') {
+            if (!player.cardDex) player.cardDex = {};
+            Object.keys(CARD_MOB_INFO).forEach(name => { player.cardDex[name] = 111; });
+            if (typeof saveCardDex === 'function') saveCardDex();
+        } else if (type === 'equip' && typeof EQUIP_ITEM_CAT !== 'undefined') {
+            if (!player.equipDex) player.equipDex = {};
+            Object.keys(EQUIP_ITEM_CAT).forEach(id => { player.equipDex[id] = true; });
+            if (typeof saveEquipDex === 'function') saveEquipDex();
+        } else if (type === 'misc' && typeof MISC_ITEM_CAT !== 'undefined') {
+            if (!player.miscDex) player.miscDex = {};
+            Object.keys(MISC_ITEM_CAT).forEach(id => { player.miscDex[id] = true; });
+            if (typeof saveMiscDex === 'function') saveMiscDex();
+        } else if (type === 'relic' && typeof RELIC_ITEM_CAT !== 'undefined') {
+            if (!player.relicDex) player.relicDex = {};
+            Object.keys(RELIC_ITEM_CAT).forEach(id => { player.relicDex[id] = true; });
+            if (typeof saveRelicDex === 'function') saveRelicDex();
+        }
+
+        if (typeof calcStats === 'function') calcStats();
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof renderTabs === 'function') renderTabs(true);
+        if (typeof saveGame === 'function') saveGame();
+
+        if (type === 'card' && typeof renderCardBook === 'function') renderCardBook();
+        if (type === 'equip' && typeof renderEquipBook === 'function') renderEquipBook();
+        if (type === 'misc' && typeof renderMiscBook === 'function') renderMiscBook();
+        if (type === 'relic' && typeof renderRelicBook === 'function') renderRelicBook();
+        if (typeof showToast === 'function') showToast("全部圖鑑解鎖成功！", 'success');
+    };
+
+    window.gmBookClearAll = function (type) {
+        if (typeof player === 'undefined' || !player) return;
+        if (!confirm("確定要清空此大類的所有圖鑑嗎？")) return;
+
+        if (type === 'card') {
+            player.cardDex = {};
+            if (typeof saveCardDex === 'function') saveCardDex();
+        } else if (type === 'equip') {
+            player.equipDex = {};
+            if (typeof saveEquipDex === 'function') saveEquipDex();
+        } else if (type === 'misc') {
+            player.miscDex = {};
+            if (typeof saveMiscDex === 'function') saveMiscDex();
+        } else if (type === 'relic') {
+            player.relicDex = {};
+            if (typeof saveRelicDex === 'function') saveRelicDex();
+        }
+
+        if (typeof calcStats === 'function') calcStats();
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof renderTabs === 'function') renderTabs(true);
+        if (typeof saveGame === 'function') saveGame();
+
+        if (type === 'card' && typeof renderCardBook === 'function') renderCardBook();
+        if (type === 'equip' && typeof renderEquipBook === 'function') renderEquipBook();
+        if (type === 'misc' && typeof renderMiscBook === 'function') renderMiscBook();
+        if (type === 'relic' && typeof renderRelicBook === 'function') renderRelicBook();
+        if (typeof showToast === 'function') showToast("全部圖鑑已清空！", 'success');
+    };
+
+    window.gmUnlockAllCollections = function () {
+        if (typeof player === 'undefined' || !player) {
+            alert("請先載入或建立角色！");
+            return;
+        }
+        gmBookUnlockAll('card');
+        gmBookUnlockAll('equip');
+        gmBookUnlockAll('misc');
+        gmBookUnlockAll('relic');
+        if (typeof logSys === 'function') logSys(`<span class="text-yellow-300 font-bold">🌟 GM 測試：一鍵完美解鎖【全部四種】收藏圖鑑！能力值已全部激活！</span>`);
+        if (typeof showToast === 'function') showToast("全套圖鑑解鎖成功！", 'success');
+    };
+
+    window.gmClearAllCollections = function () {
+        if (typeof player === 'undefined' || !player) return;
+        if (!confirm("確定要清空【所有四類】收藏圖鑑嗎？")) return;
+        gmBookClearAll('card');
+        gmBookClearAll('equip');
+        gmBookClearAll('misc');
+        gmBookClearAll('relic');
+        if (typeof logSys === 'function') logSys(`<span class="text-red-400 font-bold">🗑️ GM 測試：已清空【全部四種】收藏圖鑑！</span>`);
+        if (typeof showToast === 'function') showToast("所有圖鑑已清空！", 'success');
+    };
+
+    function injectGMBookControlBars() {
+        const types = [
+            { id: 'card-book', type: 'card' },
+            { id: 'equip-book', type: 'equip' },
+            { id: 'misc-book', type: 'misc' },
+            { id: 'relic-book', type: 'relic' }
+        ];
+
+        types.forEach(t => {
+            let bookEl = document.getElementById(t.id);
+            if (!bookEl) return;
+            
+            if (bookEl.querySelector('.gm-book-control-bar')) {
+                let chk = bookEl.querySelector(`#gm-book-edit-toggle-${t.type}`);
+                if (chk) chk.checked = !!window.gmBookEditModes[t.type];
+                return;
+            }
+
+            let panel = bookEl.querySelector('.flex-col');
+            if (!panel) return;
+
+            let isChecked = !!window.gmBookEditModes[t.type];
+            let bar = document.createElement('div');
+            bar.className = 'gm-book-control-bar flex items-center justify-between px-4 py-2 text-xs gap-3 flex-shrink-0';
+            bar.style.cssText = "background: rgba(88, 28, 135, 0.2) !important; border-bottom: 1px solid rgba(147, 51, 234, 0.3) !important;";
+            bar.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <span class="text-purple-300 font-bold">🔧 GM 輔助模式:</span>
+                    <label class="flex items-center gap-1.5 cursor-pointer select-none text-slate-300 hover:text-white" style="font-size: 12px; margin: 0;">
+                        <input type="checkbox" id="gm-book-edit-toggle-${t.type}" ${isChecked ? 'checked' : ''} style="width: 14px; height: 14px; cursor: pointer; margin: 0;" onchange="toggleGMBookEditMode('${t.type}', this.checked)">
+                        點擊卡片直接【解鎖 / 鎖定】
+                    </label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="gmBookUnlockCategory('${t.type}')" class="px-2 py-1 bg-sky-950/60 border border-sky-800 text-sky-300 hover:bg-sky-900/60 rounded font-semibold transition" style="font-size: 11px;">⚡ 解鎖本分頁</button>
+                    <button onclick="gmBookClearCategory('${t.type}')" class="px-2 py-1 bg-red-950/60 border border-red-900 text-red-400 hover:bg-red-900/60 rounded font-semibold transition" style="font-size: 11px;">🗑️ 清空本分頁</button>
+                    <div style="width: 1px; height: 14px; background: rgba(255,255,255,0.1); margin: 0 4px;"></div>
+                    <button onclick="gmBookUnlockAll('${t.type}')" class="px-2.5 py-1 bg-amber-950/40 border border-amber-600 text-yellow-300 hover:bg-amber-900/60 rounded font-semibold transition" style="font-size: 11px;">🌟 一鍵解鎖全部</button>
+                    <button onclick="gmBookClearAll('${t.type}')" class="px-2 py-1 bg-red-950/80 border border-red-800 text-red-300 hover:bg-red-900/80 rounded font-semibold transition" style="font-size: 11px;">🗑️ 清空全部</button>
+                </div>
+            `;
+            
+            let header = panel.firstElementChild;
+            if (header) {
+                header.after(bar);
+            } else {
+                panel.prepend(bar);
+            }
+        });
+    }
+
+    function setupGMBookClickDelegation() {
+        document.body.addEventListener('click', function (e) {
+            const mappings = [
+                { bodyId: 'card-book-body', type: 'card' },
+                { bodyId: 'equip-book-body', type: 'equip' },
+                { bodyId: 'misc-book-body', type: 'misc' },
+                { bodyId: 'relic-book-body', type: 'relic' }
+            ];
+
+            for (let m of mappings) {
+                let body = document.getElementById(m.bodyId);
+                if (!body) continue;
+
+                if (!body.contains(e.target)) continue;
+
+                let chk = document.getElementById(`gm-book-edit-toggle-${m.type}`);
+                if (!chk || !chk.checked) continue;
+
+                let card = e.target.closest('.bg-slate-800\\/70, .relative.bg-slate-800\\/70, [class*="bg-slate-800"]');
+                if (!card) continue;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                let idOrName = '';
+                let wrapper = card.parentNode;
+                let index = Array.from(wrapper.children).indexOf(card);
+                if (index !== -1) {
+                    if (m.type === 'card') {
+                        let names = (typeof CARD_REGION_MOBS !== 'undefined' && CARD_REGION_MOBS[_cardBookRegion]) || [];
+                        idOrName = names[index];
+                    } else if (m.type === 'equip') {
+                        let ids = (typeof EQUIP_CAT_ITEMS !== 'undefined' && EQUIP_CAT_ITEMS[_equipBookCat]) || [];
+                        idOrName = ids[index];
+                    } else if (m.type === 'misc') {
+                        let ids = (typeof MISC_CAT_ITEMS !== 'undefined' && MISC_CAT_ITEMS[_miscBookCat]) || [];
+                        idOrName = ids[index];
+                    } else if (m.type === 'relic') {
+                        let ids = (typeof RELIC_CAT_ITEMS !== 'undefined' && RELIC_CAT_ITEMS[_relicBookCat]) || [];
+                        idOrName = ids[index];
+                    }
+                }
+
+                if (idOrName) {
+                    toggleGMBookItemState(m.type, idOrName);
+                }
+                break;
+            }
+        }, true);
+    }
+
+    function setupGMBookOverlays() {
+        const books = [
+            { name: 'renderCardBook', type: 'card' },
+            { name: 'renderEquipBook', type: 'equip' },
+            { name: 'renderMiscBook', type: 'misc' },
+            { name: 'renderRelicBook', type: 'relic' }
+        ];
+
+        books.forEach(b => {
+            if (typeof window[b.name] === 'function') {
+                const originalFunc = window[b.name];
+                window[b.name] = function () {
+                    originalFunc();
+                    try {
+                        injectGMBookControlBars();
+                    } catch (e) {
+                        console.error("GM Book inject failed:", e);
+                    }
+                };
+            }
+        });
+
+        setupGMBookClickDelegation();
+    }
+
     // 5. 創建大視窗 DOM
     function createGMShopModal() {
         // 抓取所有商品 (只執行一次)
@@ -1124,10 +1624,12 @@
         const modalHtml = `
             <div class="gm-shop-container">
                 <div class="gm-shop-header">
-                    <div class="gm-shop-title">🛍️ GM 裝備批發商店</div>
+                    <div class="gm-shop-title">🛍️ GM 商店</div>
                     <div class="gm-shop-tabs">
                         <button id="gm-shop-tab-btn-shop" class="gm-shop-tab-btn active" onclick="switchGMShopTab('shop')">裝備商品</button>
                         <button id="gm-shop-tab-btn-char" class="gm-shop-tab-btn" onclick="switchGMShopTab('char')">角色修改</button>
+                        <button id="gm-shop-tab-btn-pet" class="gm-shop-tab-btn" onclick="switchGMShopTab('pet')">寵物修改</button>
+                        <button id="gm-shop-tab-btn-collect" class="gm-shop-tab-btn" onclick="switchGMShopTab('collect')">收藏修改</button>
                     </div>
                     <button class="gm-shop-close-btn" onclick="closeGMShop()">&times;</button>
                 </div>
@@ -1268,7 +1770,7 @@
                     <div id="gm-shop-tab-content-char" class="gm-shop-tab-content">
                         <div class="gm-shop-char-container">
                             <div class="gm-shop-char-grid">
-                                <!-- 左側：資產與等級 -->
+                                <!-- 第一欄 (左)：資產與等級 -->
                                 <div class="gm-shop-char-section">
                                     <div class="gm-shop-char-section-title">🪙 資產與等級修改</div>
                                     
@@ -1534,10 +2036,143 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
                                                         <button class="gm-shop-char-save-btn" onclick="saveGMShopCharChanges()">💾 儲存並套用修改</button>
                         </div>
                     </div>
+
+                    <!-- 寵物修改分頁 -->
+                    <div id="gm-shop-tab-content-pet" class="gm-shop-tab-content" style="display: none;">
+                        <div class="gm-shop-char-container" style="flex-direction: column !important; padding: 24px !important; overflow-y: auto !important; height: 100% !important; box-sizing: border-box !important;">
+                            <div class="gm-shop-char-grid">
+                                <!-- 第一欄：寵物測試功能 & 編輯 -->
+                                <div class="flex flex-col gap-4">
+                                    <!-- 寵物測試功能 -->
+                                    <div class="gm-shop-char-section">
+                                        <div class="gm-shop-char-section-title">🐾 寵物測試功能</div>
+                                        <div class="flex flex-col gap-2">
+                                            <button class="gm-shop-char-btn-adj py-2 text-center" style="width:100%" onclick="gmAddAllPets(30)">🐣 獲得常用寵物 (Lv.30 進化門檻)</button>
+                                            <button class="gm-shop-char-btn-adj py-2 text-center" style="width:100%" onclick="gmAddAllPets(100)">🐉 獲得常用寵物 (Lv.100 頂級)</button>
+                                            <div class="flex gap-2">
+                                                <button class="gm-shop-char-btn-adj py-2 flex-1 text-center" onclick="gmSetAllPetsLevel(30)">➔ 全員設為 Lv.30</button>
+                                                <button class="gm-shop-char-btn-adj py-2 flex-1 text-center" onclick="gmSetAllPetsLevel(100)">➔ 全員設為 Lv.100</button>
+                                            </div>
+                                            <button class="gm-shop-char-btn-adj py-2 text-center border border-red-900 bg-red-950/20 text-red-400" style="width:100%" onclick="gmClearAllPets()">🗑️ 清空所有寵物</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- 獲得特定寵物 -->
+                                    <div class="gm-shop-char-section">
+                                        <div class="gm-shop-char-section-title">🐾 獲得特定寵物</div>
+                                        <div class="flex flex-col gap-2">
+                                            <div class="gm-shop-char-input-row" style="margin-bottom: 4px;">
+                                                <span class="gm-shop-control-label">選擇種類</span>
+                                                <select id="gm-add-pet-form-select" class="gm-shop-select text-sm py-1" style="flex: 1; max-width: 140px;">
+                                                    <!-- 動態生成 -->
+                                                </select>
+                                            </div>
+                                            <div class="gm-shop-char-input-row" style="margin-bottom: 4px;">
+                                                <span class="gm-shop-control-label">設定等級</span>
+                                                <input type="number" id="gm-add-pet-lv-input" class="gm-shop-char-input text-sm" style="max-width: 80px;" value="30" min="1" max="999">
+                                            </div>
+                                            <button class="gm-shop-char-btn-adj py-2 text-center text-sky-300 font-bold bg-sky-950/20 border-sky-600 hover:bg-sky-900/40" style="width:100%" onclick="gmAddSinglePet()">➕ 新增此寵物至保管箱</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- 單一寵物編輯 -->
+                                    <div class="gm-shop-char-section">
+                                        <div class="gm-shop-char-section-title">🧬 單一寵物編輯</div>
+                                        <div class="gm-shop-char-input-group">
+                                            <span class="gm-shop-control-label">選擇要修改的寵物</span>
+                                            <select id="gm-pet-select" class="gm-shop-select text-sm py-1.5" onchange="onGMPetSelectChange()">
+                                                <option value="">-- 請選擇寵物 --</option>
+                                            </select>
+                                        </div>
+                                        <div id="gm-pet-editor-fields" class="hidden flex flex-col gap-3 mt-2">
+                                            <div class="gm-shop-char-input-group">
+                                                <span class="gm-shop-control-label">寵物自訂名字</span>
+                                                <input type="text" id="gm-pet-name-input" class="gm-shop-char-input" style="max-width:100%; text-align: left;">
+                                            </div>
+                                            <div class="gm-shop-char-input-group">
+                                                <span class="gm-shop-control-label">型態 (種類)</span>
+                                                <select id="gm-pet-form-select" class="gm-shop-select text-sm py-1.5">
+                                                    <!-- 動態生成 -->
+                                                </select>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <div class="gm-shop-char-input-group flex-1">
+                                                    <span class="gm-shop-control-label">等級 (Lv.)</span>
+                                                    <input type="number" id="gm-pet-lvl-input" class="gm-shop-char-input text-center" min="1" max="999">
+                                                </div>
+                                                <div class="gm-shop-char-input-group flex-1">
+                                                    <span class="gm-shop-control-label">HP 上限</span>
+                                                    <input type="number" id="gm-pet-mhp-input" class="gm-shop-char-input text-center" min="1" max="9999999">
+                                                </div>
+                                                <div class="gm-shop-char-input-group flex-1">
+                                                    <span class="gm-shop-control-label">MP 上限</span>
+                                                    <input type="number" id="gm-pet-mmp-input" class="gm-shop-char-input text-center" min="0" max="9999999">
+                                                </div>
+                                            </div>
+                                            <button class="gm-shop-char-save-btn py-2 text-center" style="width:100%; margin-top: 6px;" onclick="saveGMPetChanges()">💾 儲存寵物修改</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 第二欄：寵物能力限制說明 -->
+                                <div class="gm-shop-char-section text-xs leading-relaxed text-slate-400 bg-slate-900/50 border-slate-800">
+                                    <div class="gm-shop-char-section-title text-slate-300 font-bold" style="font-size: 13px;">💡 寵物能力限制說明</div>
+                                    <ul class="list-disc pl-4 flex flex-col gap-1">
+                                        <li><strong class="text-amber-400">等級上限：</strong>最高可修改至 <span class="text-amber-300">999</span> 級。</li>
+                                        <li><strong class="text-amber-400">血量/魔力上限：</strong>無數值上限限制，輸入上限為 <span class="text-amber-300">9,999,999</span>。</li>
+                                        <li><strong class="text-amber-400">迴避率 (ER)：</strong>物理型上限為 <span class="text-amber-300">25%</span>、特殊型為 <span class="text-amber-300">20%</span>、魔法型為 <span class="text-amber-300">15%</span>。</li>
+                                        <li><strong class="text-amber-400">魔法防禦 (MR)：</strong>物理型上限為 <span class="text-amber-300">70%</span>、特殊型為 <span class="text-amber-300">95%</span> (黃金龍為 <span class="text-amber-300">110%</span>)、魔法型為 <span class="text-amber-300">120%</span>。</li>
+                                        <li><strong class="text-amber-400">攻擊/防禦/減免：</strong>直接由等級公式與裝備累計，無硬上限。</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 收藏修改分頁 -->
+                    <div id="gm-shop-tab-content-collect" class="gm-shop-tab-content" style="display: none;">
+                        <div class="gm-shop-char-container" style="flex-direction: column !important; padding: 24px !important; overflow-y: auto !important; height: 100% !important; box-sizing: border-box !important;">
+                            <div class="gm-shop-char-grid">
+                                <!-- 第一欄：直接打開原版收藏冊進行編輯 -->
+                                <div class="flex flex-col gap-4">
+                                    <div class="gm-shop-char-section">
+                                        <div class="gm-shop-char-section-title">📂 開啟原版收藏冊 (內含 GM 輔助模式)</div>
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <button class="gm-shop-char-btn-adj py-3 text-center font-bold text-amber-300 bg-amber-950/20 border-amber-600 hover:bg-amber-900/40" style="width:100%" onclick="closeGMShop(); if(typeof openCardBook === 'function') openCardBook();">🎴 怪物卡片收藏</button>
+                                            <button class="gm-shop-char-btn-adj py-3 text-center font-bold text-sky-300 bg-sky-950/20 border-sky-600 hover:bg-sky-900/40" style="width:100%" onclick="closeGMShop(); if(typeof openEquipBook === 'function') openEquipBook();">🗡️ 裝備圖鑑收藏</button>
+                                            <button class="gm-shop-char-btn-adj py-3 text-center font-bold text-emerald-300 bg-emerald-950/20 border-emerald-600 hover:bg-emerald-900/40" style="width:100%" onclick="closeGMShop(); if(typeof openMiscBook === 'function') openMiscBook();">🧰 道具圖鑑收藏</button>
+                                            <button class="gm-shop-char-btn-adj py-3 text-center font-bold text-purple-300 bg-purple-950/20 border-purple-600 hover:bg-purple-900/40" style="width:100%" onclick="closeGMShop(); if(typeof openRelicBook === 'function') openRelicBook();">🏺 遺物圖鑑收藏</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="gm-shop-char-section">
+                                        <div class="gm-shop-char-section-title">🌟 一鍵全局修改</div>
+                                        <div class="flex flex-col gap-2">
+                                            <button class="gm-shop-char-btn-adj py-2.5 text-center font-bold text-yellow-300 bg-amber-950/40 border-amber-500 hover:bg-amber-900/60" style="width:100%" onclick="gmUnlockAllCollections()">✨ 完美解鎖全套「四類」收藏圖鑑</button>
+                                            <button class="gm-shop-char-btn-adj py-2 text-center text-red-400 border border-red-950 bg-red-950/20 hover:bg-red-900/40" style="width:100%" onclick="gmClearAllCollections()">🗑️ 清空所有收藏圖鑑</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 第二欄：說明說明 -->
+                                <div class="gm-shop-char-section text-xs leading-relaxed text-slate-400 bg-slate-900/50 border-slate-800">
+                                    <div class="gm-shop-char-section-title text-slate-300 font-bold" style="font-size: 14px;">📝 GM 收藏冊輔助功能說明</div>
+                                    <p class="mb-3 text-slate-300">我們已將 GM 編輯功能<b>完美注入至原版收藏冊介面</b>中！開啟任一收藏冊後，您將會看到頂部的紫色 <b>「🔧 GM 模式」</b> 控制列：</p>
+                                    <ul class="list-disc pl-4 flex flex-col gap-2">
+                                        <li><strong>點擊卡片解鎖/鎖定：</strong>勾選後，直接點擊收藏冊內的任何怪物卡片或裝備，即可瞬間將其解鎖或鎖定！</li>
+                                        <li><strong>怪物卡片循環切換：</strong>怪物卡片點擊時會循環在 <span class="text-slate-500">未解鎖 ➔ 普卡 ➔ 銀卡 ➔ 金卡</span> 之間切換。</li>
+                                        <li><strong>分區一鍵控制：</strong>可一鍵只解鎖本頁（如單手劍區、銀騎士村區），或一鍵清空本頁。</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+            </div>
             </div>
         `;
 
@@ -1549,19 +2184,53 @@
     window.switchGMShopTab = function (tab) {
         let shopTabBtn = document.getElementById('gm-shop-tab-btn-shop');
         let charTabBtn = document.getElementById('gm-shop-tab-btn-char');
+        let petTabBtn = document.getElementById('gm-shop-tab-btn-pet');
+        let collectTabBtn = document.getElementById('gm-shop-tab-btn-collect');
         let shopContent = document.getElementById('gm-shop-tab-content-shop');
         let charContent = document.getElementById('gm-shop-tab-content-char');
+        let petContent = document.getElementById('gm-shop-tab-content-pet');
+        let collectContent = document.getElementById('gm-shop-tab-content-collect');
 
         if (tab === 'shop') {
             if (shopTabBtn) shopTabBtn.classList.add('active');
             if (charTabBtn) charTabBtn.classList.remove('active');
+            if (petTabBtn) petTabBtn.classList.remove('active');
+            if (collectTabBtn) collectTabBtn.classList.remove('active');
             if (shopContent) shopContent.style.setProperty('display', 'flex', 'important');
             if (charContent) charContent.style.setProperty('display', 'none', 'important');
+            if (petContent) petContent.style.setProperty('display', 'none', 'important');
+            if (collectContent) collectContent.style.setProperty('display', 'none', 'important');
         } else if (tab === 'char') {
             if (shopTabBtn) shopTabBtn.classList.remove('active');
             if (charTabBtn) charTabBtn.classList.add('active');
+            if (petTabBtn) petTabBtn.classList.remove('active');
+            if (collectTabBtn) collectTabBtn.classList.remove('active');
             if (shopContent) shopContent.style.setProperty('display', 'none', 'important');
             if (charContent) charContent.style.setProperty('display', 'block', 'important');
+            if (petContent) petContent.style.setProperty('display', 'none', 'important');
+            if (collectContent) collectContent.style.setProperty('display', 'none', 'important');
+
+            window.loadGMShopCharValues();
+        } else if (tab === 'pet') {
+            if (shopTabBtn) shopTabBtn.classList.remove('active');
+            if (charTabBtn) charTabBtn.classList.remove('active');
+            if (petTabBtn) petTabBtn.classList.add('active');
+            if (collectTabBtn) collectTabBtn.classList.remove('active');
+            if (shopContent) shopContent.style.setProperty('display', 'none', 'important');
+            if (charContent) charContent.style.setProperty('display', 'none', 'important');
+            if (petContent) petContent.style.setProperty('display', 'block', 'important');
+            if (collectContent) collectContent.style.setProperty('display', 'none', 'important');
+
+            window.loadGMShopCharValues();
+        } else if (tab === 'collect') {
+            if (shopTabBtn) shopTabBtn.classList.remove('active');
+            if (charTabBtn) charTabBtn.classList.remove('active');
+            if (petTabBtn) petTabBtn.classList.remove('active');
+            if (collectTabBtn) collectTabBtn.classList.add('active');
+            if (shopContent) shopContent.style.setProperty('display', 'none', 'important');
+            if (charContent) charContent.style.setProperty('display', 'none', 'important');
+            if (petContent) petContent.style.setProperty('display', 'none', 'important');
+            if (collectContent) collectContent.style.setProperty('display', 'block', 'important');
 
             window.loadGMShopCharValues();
         }
@@ -1588,6 +2257,140 @@
             if (aInput) aInput.value = (player.alloc && player.alloc[st]) ? player.alloc[st] : 0;
             if (pInput) pInput.value = (player.panacea && player.panacea[st]) ? player.panacea[st] : 0;
         });
+
+        // 🐾 GM 測試：載入/刷新寵物編輯列表
+        let petSel = document.getElementById('gm-pet-select');
+        if (petSel) {
+            let list = [];
+            try { list = petRoster(); } catch(e) {}
+            let html = '<option value="">-- 請選擇寵物 --</option>';
+            list.forEach(p => {
+                let disp = (p.name ? p.name + ' ' : '') + `(${p.form}) Lv.${p.lv}`;
+                html += `<option value="${p.uid}">${disp}</option>`;
+            });
+            petSel.innerHTML = html;
+            
+            // 預設隱藏編輯欄位
+            let fields = document.getElementById('gm-pet-editor-fields');
+            if (fields) fields.classList.add('hidden');
+        }
+        
+        let formSel = document.getElementById('gm-pet-form-select');
+        if (formSel && formSel.options.length <= 1) {
+            let html = '';
+            if (typeof PET_BOOK !== 'undefined') {
+                Object.keys(PET_BOOK).forEach(k => {
+                    html += `<option value="${k}">${k}</option>`;
+                });
+            }
+            formSel.innerHTML = html;
+        }
+
+        let addFormSel = document.getElementById('gm-add-pet-form-select');
+        if (addFormSel && addFormSel.options.length <= 1) {
+            let html = '';
+            if (typeof PET_BOOK !== 'undefined') {
+                Object.keys(PET_BOOK).forEach(k => {
+                    html += `<option value="${k}">${k}</option>`;
+                });
+            }
+            addFormSel.innerHTML = html;
+        }
+    };
+
+    window.onGMPetSelectChange = function () {
+        let petSel = document.getElementById('gm-pet-select');
+        let fields = document.getElementById('gm-pet-editor-fields');
+        if (!petSel || !fields) return;
+        
+        let uid = petSel.value;
+        if (!uid) {
+            fields.classList.add('hidden');
+            return;
+        }
+        
+        let p = petRoster().find(x => x.uid === uid);
+        if (!p) {
+            fields.classList.add('hidden');
+            return;
+        }
+        
+        fields.classList.remove('hidden');
+        
+        let nameInp = document.getElementById('gm-pet-name-input');
+        let formSel = document.getElementById('gm-pet-form-select');
+        let lvlInp = document.getElementById('gm-pet-lvl-input');
+        let mhpInp = document.getElementById('gm-pet-mhp-input');
+        let mmpInp = document.getElementById('gm-pet-mmp-input');
+        
+        if (nameInp) nameInp.value = p.name || '';
+        if (formSel) formSel.value = p.form;
+        if (lvlInp) lvlInp.value = p.lv || 1;
+        if (mhpInp) mhpInp.value = p.mhp || 1;
+        if (mmpInp) mmpInp.value = p.mmp || 0;
+    };
+
+    window.saveGMPetChanges = function () {
+        let petSel = document.getElementById('gm-pet-select');
+        if (!petSel || !petSel.value) return;
+        
+        let uid = petSel.value;
+        let p = petRoster().find(x => x.uid === uid);
+        if (!p) return;
+        
+        let nameInp = document.getElementById('gm-pet-name-input');
+        let formSel = document.getElementById('gm-pet-form-select');
+        let lvlInp = document.getElementById('gm-pet-lvl-input');
+        let mhpInp = document.getElementById('gm-pet-mhp-input');
+        let mmpInp = document.getElementById('gm-pet-mmp-input');
+        
+        let nameVal = nameInp ? nameInp.value.trim() : '';
+        let formVal = formSel ? formSel.value : p.form;
+        let lvlVal = lvlInp ? parseInt(lvlInp.value) : p.lv;
+        let mhpVal = mhpInp ? parseInt(mhpInp.value) : p.mhp;
+        let mmpVal = mmpInp ? parseInt(mmpInp.value) : p.mmp;
+        
+        if (isNaN(lvlVal) || lvlVal < 1 || lvlVal > 999) {
+            alert("請輸入 1 到 999 之間的有效等級！");
+            return;
+        }
+        if (isNaN(mhpVal) || mhpVal < 1) {
+            alert("血量上限必須大於 0！");
+            return;
+        }
+        if (isNaN(mmpVal) || mmpVal < 0) {
+            alert("魔力上限必須大於或等於 0！");
+            return;
+        }
+        
+        let snap = _petMutationSnapshot();
+        p.name = nameVal;
+        p.form = formVal;
+        p.lv = lvlVal;
+        p.mhp = mhpVal;
+        p.mmp = mmpVal;
+        p.hp = Math.min(p.hp, p.mhp);
+        p.mp = Math.min(p.mp, p.mmp);
+        
+        petMarkDirty();
+        if (petRosterSave()) {
+            if (typeof logSys === 'function') logSys(`<span class="text-green-300 font-bold">🐾 GM 測試：成功更新寵物 ${formVal} (${uid}) 的屬性資料！</span>`);
+            
+            // 重新加載並更新選單
+            window.loadGMShopCharValues();
+            
+            if (typeof updateUI === 'function') updateUI();
+            if (typeof renderTabs === 'function') renderTabs(true);
+            let _d = document.getElementById('interaction-content');
+            if (_d && _d.querySelector('[data-petui]')) renderPetStorageNPC(_d);
+            
+            if (typeof showToast === 'function') {
+                showToast("寵物修改成功！", 'success');
+            }
+        } else {
+            _petMutationRestore(snap);
+            alert("儲存寵物修改失敗！");
+        }
     };
 
     window.adjustGMCharAttr = function (id, amount) {
@@ -2000,6 +2803,7 @@
         if (typeof DB === 'undefined' || !DB.items) return;
 
         injectStyles();
+        setupGMBookOverlays();
 
         // 🌟 開啟 GMShop 時，直接覆寫短劍與木棒為測試超高數值
         let dagger = DB.items["wpn_shortsword"];
