@@ -238,16 +238,68 @@
         .file-name {
             font-weight: 700;
             font-size: 0.95rem;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .file-name-left {
             display: flex;
             align-items: center;
             gap: 8px;
+        }
+
+        .file-name-left span {
+            white-space: nowrap;
+        }
+
+        .file-name-right {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: normal;
+            font-family: monospace;
         }
 
         .file-desc {
             font-size: 0.8rem;
             color: var(--text-muted);
             line-height: 1.3;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .file-details {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px dashed rgba(255, 255, 255, 0.05);
+            display: none;
+            user-select: text;
+        }
+
+        .file-details.show {
+            display: block;
+        }
+
+        .btn-toggle-details {
+            font-size: 0.72rem;
+            color: var(--primary);
+            cursor: pointer;
+            text-decoration: underline;
+            margin-left: 8px;
+            user-select: none;
+            font-weight: 500;
+        }
+
+        .btn-toggle-details:hover {
+            color: #fff;
+            text-shadow: 0 0 8px var(--primary-glow);
         }
 
         /* 標籤 */
@@ -494,15 +546,86 @@
     <script>
         // ═══════════════ 外掛資料定義 ═══════════════
         const ALL_PLUGINS = [
-            { id: 'klh_initial.js', name: 'klh_initial.js', desc: '核心初始化模組。載入全域資源與基本變數（必選，需放在最上方）。', isCore: true, checked: false },
-            { id: 'klh_database.js', name: 'klh_database.js', desc: '雲端存檔引擎。提供 Supabase / JSONBlob 雙引擎雲端備份同步與防衝突機制。', isCore: true, checked: false },
-            { id: 'klh_GMShop.js', name: 'klh_GMShop.js', desc: 'GM 商店與修改面板。整合一鍵滿級、怪物卡片/裝備直接解鎖編輯功能。', isCore: false, checked: false },
-            { id: 'klh_mobile-perf.js', name: 'klh_mobile-perf.js', desc: '效能降級與優化。提供音效節流、降低動畫影格與自動日誌清理，防發熱。', isCore: false, checked: true },
-            { id: 'klh_perf-monitor.js', name: 'klh_perf-monitor.js', desc: '即時效能監測面板。在右上角顯示目前 FPS 與記憶體開銷。', isCore: false, checked: true },
-            { id: 'klh_mobile_allies_hud.js', name: 'klh_mobile_allies_hud.js', desc: '手機傭兵快速欄。專為觸控裝置設計的傭兵出戰與狀態快捷監控欄。', isCore: false, checked: false },
-            { id: 'klh_Addition.js', name: 'klh_Addition.js', desc: '額外輔助增強模組。包含各類輔助邏輯與便利性調整。', isCore: false, checked: false },
-            { id: 'klh_Pandora.js', name: 'klh_Pandora.js', desc: '潘朵拉系統擴充。自訂抽獎與特定兌換防 SL 封裝。', isCore: false, checked: false },
-            { id: 'klh_run.js', name: 'klh_run.js', desc: '自啟動引導載入。彙整所有配置並正式引導各模組自啟（通常放在最下方）。', isCore: true, checked: false }
+            { 
+                id: 'klh_initial.js', 
+                name: '核心功能初始化', 
+                desc: '創角屬性優化、多難度系統與 iOS 鍵盤修復。', 
+                details: '包含：創角各屬性點上限分配 +20、地獄/惡夢/標準/祝福/天堂五段難度調整影響怪物強度與掉寶率、遊戲內配點與萬能藥優化限制、iOS 鍵盤防錯位修復、傭兵存檔自動精簡、以及防拋錯的優雅降級保護。', 
+                isCore: false, 
+                checked: false 
+            },
+            { 
+                id: 'klh_database.js', 
+                name: '雲端存檔引擎', 
+                desc: 'JSONBlob / Firebase 雙引擎備份與防衝突。', 
+                details: '支援 JSONBlob 與 Firebase 雙引擎雲端備份同步。提供本地與雲端雙備份引擎、防 Null 覆蓋災難攔截與防衝突機制，確保多裝置同步時存檔資料的安全與隔離。', 
+                isCore: false, 
+                checked: false 
+            },
+            { 
+                id: 'klh_GMShop.js', 
+                name: 'GM 商店修改面板', 
+                desc: '一鍵滿級、裝備自訂編輯與屬性數值修改。', 
+                details: '在右下角注入 GM 控制按鈕。可購買自訂強化等級/遠古詞綴/屬性/席琳套裝效果的裝備、一鍵修改角色等級/金幣/屬性點/寵物，以及一鍵完整解鎖收藏圖鑑。', 
+                isCore: false, 
+                checked: false 
+            },
+            { 
+                id: 'klh_mobile-perf.js', 
+                name: '手機效能優化', 
+                desc: '降低格率、音效節流與自動日誌清理防發熱。', 
+                details: '專為手機端設計。包含音效播放節流、過濾低效動畫影格、限制日誌行數、降低 DOM 渲染頻率等。可於右上角懸浮面板微調各項優化參數。', 
+                isCore: false, 
+                checked: true 
+            },
+            { 
+                id: 'klh_perf-monitor.js', 
+                name: '即時效能監測', 
+                desc: '在右上角顯示 FPS、Tick 延遲與特效狀態。', 
+                details: '在畫面右上角建立小型的效能監控器。可即時測量顯示 FPS、遊戲 tick 執行的毫秒數，並偵測顯示 VFX 降載優化的啟動狀態。', 
+                isCore: false, 
+                checked: true 
+            },
+            { 
+                id: 'klh_mobile_allies_hud.js', 
+                name: '傭兵狀態快捷欄', 
+                desc: '觸控版傭兵狀態監控、快速復活與餵藥水。', 
+                details: '專為觸控裝置設計。可在畫面上任意拖曳定位，即時顯示前三個上場傭兵的 HP/MP 條，並在傭兵死亡時提供快速施放復活卷軸或手動餵藥水的便捷鍵。', 
+                isCore: false, 
+                checked: false 
+            },
+            { 
+                id: 'klh_Backpack.js', 
+                name: '背包功能增強', 
+                desc: '列表/格子切換、批量賣出鎖定與廢品記憶。', 
+                details: '提供 PC_Fix 列表模式切換（隱藏裝備面板以防爆版）、批量賣出/加鎖/解鎖、模糊搜尋與廢品記憶管理（下次獲得自動標記廢品，一鍵快速賣出）。', 
+                isCore: false, 
+                checked: false 
+            },
+            { 
+                id: 'klh_Addition.js', 
+                name: '時光轉生系統', 
+                desc: '時光使者 NPC 轉生與回憶蠟燭點數保護。', 
+                details: '75等以上可前往象牙塔尋找「時光使者」轉生回 1 等並重置屬性配點，每次轉生可獲得依等級計算的永久屬性點（如：75等送 6 點，90等送 66 點）。該點數永久累加且受回憶蠟燭保護。', 
+                isCore: false, 
+                checked: false 
+            },
+            { 
+                id: 'klh_Pandora.js', 
+                name: '潘朵拉抽獎擴充', 
+                desc: '自訂金幣抽獎與特定兌換防 SL 機制封裝。', 
+                details: '動態注入「潘朵拉的妹妹」NPC。提供自訂金幣單抽、10連抽與100連抽功能，自動依物品售價計算權重機率與傳說大獎高光特效。', 
+                isCore: false, 
+                checked: false 
+            },
+            { 
+                id: 'offline.js', 
+                name: '離線掛機補丁', 
+                desc: '在原版遊戲網站中，載入並結算離線時間打怪收益。', 
+                details: '此模組專為非 Chaos 版（如官方原版）設計。啟用後，若偵測到當前為非 Chaos 版網址，會自動從 Chaos 版主網站跨網域載入並執行離線掛機模擬腳本，結算離線時間的打怪金幣與經驗收益。若在 Chaos 版網站下則會自動跳過載入。', 
+                isCore: false, 
+                checked: false 
+            }
         ];
 
         const BASE_URL = 'https://kid0924.github.io/idle-lineage-class/';
@@ -525,12 +648,21 @@
                         <input type="checkbox" ${p.checked ? 'checked' : ''} onchange="togglePlugin('${p.id}')">
                         <span class="checkmark"></span>
                     </label>
-                    <div class="file-info">
+                    <div class="file-info" style="width: 100%;">
                         <div class="file-name">
-                            <span>${p.name}</span>
-                            ${p.isCore ? '<span class="badge badge-core">核心</span>' : '<span class="badge badge-utility">模組</span>'}
+                            <div class="file-name-left">
+                                <span>${p.name}</span>
+                                <span class="badge badge-utility">模組</span>
+                            </div>
+                            <span class="file-name-right">${p.id}</span>
                         </div>
-                        <div class="file-desc">${p.desc}</div>
+                        <div class="file-desc">
+                            ${p.desc}
+                            <span class="btn-toggle-details" onclick="toggleDetails(event, '${p.id}')">詳細 ▾</span>
+                        </div>
+                        <div class="file-details" id="details-${p.id}">
+                            ${p.details}
+                        </div>
                     </div>
                 `;
 
@@ -552,6 +684,20 @@
             if (plugin) {
                 plugin.checked = !plugin.checked;
                 renderList();
+            }
+        };
+
+        window.toggleDetails = function(event, id) {
+            event.preventDefault();
+            event.stopPropagation();
+            const el = document.getElementById('details-' + id);
+            const btn = event.currentTarget;
+            if (el.classList.contains('show')) {
+                el.classList.remove('show');
+                btn.textContent = '詳細 ▾';
+            } else {
+                el.classList.add('show');
+                btn.textContent = '收合 ▴';
             }
         };
 
@@ -603,7 +749,7 @@
         const codeBox = document.getElementById('code-box');
 
         function generateBookmarklet() {
-            const checkedPlugins = activePlugins.filter(p => p.checked).map(p => p.id);
+            const checkedPlugins = activePlugins.filter(p => p.checked);
             if (checkedPlugins.length === 0) {
                 bookmarkletLink.removeAttribute('href');
                 bookmarkletLink.style.opacity = '0.5';
@@ -615,11 +761,22 @@
             bookmarkletLink.style.opacity = '1';
             bookmarkletLink.style.pointerEvents = 'auto';
 
-            // 產生壓縮版書籤代碼
-            const scriptArrStr = JSON.stringify(checkedPlugins);
-            const bookmarkletCode = `javascript:(function(){var s=${scriptArrStr},b="${BASE_URL}";function l(i){if(i>=s.length)return;var d=document,g=d.createElement("script");g.src=b+s[i]+"?v="+Date.now();g.onload=function(){l(i+1)};g.onerror=function(){console.error("Load failed:"+s[i]);l(i+1)};d.head.appendChild(g)}l(0)})();`;
+            const base = BASE_URL;
+            const hasOffline = checkedPlugins.some(p => p.id === 'offline.js');
+            let bookmarkletCode = '';
 
-            // 更新按鈕超連結與文字區塊
+            if (hasOffline) {
+                // 有勾選離線掛機時：加入網址智慧判斷 (Chaos 站跳過 / 其他站載入 Chaos 的 offline.js)
+                const otherIds = checkedPlugins.filter(p => p.id !== 'offline.js').map(p => p.id);
+                const otherIdsJson = JSON.stringify(otherIds);
+                bookmarkletCode = `javascript:(function(){const b="${base}",t=window.location.hostname.includes("pp771007"),o=${otherIdsJson},n=t?o.map(x=>b+x):["https://pp771007.github.io/idle-lineage-class/js/offline.js",...o.map(x=>b+x)];function s(e,t){const n=document.createElement("div");n.textContent=e,n.style.cssText="position:fixed;top:20px;right:20px;background:"+(t?"#2ecc71":"#e74c3c")+";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s",document.body.appendChild(n),setTimeout(()=>{n.style.opacity="0",setTimeout(()=>n.remove(),500)},2500)}function l(e){return new Promise((t,n)=>{const o=document.createElement("script");o.src=e+"?v="+Date.now(),o.onload=(()=>{t()}),o.onerror=(()=>{n()}),document.body.appendChild(o)})}n.reduce((e,t)=>e.then(()=>l(t)),Promise.resolve()).then(()=>{s("🎉 "+(t?"【外掛模組】":"【離線掛機 + 外掛模組】")+"注入成功！",!0)}).catch(e=>{s("❌ 部分外掛載入失敗，請按 F12 檢查控制台。",!1)})})();`;
+            } else {
+                // 沒有勾選離線掛機時：生成最輕量直接的循序載入代碼
+                const ids = checkedPlugins.map(p => p.id);
+                const idsJson = JSON.stringify(ids);
+                bookmarkletCode = `javascript:(function(){const b="${base}",n=${idsJson}.map(x=>b+x);function s(e,t){const n=document.createElement("div");n.textContent=e,n.style.cssText="position:fixed;top:20px;right:20px;background:"+(t?"#2ecc71":"#e74c3c")+";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s",document.body.appendChild(n),setTimeout(()=>{n.style.opacity="0",setTimeout(()=>n.remove(),500)},2500)}function l(e){return new Promise((t,n)=>{const o=document.createElement("script");o.src=e+"?v="+Date.now(),o.onload=(()=>{t()}),o.onerror=(()=>{n()}),document.body.appendChild(o)})}n.reduce((e,t)=>e.then(()=>l(t)),Promise.resolve()).then(()=>{s("🎉 【外掛模組】注入成功！",!0)}).catch(e=>{s("❌ 部分外掛載入失敗，請按 F12 檢查控制台。",!1)})})();`;
+            }
+
             bookmarkletLink.href = bookmarkletCode;
             codeBox.value = bookmarkletCode;
         }

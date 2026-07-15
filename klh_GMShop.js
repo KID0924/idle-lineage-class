@@ -33,6 +33,49 @@
  * ========================================================================== */
 
 (function () {
+    // 內建遊戲加速器：Hook performance.now 進行時間流逝增量乘算
+    window.__gmGameSpeed = parseFloat(localStorage.getItem('klh_gm_game_speed')) || 1.0;
+    (function () {
+        if (typeof window === 'undefined' || !window.performance || !window.performance.now) return;
+        const originalNow = window.performance.now;
+        let lastRealTime = originalNow.call(window.performance);
+        let virtualTime = lastRealTime;
+        window.performance.now = function () {
+            let realNow = originalNow.call(window.performance);
+            let elapsed = realNow - lastRealTime;
+            lastRealTime = realNow;
+            // 只有在進入遊戲後 (player 物件已載入且有職業) 才啟用加速器，防止影響角色選擇畫面的連點判定
+            let inGame = typeof player !== 'undefined' && player && player.cls;
+            let rate = inGame ? ((window.__gmGameSpeed !== undefined) ? window.__gmGameSpeed : 1.0) : 1.0;
+            virtualTime += elapsed * rate;
+            return virtualTime;
+        };
+    })();
+
+    // 其他全域 GM 倍率變數
+    window.__gmMonsterStrengthRate = parseFloat(localStorage.getItem('klh_gm_monster_strength_rate')) || 1.0;
+    window.__gmDropRateRate = parseFloat(localStorage.getItem('klh_gm_drop_rate_rate')) || 1.0;
+    window.__gmGoldRate = parseFloat(localStorage.getItem('klh_gm_gold_rate')) || 1.0;
+    window.__gmPotionRate = parseFloat(localStorage.getItem('klh_gm_potion_rate')) || 1.0;
+    window.__gmSpawnDelayRate = parseFloat(localStorage.getItem('klh_gm_spawn_delay_rate')) || 1.0;
+
+    // 刻度定義與輔助函式
+    const speedTicks = [1, 2, 3, 5, 10];
+    const strengthTicks = [0.1, 0.5, 1, 2, 3, 5, 10];
+
+    function getClosestIndex(val, arr) {
+        let closestIdx = 0;
+        let minDiff = Infinity;
+        arr.forEach((tick, idx) => {
+            let diff = Math.abs(tick - val);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestIdx = idx;
+            }
+        });
+        return closestIdx;
+    }
+
     const equipments = [];
     window.gmShopMainCategory = 'all';
     window.gmShopSubCategory = 'all';
@@ -639,6 +682,30 @@
             }
 
             /* 🎴 GM 模式收藏冊輔助列樣式 */
+            .gm-book-control-bar {
+                display: flex !important;
+                flex-direction: row !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                padding: 8px 16px !important;
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+                box-sizing: border-box !important;
+                width: 100% !important;
+            }
+            .gm-book-control-bar-left {
+                display: flex !important;
+                align-items: center !important;
+                gap: 8px !important;
+                flex-wrap: wrap !important;
+                font-size: 12px !important;
+            }
+            .gm-book-control-bar-right {
+                display: flex !important;
+                align-items: center !important;
+                gap: 6px !important;
+                flex-wrap: wrap !important;
+            }
             .gm-book-control-bar button {
                 padding: 4px 10px !important;
                 border-radius: 6px !important;
@@ -646,6 +713,77 @@
                 line-height: 1.2 !important;
                 height: auto !important;
                 display: inline-block !important;
+            }
+            @media (max-width: 600px) {
+                .gm-book-control-bar {
+                    flex-direction: column !important;
+                    align-items: stretch !important;
+                    gap: 8px !important;
+                    padding: 8px 12px !important;
+                }
+                .gm-book-control-bar-left {
+                    justify-content: space-between !important;
+                    width: 100% !important;
+                }
+                .gm-book-control-bar-right {
+                    justify-content: space-between !important;
+                    width: 100% !important;
+                    gap: 4px !important;
+                }
+                .gm-book-control-bar-right button {
+                    flex: 1 !important;
+                    padding: 4px 2px !important;
+                    text-align: center !important;
+                    font-size: 10px !important;
+                    white-space: nowrap !important;
+                }
+                .gm-book-control-divider {
+                    display: none !important;
+                }
+            }
+
+            /* 💊 遊戲倍率快速選擇藥丸按鈕樣式 */
+            .gm-rate-pill {
+                background: rgba(124, 58, 237, 0.15) !important;
+                border: 1px solid rgba(124, 58, 237, 0.3) !important;
+                color: #c084fc !important;
+                padding: 2px 8px !important;
+                border-radius: 4px !important;
+                font-size: 11px !important;
+                font-weight: bold !important;
+                cursor: pointer !important;
+                transition: all 0.2s !important;
+                line-height: 1.2 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+            .gm-rate-pill:hover {
+                background: rgba(124, 58, 237, 0.35) !important;
+                border-color: rgba(124, 58, 237, 0.6) !important;
+                color: #ffffff !important;
+            }
+            .gm-rate-pill.active {
+                background: #7c3aed !important;
+                border-color: #a78bfa !important;
+                color: #ffffff !important;
+            }
+
+            /* 💊 預設值藥丸特別樣式 */
+            .gm-rate-pill-default {
+                background: rgba(16, 185, 129, 0.15) !important;
+                border: 1px solid rgba(16, 185, 129, 0.4) !important;
+                color: #34d399 !important;
+            }
+            .gm-rate-pill-default:hover {
+                background: rgba(16, 185, 129, 0.35) !important;
+                border-color: rgba(16, 185, 129, 0.7) !important;
+                color: #ffffff !important;
+            }
+            .gm-rate-pill-default.active {
+                background: #10b981 !important;
+                border-color: #34d399 !important;
+                color: #ffffff !important;
             }
         `;
         let style = document.createElement('style');
@@ -1457,20 +1595,20 @@
 
             let isChecked = !!window.gmBookEditModes[t.type];
             let bar = document.createElement('div');
-            bar.className = 'gm-book-control-bar flex items-center justify-between px-4 py-2 text-xs gap-3 flex-shrink-0';
+            bar.className = 'gm-book-control-bar flex-shrink-0';
             bar.style.cssText = "background: rgba(88, 28, 135, 0.2) !important; border-bottom: 1px solid rgba(147, 51, 234, 0.3) !important;";
             bar.innerHTML = `
-                <div class="flex items-center gap-2">
+                <div class="gm-book-control-bar-left">
                     <span class="text-purple-300 font-bold">🔧 GM 輔助模式:</span>
                     <label class="flex items-center gap-1.5 cursor-pointer select-none text-slate-300 hover:text-white" style="font-size: 12px; margin: 0;">
                         <input type="checkbox" id="gm-book-edit-toggle-${t.type}" ${isChecked ? 'checked' : ''} style="width: 14px; height: 14px; cursor: pointer; margin: 0;" onchange="toggleGMBookEditMode('${t.type}', this.checked)">
                         點擊卡片直接【解鎖 / 鎖定】
                     </label>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="gm-book-control-bar-right">
                     <button onclick="gmBookUnlockCategory('${t.type}')" class="px-2 py-1 bg-sky-950/60 border border-sky-800 text-sky-300 hover:bg-sky-900/60 rounded font-semibold transition" style="font-size: 11px;">⚡ 解鎖本分頁</button>
                     <button onclick="gmBookClearCategory('${t.type}')" class="px-2 py-1 bg-red-950/60 border border-red-900 text-red-400 hover:bg-red-900/60 rounded font-semibold transition" style="font-size: 11px;">🗑️ 清空本分頁</button>
-                    <div style="width: 1px; height: 14px; background: rgba(255,255,255,0.1); margin: 0 4px;"></div>
+                    <div class="gm-book-control-divider" style="width: 1px; height: 14px; background: rgba(255,255,255,0.1); margin: 0 4px;"></div>
                     <button onclick="gmBookUnlockAll('${t.type}')" class="px-2.5 py-1 bg-amber-950/40 border border-amber-600 text-yellow-300 hover:bg-amber-900/60 rounded font-semibold transition" style="font-size: 11px;">🌟 一鍵解鎖全部</button>
                     <button onclick="gmBookClearAll('${t.type}')" class="px-2 py-1 bg-red-950/80 border border-red-800 text-red-300 hover:bg-red-900/80 rounded font-semibold transition" style="font-size: 11px;">🗑️ 清空全部</button>
                 </div>
@@ -1640,6 +1778,7 @@
                         <button id="gm-shop-tab-btn-char" class="gm-shop-tab-btn" onclick="switchGMShopTab('char')">角色修改</button>
                         <button id="gm-shop-tab-btn-pet" class="gm-shop-tab-btn" onclick="switchGMShopTab('pet')">寵物修改</button>
                         <button id="gm-shop-tab-btn-collect" class="gm-shop-tab-btn" onclick="switchGMShopTab('collect')">收藏修改</button>
+                        <button id="gm-shop-tab-btn-rate" class="gm-shop-tab-btn" onclick="switchGMShopTab('rate')">倍率設定</button>
                     </div>
                     <button class="gm-shop-close-btn" onclick="closeGMShop()">&times;</button>
                 </div>
@@ -1798,13 +1937,22 @@
                                     <div class="gm-shop-char-input-group">
                                         <span class="gm-shop-control-label">角色金幣 (Gold, 上限 9999 億)</span>
                                         <input type="number" id="gm-char-gold-input" class="gm-shop-char-input" min="0" max="999999999999">
+                                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
+                                            <button class="gm-rate-pill" onclick="setGMCharGold(1000000)">100萬</button>
+                                            <button class="gm-rate-pill" onclick="setGMCharGold(10000000)">1000萬</button>
+                                            <button class="gm-rate-pill" onclick="setGMCharGold(100000000)">1億</button>
+                                            <button class="gm-rate-pill" onclick="setGMCharGold(1000000000)">10億</button>
+                                        </div>
                                     </div>
                                 </div>
+
+
                                 
                                 <!-- 右側：六大核心屬性與點數修改 -->
                                 <div class="gm-shop-char-section" style="overflow-y: auto; max-height: 60vh; padding-right: 8px;">
-                                    <div class="gm-shop-char-section-title flex justify-between">
+                                    <div class="gm-shop-char-section-title flex justify-between items-center">
                                         <span>📊 六大屬性詳細修改</span>
+                                        <button class="gm-rate-pill" style="font-size: 11px; padding: 2px 8px; background: rgba(234, 179, 8, 0.15) !important; border: 1px solid rgba(234, 179, 8, 0.4) !important; color: #facc15 !important;" onclick="setAllBaseStatsTo60()">⚡ 全部起始設為 60</button>
                                     </div>
                                     
                                     <div class="gm-shop-char-input-group mb-4" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 8px;">
@@ -2181,6 +2329,187 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 倍率設定分頁 -->
+                    <div id="gm-shop-tab-content-rate" class="gm-shop-tab-content" style="display: none;">
+                        <div class="gm-shop-char-container">
+                            <div class="gm-shop-char-grid">
+                                <!-- 左側：六大倍率設定 -->
+                                <div class="gm-shop-char-section">
+                                    <div class="gm-shop-char-section-title">⚙️ 遊戲倍率與強度調整</div>
+                                    
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">遊戲運行速度 (1.0 ~ 100.0 倍, 預設 1.0)</span>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="range" id="gm-game-speed-range" min="1.0" max="100.0" step="0.1" value="1.0" list="gm-speed-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('game-speed', this.value)">
+                                            <input type="number" id="gm-game-speed-input" class="gm-shop-char-input text-center" min="1.0" max="100.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('game-speed', this.value)">
+                                        </div>
+                                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;" id="gm-speed-pills">
+                                            <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('game-speed', 1)">1x (預設)</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 2)">2x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 3)">3x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 5)">5x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 10)">10x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 20)">20x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 50)">50x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 100)">100x</button>
+                                        </div>
+                                        <datalist id="gm-speed-ticks">
+                                            <option value="1.0"></option>
+                                            <option value="2.0"></option>
+                                            <option value="3.0"></option>
+                                            <option value="5.0"></option>
+                                            <option value="10.0"></option>
+                                            <option value="20.0"></option>
+                                            <option value="50.0"></option>
+                                            <option value="100.0"></option>
+                                        </datalist>
+                                    </div>
+
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">怪物強度倍率 (0.1 ~ 10.0 倍, 預設 1.0)</span>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="range" id="gm-monster-strength-range" min="0.1" max="10.0" step="0.1" value="1.0" list="gm-strength-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('monster-strength', this.value)">
+                                            <input type="number" id="gm-monster-strength-input" class="gm-shop-char-input text-center" min="0.1" max="10.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('monster-strength', this.value)">
+                                        </div>
+                                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;" id="gm-strength-pills">
+                                            <button class="gm-rate-pill" onclick="updateGMRate('monster-strength', 0.1)">0.1x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('monster-strength', 0.5)">0.5x</button>
+                                            <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('monster-strength', 1)">1x (預設)</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('monster-strength', 2)">2x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('monster-strength', 3)">3x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('monster-strength', 5)">5x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('monster-strength', 10)">10x</button>
+                                        </div>
+                                        <datalist id="gm-strength-ticks">
+                                            <option value="0.1"></option>
+                                            <option value="0.5"></option>
+                                            <option value="1.0"></option>
+                                            <option value="2.0"></option>
+                                            <option value="3.0"></option>
+                                            <option value="5.0"></option>
+                                            <option value="10.0"></option>
+                                        </datalist>
+                                    </div>
+
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">掉寶率倍率 (1.0 ~ 100.0 倍, 預設 1.0)</span>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="range" id="gm-drop-rate-range" min="1.0" max="100.0" step="0.1" value="1.0" list="gm-drop-rate-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('drop-rate', this.value)">
+                                            <input type="number" id="gm-drop-rate-input" class="gm-shop-char-input text-center" min="1.0" max="100.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('drop-rate', this.value)">
+                                        </div>
+                                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;" id="gm-drop-rate-pills">
+                                            <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('drop-rate', 1)">1x (預設)</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 2)">2x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 3)">3x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 5)">5x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 10)">10x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 20)">20x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 50)">50x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 100)">100x</button>
+                                        </div>
+                                        <datalist id="gm-drop-rate-ticks">
+                                            <option value="1.0"></option>
+                                            <option value="2.0"></option>
+                                            <option value="3.0"></option>
+                                            <option value="5.0"></option>
+                                            <option value="10.0"></option>
+                                            <option value="20.0"></option>
+                                            <option value="50.0"></option>
+                                            <option value="100.0"></option>
+                                        </datalist>
+                                    </div>
+
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">金幣量倍率 (1.0 ~ 100.0 倍, 預設 1.0)</span>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="range" id="gm-gold-range" min="1.0" max="100.0" step="0.1" value="1.0" list="gm-gold-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('gold', this.value)">
+                                            <input type="number" id="gm-gold-input-rate" class="gm-shop-char-input text-center" min="1.0" max="100.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('gold', this.value)">
+                                        </div>
+                                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;" id="gm-gold-pills">
+                                            <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('gold', 1)">1x (預設)</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('gold', 2)">2x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('gold', 3)">3x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('gold', 5)">5x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('gold', 10)">10x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('gold', 20)">20x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('gold', 50)">50x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('gold', 100)">100x</button>
+                                        </div>
+                                        <datalist id="gm-gold-ticks">
+                                            <option value="1.0"></option>
+                                            <option value="2.0"></option>
+                                            <option value="3.0"></option>
+                                            <option value="5.0"></option>
+                                            <option value="10.0"></option>
+                                            <option value="20.0"></option>
+                                            <option value="50.0"></option>
+                                            <option value="100.0"></option>
+                                        </datalist>
+                                    </div>
+
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">藥水效力倍率 (1.0 ~ 10.0 倍, 預設 1.0)</span>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="range" id="gm-potion-range" min="1.0" max="10.0" step="0.1" value="1.0" list="gm-potion-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('potion', this.value)">
+                                            <input type="number" id="gm-potion-input" class="gm-shop-char-input text-center" min="1.0" max="10.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('potion', this.value)">
+                                        </div>
+                                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;" id="gm-potion-pills">
+                                            <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('potion', 1)">1x (預設)</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('potion', 2)">2x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('potion', 3)">3x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('potion', 5)">5x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('potion', 10)">10x</button>
+                                        </div>
+                                        <datalist id="gm-potion-ticks">
+                                            <option value="1.0"></option>
+                                            <option value="2.0"></option>
+                                            <option value="3.0"></option>
+                                            <option value="5.0"></option>
+                                            <option value="10.0"></option>
+                                        </datalist>
+                                    </div>
+
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">出怪延遲倍率 (0.1 ~ 2.0 倍, 預設 1.0)</span>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="range" id="gm-spawn-delay-range" min="0.1" max="2.0" step="0.05" value="1.0" list="gm-spawn-delay-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('spawn-delay', this.value)">
+                                            <input type="number" id="gm-spawn-delay-input" class="gm-shop-char-input text-center" min="0.1" max="2.0" step="0.05" value="1.0" style="max-width: 80px;" oninput="updateGMRate('spawn-delay', this.value)">
+                                        </div>
+                                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;" id="gm-spawn-delay-pills">
+                                            <button class="gm-rate-pill" onclick="updateGMRate('spawn-delay', 0.1)">0.1x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('spawn-delay', 0.25)">0.25x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('spawn-delay', 0.5)">0.5x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('spawn-delay', 0.75)">0.75x</button>
+                                            <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('spawn-delay', 1)">1x (預設)</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('spawn-delay', 2)">2x</button>
+                                        </div>
+                                        <datalist id="gm-spawn-delay-ticks">
+                                            <option value="0.1"></option>
+                                            <option value="0.25"></option>
+                                            <option value="0.5"></option>
+                                            <option value="0.75"></option>
+                                            <option value="1.0"></option>
+                                            <option value="2.0"></option>
+                                        </datalist>
+                                    </div>
+                                </div>
+                                
+                                <!-- 右側：說明引導 -->
+                                <div class="gm-shop-char-section text-xs leading-relaxed text-slate-400 bg-slate-900/50 border-slate-800">
+                                    <div class="gm-shop-char-section-title text-slate-300 font-bold" style="font-size: 14px;">📝 遊戲倍率設定說明</div>
+                                    <p class="mb-3 text-slate-300">在此面板，您可以自由調整《放置天堂》的多項底層核心運行參數：</p>
+                                    <ul class="list-disc pl-4 flex flex-col gap-2">
+                                        <li><strong>遊戲運行速度：</strong>控制整個遊戲的 ticks 演進速度，拉高到 100 倍速可以讓戰鬥與掛機收益以 100 倍飛速運轉而不卡頓。</li>
+                                        <li><strong>怪物強度倍率：</strong>即時調整所有怪物的最大 HP 與攻擊力/屬性加成，可用於測試極限挑戰或快速清圖。</li>
+                                        <li><strong>掉寶率與金幣倍率：</strong>直接乘算最終結算獎勵，提升刷裝與累積資金的效率。</li>
+                                        <li><strong>藥水效力：</strong>增強恢復類藥水（紅水、橙水、白水）的治癒數值，保障高倍速戰鬥下的存活率。</li>
+                                        <li><strong>出怪延遲：</strong>調整怪物生成間隔（0.1 ~ 2.0 倍），0.1 倍可以達到極速的刷怪體驗，2.0 倍則可減緩刷怪節奏。</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             </div>
@@ -2196,55 +2525,64 @@
         let charTabBtn = document.getElementById('gm-shop-tab-btn-char');
         let petTabBtn = document.getElementById('gm-shop-tab-btn-pet');
         let collectTabBtn = document.getElementById('gm-shop-tab-btn-collect');
+        let rateTabBtn = document.getElementById('gm-shop-tab-btn-rate');
         let shopContent = document.getElementById('gm-shop-tab-content-shop');
         let charContent = document.getElementById('gm-shop-tab-content-char');
         let petContent = document.getElementById('gm-shop-tab-content-pet');
         let collectContent = document.getElementById('gm-shop-tab-content-collect');
+        let rateContent = document.getElementById('gm-shop-tab-content-rate');
+
+        const buttons = [shopTabBtn, charTabBtn, petTabBtn, collectTabBtn, rateTabBtn];
+        const contents = [shopContent, charContent, petContent, collectContent, rateContent];
+
+        buttons.forEach(btn => { if (btn) btn.classList.remove('active'); });
+        contents.forEach(content => { if (content) content.style.setProperty('display', 'none', 'important'); });
 
         if (tab === 'shop') {
             if (shopTabBtn) shopTabBtn.classList.add('active');
-            if (charTabBtn) charTabBtn.classList.remove('active');
-            if (petTabBtn) petTabBtn.classList.remove('active');
-            if (collectTabBtn) collectTabBtn.classList.remove('active');
             if (shopContent) shopContent.style.setProperty('display', 'flex', 'important');
-            if (charContent) charContent.style.setProperty('display', 'none', 'important');
-            if (petContent) petContent.style.setProperty('display', 'none', 'important');
-            if (collectContent) collectContent.style.setProperty('display', 'none', 'important');
         } else if (tab === 'char') {
-            if (shopTabBtn) shopTabBtn.classList.remove('active');
             if (charTabBtn) charTabBtn.classList.add('active');
-            if (petTabBtn) petTabBtn.classList.remove('active');
-            if (collectTabBtn) collectTabBtn.classList.remove('active');
-            if (shopContent) shopContent.style.setProperty('display', 'none', 'important');
             if (charContent) charContent.style.setProperty('display', 'block', 'important');
-            if (petContent) petContent.style.setProperty('display', 'none', 'important');
-            if (collectContent) collectContent.style.setProperty('display', 'none', 'important');
-
             window.loadGMShopCharValues();
         } else if (tab === 'pet') {
-            if (shopTabBtn) shopTabBtn.classList.remove('active');
-            if (charTabBtn) charTabBtn.classList.remove('active');
             if (petTabBtn) petTabBtn.classList.add('active');
-            if (collectTabBtn) collectTabBtn.classList.remove('active');
-            if (shopContent) shopContent.style.setProperty('display', 'none', 'important');
-            if (charContent) charContent.style.setProperty('display', 'none', 'important');
             if (petContent) petContent.style.setProperty('display', 'block', 'important');
-            if (collectContent) collectContent.style.setProperty('display', 'none', 'important');
-
             window.loadGMShopCharValues();
         } else if (tab === 'collect') {
-            if (shopTabBtn) shopTabBtn.classList.remove('active');
-            if (charTabBtn) charTabBtn.classList.remove('active');
-            if (petTabBtn) petTabBtn.classList.remove('active');
             if (collectTabBtn) collectTabBtn.classList.add('active');
-            if (shopContent) shopContent.style.setProperty('display', 'none', 'important');
-            if (charContent) charContent.style.setProperty('display', 'none', 'important');
-            if (petContent) petContent.style.setProperty('display', 'none', 'important');
             if (collectContent) collectContent.style.setProperty('display', 'block', 'important');
-
+            window.loadGMShopCharValues();
+        } else if (tab === 'rate') {
+            if (rateTabBtn) rateTabBtn.classList.add('active');
+            if (rateContent) rateContent.style.setProperty('display', 'block', 'important');
             window.loadGMShopCharValues();
         }
     };
+
+    function updateRatePillActiveState(type, val) {
+        let containerIdMap = {
+            'game-speed': 'gm-speed-pills',
+            'monster-strength': 'gm-strength-pills',
+            'drop-rate': 'gm-drop-rate-pills',
+            'gold': 'gm-gold-pills',
+            'potion': 'gm-potion-pills',
+            'spawn-delay': 'gm-spawn-delay-pills'
+        };
+        let containerId = containerIdMap[type];
+        if (!containerId) return;
+        let container = document.getElementById(containerId);
+        if (!container) return;
+        let pills = container.querySelectorAll('.gm-rate-pill');
+        pills.forEach(pill => {
+            let pillVal = parseFloat(pill.innerText);
+            if (Math.abs(pillVal - val) < 0.01) {
+                pill.classList.add('active');
+            } else {
+                pill.classList.remove('active');
+            }
+        });
+    }
 
     window.loadGMShopCharValues = function () {
         if (typeof player === 'undefined' || !player) return;
@@ -2256,6 +2594,47 @@
         if (goldInput) goldInput.value = player.gold || 0;
         if (lvlInput) lvlInput.value = player.lv || 1;
         if (bonusInput) bonusInput.value = player.bonus || 0;
+
+        // 載入遊戲倍率調整數值
+        let gsR = document.getElementById('gm-game-speed-range');
+        let gsI = document.getElementById('gm-game-speed-input');
+        let currentSpeed = window.__gmGameSpeed || 1.0;
+        if (gsR) gsR.value = currentSpeed;
+        if (gsI) gsI.value = currentSpeed;
+
+        let msR = document.getElementById('gm-monster-strength-range');
+        let msI = document.getElementById('gm-monster-strength-input');
+        let currentStrength = window.__gmMonsterStrengthRate || 1.0;
+        if (msR) msR.value = currentStrength;
+        if (msI) msI.value = currentStrength;
+
+        let drR = document.getElementById('gm-drop-rate-range');
+        let drI = document.getElementById('gm-drop-rate-input');
+        if (drR) drR.value = window.__gmDropRateRate || 1.0;
+        if (drI) drI.value = window.__gmDropRateRate || 1.0;
+
+        let gdR = document.getElementById('gm-gold-range');
+        let gdI = document.getElementById('gm-gold-input-rate');
+        if (gdR) gdR.value = window.__gmGoldRate || 1.0;
+        if (gdI) gdI.value = window.__gmGoldRate || 1.0;
+
+        let ptR = document.getElementById('gm-potion-range');
+        let ptI = document.getElementById('gm-potion-input');
+        if (ptR) ptR.value = window.__gmPotionRate || 1.0;
+        if (ptI) ptI.value = window.__gmPotionRate || 1.0;
+
+        let sdR = document.getElementById('gm-spawn-delay-range');
+        let sdI = document.getElementById('gm-spawn-delay-input');
+        if (sdR) sdR.value = window.__gmSpawnDelayRate || 1.0;
+        if (sdI) sdI.value = window.__gmSpawnDelayRate || 1.0;
+
+        // 同步藥丸按鈕選中狀態
+        updateRatePillActiveState('game-speed', currentSpeed);
+        updateRatePillActiveState('monster-strength', currentStrength);
+        updateRatePillActiveState('drop-rate', window.__gmDropRateRate || 1.0);
+        updateRatePillActiveState('gold', window.__gmGoldRate || 1.0);
+        updateRatePillActiveState('potion', window.__gmPotionRate || 1.0);
+        updateRatePillActiveState('spawn-delay', window.__gmSpawnDelayRate || 1.0);
 
         const stats = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
         stats.forEach(st => {
@@ -2333,8 +2712,19 @@
         let mhpInp = document.getElementById('gm-pet-mhp-input');
         let mmpInp = document.getElementById('gm-pet-mmp-input');
 
+        // 🐾 動態填入型態選項，保證下拉選單一定有值且與遊戲同步
+        if (formSel) {
+            let html = '';
+            if (typeof PET_BOOK !== 'undefined') {
+                Object.keys(PET_BOOK).forEach(k => {
+                    html += `<option value="${k}">${k}</option>`;
+                });
+            }
+            formSel.innerHTML = html;
+            formSel.value = p.form;
+        }
+
         if (nameInp) nameInp.value = p.name || '';
-        if (formSel) formSel.value = p.form;
         if (lvlInp) lvlInp.value = p.lv || 1;
         if (mhpInp) mhpInp.value = p.mhp || 1;
         if (mmpInp) mmpInp.value = p.mmp || 0;
@@ -2382,8 +2772,18 @@
         p.hp = Math.min(p.hp, p.mhp);
         p.mp = Math.min(p.mp, p.mmp);
 
+        // 🗑️ 清理當前召喚物在圖層上的 DOM，強迫精靈動畫迴圈以新形態重建牠的 Sprite 圖片
+        let oldSp = document.getElementById('pet-sp-' + p.uid);
+        if (oldSp) {
+            oldSp.remove();
+        }
+
         petMarkDirty();
-        if (petRosterSave()) {
+        window.__gmBypassPetTierMerge = true;
+        let saved = petRosterSave();
+        window.__gmBypassPetTierMerge = false;
+
+        if (saved) {
             if (typeof logSys === 'function') logSys(`<span class="text-green-300 font-bold">🐾 GM 測試：成功更新寵物 ${formVal} (${uid}) 的屬性資料！</span>`);
 
             // 重新加載並更新選單
@@ -2391,6 +2791,7 @@
 
             if (typeof updateUI === 'function') updateUI();
             if (typeof renderTabs === 'function') renderTabs(true);
+            if (typeof renderPetTeamHTML === 'function') renderPetTeamHTML();
             let _d = document.getElementById('interaction-content');
             if (_d && _d.querySelector('[data-petui]')) renderPetStorageNPC(_d);
 
@@ -2400,6 +2801,90 @@
         } else {
             _petMutationRestore(snap);
             alert("儲存寵物修改失敗！");
+        }
+    };
+
+    window.updateGMRate = function (type, val) {
+        val = parseFloat(val);
+        if (isNaN(val)) return;
+
+        if (type === 'game-speed') {
+            val = Math.min(100.0, Math.max(1.0, val));
+            let rEl = document.getElementById('gm-game-speed-range');
+            let iEl = document.getElementById('gm-game-speed-input');
+            if (rEl) rEl.value = val;
+            if (iEl) iEl.value = val;
+            window.__gmGameSpeed = val;
+            localStorage.setItem('klh_gm_game_speed', val);
+            updateRatePillActiveState('game-speed', val);
+        } else if (type === 'monster-strength') {
+            val = Math.min(10.0, Math.max(0.1, val));
+            let rEl = document.getElementById('gm-monster-strength-range');
+            let iEl = document.getElementById('gm-monster-strength-input');
+            if (rEl) rEl.value = val;
+            if (iEl) iEl.value = val;
+            window.__gmMonsterStrengthRate = val;
+            localStorage.setItem('klh_gm_monster_strength_rate', val);
+            updateRatePillActiveState('monster-strength', val);
+            if (typeof window.__gmApplyMonsterStrength === 'function') {
+                window.__gmApplyMonsterStrength();
+            }
+        } else if (type === 'drop-rate') {
+            val = Math.min(100.0, Math.max(1.0, val));
+            let rEl = document.getElementById('gm-drop-rate-range');
+            let iEl = document.getElementById('gm-drop-rate-input');
+            if (rEl) rEl.value = val;
+            if (iEl) iEl.value = val;
+            window.__gmDropRateRate = val;
+            localStorage.setItem('klh_gm_drop_rate_rate', val);
+            updateRatePillActiveState('drop-rate', val);
+        } else if (type === 'gold') {
+            val = Math.min(100.0, Math.max(1.0, val));
+            let rEl = document.getElementById('gm-gold-range');
+            let iEl = document.getElementById('gm-gold-input-rate');
+            if (rEl) rEl.value = val;
+            if (iEl) iEl.value = val;
+            window.__gmGoldRate = val;
+            localStorage.setItem('klh_gm_gold_rate', val);
+            updateRatePillActiveState('gold', val);
+        } else if (type === 'potion') {
+            val = Math.min(10.0, Math.max(1.0, val));
+            let rEl = document.getElementById('gm-potion-range');
+            let iEl = document.getElementById('gm-potion-input');
+            if (rEl) rEl.value = val;
+            if (iEl) iEl.value = val;
+            window.__gmPotionRate = val;
+            localStorage.setItem('klh_gm_potion_rate', val);
+            updateRatePillActiveState('potion', val);
+        } else if (type === 'spawn-delay') {
+            val = Math.min(2.0, Math.max(0.1, val));
+            let rEl = document.getElementById('gm-spawn-delay-range');
+            let iEl = document.getElementById('gm-spawn-delay-input');
+            if (rEl) rEl.value = val;
+            if (iEl) iEl.value = val;
+            window.__gmSpawnDelayRate = val;
+            localStorage.setItem('klh_gm_spawn_delay_rate', val);
+            updateRatePillActiveState('spawn-delay', val);
+        }
+    };
+
+    window.setGMCharGold = function (amount) {
+        let input = document.getElementById('gm-char-gold-input');
+        if (input) {
+            input.value = amount;
+        }
+    };
+
+    window.setAllBaseStatsTo60 = function () {
+        const stats = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+        stats.forEach(st => {
+            let input = document.getElementById('gm-char-' + st + '-base-input');
+            if (input) {
+                input.value = 60;
+            }
+        });
+        if (typeof showToast === 'function') {
+            showToast("已將六大起始屬性設為 60！", 'success');
         }
     };
 
@@ -2689,10 +3174,181 @@
         }
     }
 
+    function scaleMobStats(m) {
+        if (!m) return;
+        let rate = window.__gmMonsterStrengthRate || 1.0;
+        if (m._gmBaseHp === undefined) m._gmBaseHp = m.hp;
+        if (m._gmBaseDmg1 === undefined) m._gmBaseDmg1 = (m.dmg && m.dmg[1] !== undefined) ? m.dmg[1] : null;
+        if (m._gmBaseDb === undefined) m._gmBaseDb = m.db !== undefined ? m.db : null;
+
+        let oldHp = m.hp;
+        m.hp = Math.max(1, Math.round(m._gmBaseHp * rate));
+        if (oldHp > 0) {
+            m.curHp = Math.max(1, Math.round(m.curHp * (m.hp / oldHp)));
+        } else {
+            m.curHp = m.hp;
+        }
+        if (m._gmBaseDmg1 !== null && m.dmg) {
+            m.dmg[1] = Math.max(1, Math.round(m._gmBaseDmg1 * rate));
+        }
+        if (m._gmBaseDb !== null) {
+            m.db = Math.round(m._gmBaseDb * rate);
+        }
+    }
+
+    window.__gmApplyMonsterStrength = function() {
+        if (typeof mapState !== 'undefined' && mapState.mobs) {
+            mapState.mobs.forEach(m => {
+                if (m) scaleMobStats(m);
+            });
+            if (typeof renderMobs === 'function') renderMobs();
+        }
+    };
+
+    function setupGMHooks() {
+        // Hook _petMergeFromBucket to bypass safety checks (like tier comparison checks) when changing pet form via GM panel
+        if (typeof window._petMergeFromBucket === 'function' && !window._petMergeFromBucket.isHookedByGM) {
+            const originalMerge = window._petMergeFromBucket;
+            window._petMergeFromBucket = function(cur, key) {
+                if (window.__gmBypassPetTierMerge && cur && Array.isArray(cur)) {
+                    cur.forEach(f => {
+                        let p = petRoster().find(x => x.uid === f.uid);
+                        if (p) {
+                            f.form = p.form;
+                        }
+                    });
+                }
+                return originalMerge.apply(this, arguments);
+            };
+            window._petMergeFromBucket.isHookedByGM = true;
+        }
+
+        // Hook spawnMob for monster strength rate
+        if (typeof window.spawnMob === 'function' && !window.spawnMob.isHookedByGMShopRate) {
+            const originalSpawnMob = window.spawnMob;
+            window.spawnMob = function(idx) {
+                originalSpawnMob.apply(this, arguments);
+                let m = mapState.mobs[idx];
+                if (m) {
+                    scaleMobStats(m);
+                }
+            };
+            window.spawnMob.isHookedByGMShopRate = true;
+        }
+        // Hook spawnRiftMob for monster strength rate
+        if (typeof window.spawnRiftMob === 'function' && !window.spawnRiftMob.isHookedByGMShopRate) {
+            const originalSpawnRiftMob = window.spawnRiftMob;
+            window.spawnRiftMob = function(idx) {
+                originalSpawnRiftMob.apply(this, arguments);
+                let m = mapState.mobs[idx];
+                if (m) {
+                    scaleMobStats(m);
+                }
+            };
+            window.spawnRiftMob.isHookedByGMShopRate = true;
+        }
+        // Hook classicDropMult and trialItemDropMult for drop rate
+        if (typeof window.classicDropMult === 'function' && !window.classicDropMult.isHookedByGMShop) {
+            const originalClassicDropMult = window.classicDropMult;
+            window.classicDropMult = function() {
+                let base = originalClassicDropMult.apply(this, arguments);
+                let mult = window.__gmDropRateRate || 1.0;
+                return base * mult;
+            };
+            window.classicDropMult.isHookedByGMShop = true;
+        }
+        if (typeof window.trialItemDropMult === 'function' && !window.trialItemDropMult.isHookedByGMShop) {
+            const originalTrialItemDropMult = window.trialItemDropMult;
+            window.trialItemDropMult = function(id) {
+                let base = originalTrialItemDropMult.apply(this, arguments);
+                let mult = window.__gmDropRateRate || 1.0;
+                return base * mult;
+            };
+            window.trialItemDropMult.isHookedByGMShop = true;
+        }
+        if (typeof window._cardDropRoll === 'function' && !window._cardDropRoll.isHookedByGMShop) {
+            const originalCardDropRoll = window._cardDropRoll;
+            window._cardDropRoll = function(name, tier, rate) {
+                let mult = window.__gmDropRateRate || 1.0;
+                originalCardDropRoll.call(this, name, tier, rate * mult);
+            };
+            window._cardDropRoll.isHookedByGMShop = true;
+        }
+        // Hook killMob for gold rate
+        if (typeof window.killMob === 'function' && !window.killMob.isHookedByGMShopGold) {
+            const originalKillMob = window.killMob;
+            window.killMob = function(idx) {
+                let goldBefore = player.gold;
+                originalKillMob.apply(this, arguments);
+                let goldGain = player.gold - goldBefore;
+                if (goldGain > 0) {
+                    let rate = window.__gmGoldRate || 1.0;
+                    if (rate !== 1.0) {
+                        let extraGold = Math.round(goldGain * (rate - 1));
+                        player.gold += extraGold;
+                    }
+                }
+            };
+            window.killMob.isHookedByGMShopGold = true;
+        }
+        // Hook potionHealBase for potion rate
+        if (typeof window.potionHealBase === 'function' && !window.potionHealBase.isHookedByGMShop) {
+            const originalPotionHealBase = window.potionHealBase;
+            window.potionHealBase = function(d) {
+                let base = originalPotionHealBase.apply(this, arguments);
+                let rate = window.__gmPotionRate || 1.0;
+                return base * rate;
+            };
+            window.potionHealBase.isHookedByGMShop = true;
+        }
+
+        // Hook mapState.spawnAt to scale spawn delay
+        function wrapSpawnAt(mapStateObj) {
+            if (!mapStateObj || !mapStateObj.spawnAt || mapStateObj.spawnAt.__isProxy) return;
+            const originalSpawnAt = mapStateObj.spawnAt;
+            const spawnAtProxy = new Proxy(originalSpawnAt, {
+                set(target, prop, value) {
+                    if (!isNaN(prop) && value !== null && typeof state !== 'undefined' && state.ticks !== undefined) {
+                        let delay = value - state.ticks;
+                        let rate = (window.__gmSpawnDelayRate !== undefined) ? window.__gmSpawnDelayRate : 1.0;
+                        let scaledDelay = Math.round(delay * rate);
+                        value = state.ticks + scaledDelay;
+                    }
+                    target[prop] = value;
+                    return true;
+                }
+            });
+            Object.defineProperty(spawnAtProxy, '__isProxy', {
+                value: true,
+                enumerable: false,
+                writable: false
+            });
+            mapStateObj.spawnAt = spawnAtProxy;
+        }
+
+        let curMapState = window.mapState;
+        if (curMapState) {
+            wrapSpawnAt(curMapState);
+        }
+        Object.defineProperty(window, 'mapState', {
+            get: function () {
+                return curMapState;
+            },
+            set: function (val) {
+                curMapState = val;
+                if (val) {
+                    wrapSpawnAt(val);
+                }
+            },
+            configurable: true
+        });
+    }
+
     // 7. 初始化外掛
     function startupGMShop() {
         if (typeof DB === 'undefined' || !DB.items) return;
 
+        setupGMHooks();
         injectStyles();
         setupGMBookOverlays();
 

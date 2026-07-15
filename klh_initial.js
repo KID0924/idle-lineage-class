@@ -143,9 +143,18 @@
         document.head.appendChild(styleEl);
     }
 
-    // 定期更新村莊縮放比例，解決 CSS 無法直接從 100vw 轉換成無單位 scale 的問題
+    // 定期更新手機版狀態與村莊縮放比例，解決 CSS 無法直接從 100vw 轉換成無單位 scale 的問題
     let lastTownWidth = 0;
+    function updateMobileClass() {
+        if (document.body) {
+            document.body.classList.toggle('m-mobile', window.innerWidth <= 1024);
+        }
+    }
+    updateMobileClass(); // 立即執行一次
+
     setInterval(function () {
+        updateMobileClass(); // 定期同步手機版狀態
+        
         const townView = document.getElementById('town-view');
         if (townView) {
             const width = townView.getBoundingClientRect().width;

@@ -283,22 +283,7 @@
         try { _orig.mobAnimApply(); } catch (e) {}
       };
     }
-    // _allySpritesApply — 傭兵 sprite 驅動
-    if (typeof _allySpritesApply === 'function') {
-      _orig.allySpritesApply = _allySpritesApply;
-      window._allySpritesApply = function () {
-        if (_st.animSkip % skip !== 0) return;
-        try { _orig.allySpritesApply(); } catch (e) {}
-      };
-    }
-    // _playerMorphApply — 玩家變身 sprite 驅動
-    if (typeof _playerMorphApply === 'function') {
-      _orig.playerMorphApply = _playerMorphApply;
-      window._playerMorphApply = function () {
-        if (_st.animSkip % skip !== 0) return;
-        try { _orig.playerMorphApply(); } catch (e) {}
-      };
-    }
+    // 主角與傭兵動畫保持 100% 正常流暢，不進行降幀攔截
     // _updateFreezeFx — 冰凍狀態疊層
     if (typeof _updateFreezeFx === 'function') {
       _orig.updateFreezeFx = _updateFreezeFx;
