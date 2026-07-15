@@ -898,6 +898,55 @@
         console.log("[KLH] 已成功將本地存檔複製到雲端暫存區。後綴:", suffix);
     };
 
+    window.copyCloudCacheToLocalSaves = function () {
+        const mode = localStorage.getItem('klh_storage_mode') || 'local';
+        if (mode !== 'supabase') {
+            window.showToast('此功能僅支援雲端金鑰 (Supabase) 模式！', 'warning');
+            return;
+        }
+        const activeKey = (localStorage.getItem('klh_supabase_key') || '').trim();
+        if (!activeKey) {
+            window.showToast('當前雲端金鑰不存在，無法複製！', 'error');
+            return;
+        }
+        if (!confirm('確定要把當前雲端存檔複製並覆蓋到本地嗎？本地原有的進度將會被覆蓋！')) return;
+        
+        const suffix = '_' + activeKey.trim();
+        const maxSlots = getMaxSaveSlot();
+        let copyCount = 0;
+        for (let n = 1; n <= maxSlots; n++) {
+            const cloudVal = originalGetItem.call(localStorage, 'klh_cloud_save_' + n + suffix);
+            if (cloudVal !== null) {
+                originalSetItem.call(localStorage, 'lineage_idle_save_' + n, cloudVal);
+                copyCount++;
+            } else {
+                originalRemoveItem.call(localStorage, 'lineage_idle_save_' + n);
+            }
+            const cloudEmptyFlag = originalGetItem.call(localStorage, 'klh_cloud_save_' + n + '_empty_flag' + suffix);
+            if (cloudEmptyFlag !== null) {
+                originalSetItem.call(localStorage, 'lineage_idle_save_' + n + '_empty_flag', cloudEmptyFlag);
+            } else {
+                originalRemoveItem.call(localStorage, 'lineage_idle_save_' + n + '_empty_flag');
+            }
+        }
+        const cloudWarehouse = originalGetItem.call(localStorage, 'klh_cloud_warehouse' + suffix);
+        if (cloudWarehouse !== null) {
+            originalSetItem.call(localStorage, 'lineage_idle_warehouse', cloudWarehouse);
+        } else {
+            originalRemoveItem.call(localStorage, 'lineage_idle_warehouse');
+        }
+        console.log("[KLH] 已成功將 Supabase 雲端存檔複製到本地進度。後綴:", suffix);
+        window.showToast(`複製成功！已將 ${copyCount} 個槽位的雲端進度同步至本地。`, 'success');
+        
+        // 刷新 UI
+        if (typeof refreshLoadBtnVisibility === 'function') refreshLoadBtnVisibility();
+        const slotSelectPanel = document.getElementById('slot-select-panel');
+        if (slotSelectPanel && !slotSelectPanel.classList.contains('hidden') && typeof openSlotSelect === 'function') {
+            openSlotSelect(window._slotMode || 'load');
+        }
+    };
+
+
     // ==========================================
     // 7. JSONBlob 雲端存檔引擎
     // ==========================================
@@ -1779,6 +1828,12 @@
             } else customContainer.innerHTML = '';
         }
 
+        // 複製至本地按鈕顯示控制
+        const copyToLocalContainer = document.getElementById('btn-copy-to-local-container');
+        if (copyToLocalContainer) {
+            copyToLocalContainer.style.display = (mode === 'supabase') ? 'block' : 'none';
+        }
+
         // Supabase 建立金鑰提示 banner 顯示/隱藏
         const supabaseBanner = document.getElementById('supabase-key-banner');
         if (supabaseBanner) supabaseBanner.style.display = (mode === 'supabase' && allowSupabase) ? 'block' : 'none';
@@ -1908,7 +1963,7 @@
                         <span class="text-slate-500 font-mono text-[10px]">1. 序號：019f3dad-406e-7673-b9df-8594bd436b9c<br>
                         2. 網址：https://jsonblob.com/019f3dad-406e-7673...<br>
                         3. API：https://jsonblob.com/019f3dad-406e-7673.../json</span><br>
-                        <span class="text-cyan-400 font-bold">💡 適合存檔較小的使用者。</span>
+                        <span class="text-cyan-400 font-bold">💡 JSONBlob 適合**存檔較小（如初期玩家、進度較少，總存檔 &lt; 1MB）**的單人使用者。<a href="https://github.com/KID0924/idle-lineage-class" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold ml-1">詳情說明 🔗</a></span>
                     </div>
                     <div id="firebase-hint" class="text-[11px] text-slate-400 text-left -mt-1 leading-relaxed bg-slate-900/50 p-2 rounded" style="display: none;">
                         🔧 <b>Firebase 快速設定步驟：</b><br>
@@ -1917,11 +1972,12 @@
                         3. 進入左側 <b>Realtime Database</b> ➔ 點擊 <b>建立資料庫</b>（位置選美國/預設即可）。<br>
                         4. 切換到 <b>規則 (Rules)</b> 頁籤，將讀寫值皆改為 <b><code>true</code></b> 並點擊 <b>發布</b>。<br>
                         5. 複製資料庫主頁的 <b>資料庫網址</b><br>（格式：<span class="text-orange-400 font-mono text-[10px]">https://...firebaseio.com</span>）。<br>
-                        <span class="text-cyan-400 font-bold">💡 適合存檔較大的使用者。</span>
+                        <span class="text-cyan-400 font-bold">💡 Firebase 適合**存檔較大（遊玩進度極深、遊戲數據龐大，免費存儲高達 1GB，可以建立不同存檔給多人同時使用）**的使用者。<a href="https://github.com/KID0924/idle-lineage-class" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold ml-1">詳情說明 🔗</a></span>
                     </div>
                     <div id="supabase-hint" class="text-[11px] text-slate-400 text-left -mt-1 leading-relaxed bg-slate-900/50 p-2 rounded" style="display: none;">
                         伺服器頻寬有限，請盡量改用 Jsonblob 連線。
                     </div>
+                    <div class="w-full" id="btn-copy-to-local-container" style="display: none;"><button onclick="window.copyCloudCacheToLocalSaves()" class="btn w-full py-2.5 text-sm bg-rose-950/40 hover:bg-rose-900/60 border-rose-800 text-rose-300 font-bold">📥 複製回本地</button></div>
                     <div class="w-full" id="btn-cloud-read-container"><button id="btn-cloud-read" class="btn w-full py-2.5 text-sm bg-indigo-700 hover:bg-indigo-600 border-indigo-500 font-bold"></button></div>
                     <div id="klh-firebase-extra-container" class="w-full" style="display: none;"></div>
                     <div id="klh-restore-key-container" class="w-full"></div>

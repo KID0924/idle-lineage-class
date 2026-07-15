@@ -1,25 +1,35 @@
 /* ============================================================================
- * klh_GMShop.js — GM 商店系統
+ * klh_GMShop.js — GM 商店與輔助系統
  *
  * 設計原則: 完全不改原作者程式碼，自定義浮動按鈕與玻璃摩砂 (Glassmorphism) 大視窗。
  * 掛接方式: 在 index.html 的 </body> 標籤正上方，插入以下外掛腳本：
  * * <script src="klh_GMShop.js?v=20260622"></script>
  *
  * 功能一覽:
- *   1. 浮動按鈕注入   —— 注入一個位於畫面右下角（自適應）的 GM 裝備商店開啟按鈕。
- *   2. 玻璃摩砂大視窗 —— 提供一個現代、極致奢華的半透明裝備展示與購買介面。
- *   3. 全物品抓取與分類 —— 自動從 DB.items 抓取全部武器、防具、飾品、卷軸、魔法書、材料與雜項物品（包含進化果實）。
- *   4. 搜尋與分頁過濾 —— 支援即時關鍵字搜尋、類別標籤與子部位/子類型下拉選單切換過濾。
- *   5. GM 專屬購買設定 ——
- *        - 自訂強化等級 (+0 ~ +15 或更大數值)。
- *        - 自訂祝福狀態（無 / 祝福 / 詛咒 / 隨機）。
- *        - 自訂遠古詞綴（無 / 遠古 / 永恆 / 不朽 / 太初 / 隨機）。
- *        - 自訂屬性詞綴（無 / 隨機 / 爆炎 / 地靈 ... 等 12 種屬性）。
- *        - 自訂席琳套裝（無 / 隨機 / 麗人的加護 / 暗影的忠誠 ... 等 45 種套裝效果）。
- *   6. 實時名稱與光圈預覽 —— 修改任何購買選項時，商店內所有裝備的名稱、顏色與光暈特效會實時同步更新預覽。
- *   7. 雙價格模式     —— 支援「金幣購買（原價）」與「GM 免費獲得（0 金幣）」。
- *   8. 快捷屬性修改   —— 提供 GM 快捷輸入設定角色金幣（上限 9999 億）與等級（1 ~ 999 級）功能。
- *   9. 超強短劍覆寫   —— 開啟時自動將基礎武器「短劍」屬性覆寫為 GM 測試超強數值。
+ *   1. 浮動按鈕注入    —— 注入一個位於畫面右下角的 GM 商店開啟按鈕（具自適應與快取優化）。
+ *   2. 玻璃摩砂大視窗  —— 提供一個現代半透明的展示與購買介面（支援手機版自適應排版）。
+ *   3. 全物品抓取分類  —— 自動從 DB.items 載入武器、防具、飾品、遺物、娃娃、卷軸、技能書、卡片與雜項等並依售價排序。
+ *   4. 搜尋與分頁過濾  —— 支援即時關鍵字搜尋、主分類標籤切換與子部位類型下拉選單雙重過濾。
+ *   5. GM 專屬購買設定 —— 
+ *        - 自訂強化等級 (+0 ~ +15 或更大數值)
+ *        - 自訂祝福狀態 (無 / 祝福 / 詛咒 / 隨機)
+ *        - 自訂遠古詞綴 (無 / 遠古 / 永恆 / 不朽 / 太初 / 隨機)
+ *        - 自訂屬性詞綴 (無 / 隨機 / 地之 / 爆炎 / 水靈 / 風靈等 12 種)
+ *        - 自訂席琳套裝效果 (無 / 隨機 / 麗人的加護等 45 種)
+ *   6. 名稱與光圈預覽  —— 調整購買參數時，商品卡片會同步即時預覽更新名稱、強化色與光暈特效。
+ *   7. 雙價格模式      —— 支援「金幣購買（原價）」與「GM 免費獲得（0 金幣）」。
+ *   8. 角色屬性詳細修改—— 
+ *        - 快捷修改等級 (1 ~ 999 級，自動補償點數)、金幣 (上限 9999 億) 與未分配點數 (Bonus)。
+ *        - 詳細修改 STR、DEX、CON、INT、WIS、CHA 的「起始屬性」、「升級分配」與「萬能藥分配」數值。
+ *        - 同步更新萬能藥已使用總量計數，相容回憶蠟燭退還機制。
+ *   9. 寵物修改與編輯  —— 
+ *        - 快捷生成常用寵物 (Lv.30/Lv.100)、全員等級設定、一鍵清空寵物保管箱。
+ *        - 特定種類與等級的寵物生成。
+ *        - 單一寵物屬性編輯（自訂名字、種類、等級、HP與MP上限）。
+ *  10. 收藏圖鑑解鎖修改—— 
+ *        - 注入紫色「🔧 GM 輔助控制列」至原版怪物卡片、裝備、道具與遺物圖鑑收藏冊。
+ *        - 支援直接點擊收藏卡片在「未解鎖 / 普卡 / 銀卡 / 金卡 / 鎖定」之間循環切換。
+ *        - 支援一鍵解鎖本分頁、一鍵清空本分頁，或一鍵完璧解鎖/清空全部四類圖鑑收藏。
  * ========================================================================== */
 
 (function () {
@@ -1131,21 +1141,21 @@
 
     window.gmClearAllPets = function () {
         if (!confirm("確定要清空所有的寵物嗎？")) return;
-        
+
         try {
             let list = petRoster();
             let snap = _petMutationSnapshot();
-            
+
             // 將所有寵物記錄到已釋放名單中，避免被 merge-on-write 復活
             if (typeof _petReleasedUids !== 'undefined') {
                 list.forEach(p => {
                     _petReleasedUids[p.uid] = true;
                 });
             }
-            
+
             list.length = 0;
             petMarkDirty();
-            
+
             if (petRosterSave()) {
                 if (typeof logSys === 'function') logSys(`<span class="text-red-300 font-bold">🐾 GM 測試：已清空所有的寵物保管資料。</span>`);
                 if (typeof updateUI === 'function') updateUI();
@@ -1172,7 +1182,7 @@
         let select = document.getElementById('gm-add-pet-form-select');
         if (!select) return;
         let form = select.value;
-        
+
         let lvInput = document.getElementById('gm-add-pet-lv-input');
         let lv = parseInt(lvInput ? lvInput.value : 30) || 30;
         if (lv < 1) lv = 1;
@@ -1192,7 +1202,7 @@
 
         list.push(p);
         petMarkDirty();
-        
+
         if (petRosterSave()) {
             if (typeof logSys === 'function') {
                 logSys(`<span class="text-green-300 font-bold">🐾 GM 測試：成功新增特定寵物 ${form}（Lv.${lv}）到寵物保管箱！</span>`);
@@ -1202,7 +1212,7 @@
             let _d = document.getElementById('interaction-content');
             if (_d && _d.querySelector('[data-petui]')) renderPetStorageNPC(_d);
             if (typeof showToast === 'function') showToast("新增寵物成功！", 'success');
-            
+
             // 刷新 GM 寵物編輯下拉選單
             window.loadGMShopCharValues();
         } else {
@@ -1218,7 +1228,7 @@
     /* 🌟 收藏圖鑑解鎖功能 */
     /* 🌟 收藏圖鑑原版 UI 注入與輔助功能 */
     window.gmBookEditModes = { card: false, equip: false, misc: false, relic: false };
-    
+
     window.toggleGMBookEditMode = function (type, checked) {
         window.gmBookEditModes[type] = checked;
         if (type === 'card' && typeof renderCardBook === 'function') renderCardBook();
@@ -1238,7 +1248,7 @@
             else if (cur === 1) next = 11;
             else if (cur === 11) next = 111;
             else next = 0;
-            
+
             player.cardDex[idOrName] = next;
             if (typeof saveCardDex === 'function') saveCardDex();
         } else if (type === 'equip') {
@@ -1268,7 +1278,7 @@
 
     window.gmBookUnlockCategory = function (type) {
         if (typeof player === 'undefined' || !player) return;
-        
+
         if (type === 'card') {
             let names = (typeof CARD_REGION_MOBS !== 'undefined' && CARD_REGION_MOBS[_cardBookRegion]) || [];
             if (!player.cardDex) player.cardDex = {};
@@ -1339,7 +1349,7 @@
 
     window.gmBookUnlockAll = function (type) {
         if (typeof player === 'undefined' || !player) return;
-        
+
         if (type === 'card' && typeof CARD_MOB_INFO !== 'undefined') {
             if (!player.cardDex) player.cardDex = {};
             Object.keys(CARD_MOB_INFO).forEach(name => { player.cardDex[name] = 111; });
@@ -1435,7 +1445,7 @@
         types.forEach(t => {
             let bookEl = document.getElementById(t.id);
             if (!bookEl) return;
-            
+
             if (bookEl.querySelector('.gm-book-control-bar')) {
                 let chk = bookEl.querySelector(`#gm-book-edit-toggle-${t.type}`);
                 if (chk) chk.checked = !!window.gmBookEditModes[t.type];
@@ -1465,7 +1475,7 @@
                     <button onclick="gmBookClearAll('${t.type}')" class="px-2 py-1 bg-red-950/80 border border-red-800 text-red-300 hover:bg-red-900/80 rounded font-semibold transition" style="font-size: 11px;">🗑️ 清空全部</button>
                 </div>
             `;
-            
+
             let header = panel.firstElementChild;
             if (header) {
                 header.after(bar);
@@ -2262,19 +2272,19 @@
         let petSel = document.getElementById('gm-pet-select');
         if (petSel) {
             let list = [];
-            try { list = petRoster(); } catch(e) {}
+            try { list = petRoster(); } catch (e) { }
             let html = '<option value="">-- 請選擇寵物 --</option>';
             list.forEach(p => {
                 let disp = (p.name ? p.name + ' ' : '') + `(${p.form}) Lv.${p.lv}`;
                 html += `<option value="${p.uid}">${disp}</option>`;
             });
             petSel.innerHTML = html;
-            
+
             // 預設隱藏編輯欄位
             let fields = document.getElementById('gm-pet-editor-fields');
             if (fields) fields.classList.add('hidden');
         }
-        
+
         let formSel = document.getElementById('gm-pet-form-select');
         if (formSel && formSel.options.length <= 1) {
             let html = '';
@@ -2302,27 +2312,27 @@
         let petSel = document.getElementById('gm-pet-select');
         let fields = document.getElementById('gm-pet-editor-fields');
         if (!petSel || !fields) return;
-        
+
         let uid = petSel.value;
         if (!uid) {
             fields.classList.add('hidden');
             return;
         }
-        
+
         let p = petRoster().find(x => x.uid === uid);
         if (!p) {
             fields.classList.add('hidden');
             return;
         }
-        
+
         fields.classList.remove('hidden');
-        
+
         let nameInp = document.getElementById('gm-pet-name-input');
         let formSel = document.getElementById('gm-pet-form-select');
         let lvlInp = document.getElementById('gm-pet-lvl-input');
         let mhpInp = document.getElementById('gm-pet-mhp-input');
         let mmpInp = document.getElementById('gm-pet-mmp-input');
-        
+
         if (nameInp) nameInp.value = p.name || '';
         if (formSel) formSel.value = p.form;
         if (lvlInp) lvlInp.value = p.lv || 1;
@@ -2333,23 +2343,23 @@
     window.saveGMPetChanges = function () {
         let petSel = document.getElementById('gm-pet-select');
         if (!petSel || !petSel.value) return;
-        
+
         let uid = petSel.value;
         let p = petRoster().find(x => x.uid === uid);
         if (!p) return;
-        
+
         let nameInp = document.getElementById('gm-pet-name-input');
         let formSel = document.getElementById('gm-pet-form-select');
         let lvlInp = document.getElementById('gm-pet-lvl-input');
         let mhpInp = document.getElementById('gm-pet-mhp-input');
         let mmpInp = document.getElementById('gm-pet-mmp-input');
-        
+
         let nameVal = nameInp ? nameInp.value.trim() : '';
         let formVal = formSel ? formSel.value : p.form;
         let lvlVal = lvlInp ? parseInt(lvlInp.value) : p.lv;
         let mhpVal = mhpInp ? parseInt(mhpInp.value) : p.mhp;
         let mmpVal = mmpInp ? parseInt(mmpInp.value) : p.mmp;
-        
+
         if (isNaN(lvlVal) || lvlVal < 1 || lvlVal > 999) {
             alert("請輸入 1 到 999 之間的有效等級！");
             return;
@@ -2362,7 +2372,7 @@
             alert("魔力上限必須大於或等於 0！");
             return;
         }
-        
+
         let snap = _petMutationSnapshot();
         p.name = nameVal;
         p.form = formVal;
@@ -2371,19 +2381,19 @@
         p.mmp = mmpVal;
         p.hp = Math.min(p.hp, p.mhp);
         p.mp = Math.min(p.mp, p.mmp);
-        
+
         petMarkDirty();
         if (petRosterSave()) {
             if (typeof logSys === 'function') logSys(`<span class="text-green-300 font-bold">🐾 GM 測試：成功更新寵物 ${formVal} (${uid}) 的屬性資料！</span>`);
-            
+
             // 重新加載並更新選單
             window.loadGMShopCharValues();
-            
+
             if (typeof updateUI === 'function') updateUI();
             if (typeof renderTabs === 'function') renderTabs(true);
             let _d = document.getElementById('interaction-content');
             if (_d && _d.querySelector('[data-petui]')) renderPetStorageNPC(_d);
-            
+
             if (typeof showToast === 'function') {
                 showToast("寵物修改成功！", 'success');
             }
@@ -2677,125 +2687,6 @@
             btn.style.setProperty('display', hasPlayer ? 'flex' : 'none', 'important');
             lastBtnState = hasPlayer;
         }
-
-        // 額外支援：若載入了 GM 商店，僅在有標籤文字時移除 jsonblob 底部 Hella 與 Zeus 按鈕的 "🔒固定" 標籤
-        let hTag = document.getElementById('lock-hella-tag');
-        let zTag = document.getElementById('lock-zeus-tag');
-        if (hTag && hTag.innerText !== '') hTag.innerText = '';
-        if (zTag && zTag.innerText !== '') zTag.innerText = '';
-
-        // 強制解鎖清除所有存檔按鈕的顯示狀態，僅在顯示被隱藏時才重設，避免頻繁寫入 style
-        let clearAllBtn = document.getElementById('btn-clear-all');
-        if (clearAllBtn && clearAllBtn.style.display !== '') {
-            clearAllBtn.style.setProperty('display', '', 'important');
-        }
-    }
-
-    // 繞過 jsonblob.js 的特權限制（解除存檔鎖定與覆蓋限制）
-    function bypassJsonBlobRestrictions() {
-        // 1. 覆寫 window.clearAllSaves 繞過 checkIsPrivileged 檢查
-        if (typeof window.clearAllSaves === 'function' && !window.clearAllSaves.isBypassedByGMShop) {
-            window.clearAllSaves = function () {
-                if (!confirm('確定要清除所有存檔嗎？此動作將無法復原。')) return;
-
-                for (let n = 1; n <= 4; n++) {
-                    localStorage.removeItem('lineage_idle_save_' + n);
-                    localStorage.removeItem('lineage_idle_save_' + n + '_bak');
-                }
-                localStorage.removeItem('lineage_idle_warehouse');
-
-                if (typeof checkAndPrepopulateSlots === 'function') {
-                    checkAndPrepopulateSlots();
-                } else if (typeof window.checkAndPrepopulateSlots === 'function') {
-                    window.checkAndPrepopulateSlots();
-                }
-
-                if (typeof uploadToCloud === 'function') {
-                    uploadToCloud(false, true);
-                } else if (typeof window.uploadToCloud === 'function') {
-                    window.uploadToCloud(false, true);
-                }
-
-                if (typeof openSlotSelect === 'function') {
-                    openSlotSelect(window._slotMode || 'load');
-                } else if (typeof window.openSlotSelect === 'function') {
-                    window.openSlotSelect(window._slotMode || 'load');
-                }
-
-                if (typeof showToast === 'function') {
-                    showToast('已成功清除所有存檔，並自動為您初始化存檔位 1-3！', 'success');
-                } else if (typeof window.showToast === 'function') {
-                    window.showToast('已成功清除所有存檔，並自動為您初始化存檔位 1-3！', 'success');
-                }
-            };
-            window.clearAllSaves.isBypassedByGMShop = true;
-        }
-
-        // 2. 覆寫 window.chooseSlot 繞過 checkIsPrivileged 檢查
-        if (typeof window.chooseSlot === 'function' && !window.chooseSlot.isBypassedByGMShop) {
-            window.chooseSlot = function (n) {
-                const mode = window._slotMode || (typeof window._slotMode !== 'undefined' ? window._slotMode : 'new');
-                if (mode === 'load') {
-                    currentSlot = n;
-                    if (typeof loadGame === 'function') {
-                        loadGame();
-                    } else if (typeof window.loadGame === 'function') {
-                        window.loadGame();
-                    }
-                    return;
-                }
-
-                // 創角模式 (new) —— 直接跳過 checkIsPrivileged() 檢查
-                let sum = null;
-                if (typeof slotSummary === 'function') {
-                    sum = slotSummary(n);
-                } else if (typeof window.slotSummary === 'function') {
-                    sum = window.slotSummary(n);
-                }
-
-                if (sum && !confirm(`存檔 ${n} 已有角色（${sum.cls} Lv.${sum.lv} ${sum.name}），確定覆蓋並重新創角？`)) return;
-
-                currentSlot = n;
-                const panel = document.getElementById('slot-select-panel');
-                if (panel) panel.classList.add('hidden');
-
-                if (typeof showCreation === 'function') {
-                    showCreation();
-                } else if (typeof window.showCreation === 'function') {
-                    window.showCreation();
-                }
-            };
-            window.chooseSlot.isBypassedByGMShop = true;
-        }
-
-        // 3. Hook window.openSlotSelect 以在開啟選檔畫面時強制解鎖
-        if (typeof window.openSlotSelect === 'function' && !window.openSlotSelect.isBypassedByGMShop) {
-            const originalOpenSlotSelect = window.openSlotSelect;
-            window.openSlotSelect = function (mode) {
-                originalOpenSlotSelect(mode);
-
-                // 強制顯示清除所有存檔按鈕，並移除🔒固定
-                const clearAllBtn = document.getElementById('btn-clear-all');
-                if (clearAllBtn) {
-                    clearAllBtn.style.setProperty('display', '', 'important');
-                }
-                const hTag = document.getElementById('lock-hella-tag');
-                const zTag = document.getElementById('lock-zeus-tag');
-                if (hTag) hTag.innerText = '';
-                if (zTag) zTag.innerText = '';
-            };
-            window.openSlotSelect.isBypassedByGMShop = true;
-        }
-
-        // 4. 立即嘗試更新現有的 UI 元件
-        const clearAllBtn = document.getElementById('btn-clear-all');
-        if (clearAllBtn) {
-            clearAllBtn.style.setProperty('display', '', 'important');
-        }
-        const hTag = document.getElementById('lock-hella-tag');
-        const zTag = document.getElementById('lock-zeus-tag');
-        if (hTag) hTag.innerText = '';
-        if (zTag) zTag.innerText = '';
     }
 
     // 7. 初始化外掛
@@ -2848,8 +2739,6 @@
             document.body.appendChild(btn);
         }
 
-        // 繞過特權金鑰與存檔鎖定限制
-        bypassJsonBlobRestrictions();
 
         // 立即檢查一次顯示狀態
         checkGMShopBtnVisibility();

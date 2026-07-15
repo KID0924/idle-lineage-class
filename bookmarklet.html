@@ -494,17 +494,15 @@
     <script>
         // ═══════════════ 外掛資料定義 ═══════════════
         const ALL_PLUGINS = [
-            { id: 'klh_initial.js', name: 'klh_initial.js', desc: '核心初始化模組。載入全域資源與基本變數（必選，需放在最上方）。', isCore: true, checked: true },
-            { id: 'klh_database.js', name: 'klh_database.js', desc: '雲端存檔引擎。提供 Supabase / JSONBlob 雙引擎雲端備份同步與防衝突機制。', isCore: true, checked: true },
-            { id: 'klh_GMShop.js', name: 'klh_GMShop.js', desc: 'GM 商店與修改面板。整合一鍵滿級、怪物卡片/裝備直接解鎖編輯功能。', isCore: false, checked: true },
+            { id: 'klh_initial.js', name: 'klh_initial.js', desc: '核心初始化模組。載入全域資源與基本變數（必選，需放在最上方）。', isCore: true, checked: false },
+            { id: 'klh_database.js', name: 'klh_database.js', desc: '雲端存檔引擎。提供 Supabase / JSONBlob 雙引擎雲端備份同步與防衝突機制。', isCore: true, checked: false },
+            { id: 'klh_GMShop.js', name: 'klh_GMShop.js', desc: 'GM 商店與修改面板。整合一鍵滿級、怪物卡片/裝備直接解鎖編輯功能。', isCore: false, checked: false },
             { id: 'klh_mobile-perf.js', name: 'klh_mobile-perf.js', desc: '效能降級與優化。提供音效節流、降低動畫影格與自動日誌清理，防發熱。', isCore: false, checked: true },
-            { id: 'klh_perf-monitor.js', name: 'klh_perf-monitor.js', desc: '即時效能監測面板。在右上角顯示目前 FPS 與記憶體開銷。', isCore: false, checked: false },
+            { id: 'klh_perf-monitor.js', name: 'klh_perf-monitor.js', desc: '即時效能監測面板。在右上角顯示目前 FPS 與記憶體開銷。', isCore: false, checked: true },
             { id: 'klh_mobile_allies_hud.js', name: 'klh_mobile_allies_hud.js', desc: '手機傭兵快速欄。專為觸控裝置設計的傭兵出戰與狀態快捷監控欄。', isCore: false, checked: false },
             { id: 'klh_Addition.js', name: 'klh_Addition.js', desc: '額外輔助增強模組。包含各類輔助邏輯與便利性調整。', isCore: false, checked: false },
             { id: 'klh_Pandora.js', name: 'klh_Pandora.js', desc: '潘朵拉系統擴充。自訂抽獎與特定兌換防 SL 封裝。', isCore: false, checked: false },
-            { id: 'klh_PC_fix.js', name: 'klh_PC_fix.js', desc: '電腦版版面修正。微調電腦大螢幕版面寬度與側邊配置。', isCore: false, checked: false },
-            { id: 'klh_Shop.js', name: 'klh_Shop.js', desc: '商店功能擴充。調整商店購買數量上限與快捷介面。', isCore: false, checked: false },
-            { id: 'klh_run.js', name: 'klh_run.js', desc: '自啟動引導載入。彙整所有配置並正式引導各模組自啟（通常放在最下方）。', isCore: true, checked: true }
+            { id: 'klh_run.js', name: 'klh_run.js', desc: '自啟動引導載入。彙整所有配置並正式引導各模組自啟（通常放在最下方）。', isCore: true, checked: false }
         ];
 
         const BASE_URL = 'https://kid0924.github.io/idle-lineage-class/';
