@@ -33,23 +33,165 @@
  * ========================================================================== */
 
 (function () {
-    // 內建遊戲加速器：Hook performance.now 進行時間流逝增量乘算
-    window.__gmGameSpeed = parseFloat(localStorage.getItem('klh_gm_game_speed')) || 1.0;
+    // 內建遊戲加速器：與 main.user.js 同原理，直接累加 _tickDebt 再呼叫 gameLoop()
+    window.__gmGameSpeed = 1.0; // 每次開啟頁面一律重置為預設 1.0 倍速（不記憶）
     (function () {
-        if (typeof window === 'undefined' || !window.performance || !window.performance.now) return;
-        const originalNow = window.performance.now;
-        let lastRealTime = originalNow.call(window.performance);
-        let virtualTime = lastRealTime;
-        window.performance.now = function () {
-            let realNow = originalNow.call(window.performance);
-            let elapsed = realNow - lastRealTime;
-            lastRealTime = realNow;
-            // 只有在進入遊戲後 (player 物件已載入且有職業) 才啟用加速器，防止影響角色選擇畫面的連點判定
-            let inGame = typeof player !== 'undefined' && player && player.cls;
-            let rate = inGame ? ((window.__gmGameSpeed !== undefined) ? window.__gmGameSpeed : 1.0) : 1.0;
-            virtualTime += elapsed * rate;
-            return virtualTime;
-        };
+        if (typeof window === 'undefined') return;
+
+        const TICK_MS = 100;
+        const BUDGET_MS = 6; // 每幀預算 6ms（與 main.user.js smooth 模式一致）
+
+        let speedSliceActive = false;
+        let renderPending = { ui: false, mobs: false, tabs: false };
+
+        // 用於計算實際運行倍率的計數器
+        let totalTicks = 0;
+        let rateWindowStarted = Date.now();
+
+        let lastRealTime = 0;
+        let tickCredit = 0;
+
+        // 備份與延遲取得原版重繪函數，避免加速期間重複調用 DOM 渲染
+        let originalUpdateUI = null;
+        let originalRenderMobs = null;
+        let originalRenderTabs = null;
+
+        function patchRenderers() {
+            if (window.__gmRenderersPatched) return;
+            if (typeof window.updateUI === 'function' && typeof window.renderMobs === 'function' && typeof window.renderTabs === 'function') {
+                originalUpdateUI = window.updateUI;
+                originalRenderMobs = window.renderMobs;
+                originalRenderTabs = window.renderTabs;
+
+                window.updateUI = function (...args) {
+                    if (speedSliceActive) {
+                        renderPending.ui = true;
+                        return;
+                    }
+                    if (originalUpdateUI) return originalUpdateUI.apply(this, args);
+                };
+
+                window.renderMobs = function (...args) {
+                    if (speedSliceActive) {
+                        renderPending.mobs = true;
+                        return;
+                    }
+                    if (originalRenderMobs) return originalRenderMobs.apply(this, args);
+                };
+
+                window.renderTabs = function (...args) {
+                    if (speedSliceActive) {
+                        renderPending.tabs = true;
+                        return;
+                    }
+                    if (originalRenderTabs) return originalRenderTabs.apply(this, args);
+                };
+
+                // 劫持 gameLoop 用來統計每秒實際跑了幾次 tick
+                if (typeof window.gameLoop === 'function') {
+                    const origGameLoop = window.gameLoop;
+                    window.gameLoop = function (...args) {
+                        totalTicks++;
+                        return origGameLoop.apply(this, args);
+                    };
+                }
+
+                window.__gmRenderersPatched = true;
+            }
+        }
+
+        function speedPump(now) {
+            requestAnimationFrame(speedPump);
+
+            // 確保有完成劫持
+            patchRenderers();
+
+            if (!lastRealTime) { lastRealTime = now; return; }
+            let elapsed = Math.max(0, Math.min(100, now - lastRealTime));
+            lastRealTime = now;
+
+            // 只有在進入遊戲後，且遊戲正在執行、角色未死亡，且 gameLoop 存在時才跑加速
+            // 注意：_tickDebt 是 let 全域變數，用 typeof 檢查（不加 window. 前綴）
+            let canRun = typeof state !== 'undefined' && state && state.running &&
+                         typeof player !== 'undefined' && player && !player.dead &&
+                         typeof window.gameLoop === 'function' && typeof _tickDebt !== 'undefined';
+
+            let rate = (window.__gmGameSpeed !== undefined) ? window.__gmGameSpeed : 1.0;
+
+            if (rate <= 1.0 || !canRun) {
+                tickCredit = 0;
+                let textEl = document.getElementById('gm-actual-speed-text');
+                if (textEl && textEl.innerText !== '') {
+                    textEl.innerText = '';
+                }
+                return;
+            }
+
+            // 核心加速邏輯（與 main.user.js 同原理）：
+            // 累積時間額度，每夠 1 tick 就直接 _tickDebt += TICK_MS 再呼叫 gameLoop()
+            let added = (elapsed / TICK_MS) * (rate - 1);
+            tickCredit = Math.min(rate * 2, tickCredit + added); // 額度上限防累積過多
+
+            let frameStarted = performance.now();
+            let ran = 0;
+
+            while (tickCredit >= 1) {
+                let timeSpent = performance.now() - frameStarted;
+                if (timeSpent >= BUDGET_MS) break; // 超過預算
+
+                speedSliceActive = true;
+                try {
+                    // 與 main.user.js 第 662 行完全一致：直接累加 _tickDebt
+                    _tickDebt += TICK_MS;
+                    window.gameLoop();
+                } finally {
+                    speedSliceActive = false;
+                }
+
+                tickCredit -= 1;
+                ran++;
+
+                if (!state.running || player.dead) {
+                    tickCredit = 0;
+                    break;
+                }
+            }
+
+            // 批次結束後統一重繪畫面
+            if (renderPending.ui && originalUpdateUI) {
+                renderPending.ui = false;
+                originalUpdateUI.call(window);
+            }
+            if (renderPending.mobs && originalRenderMobs) {
+                renderPending.mobs = false;
+                originalRenderMobs.call(window);
+            }
+            if (renderPending.tabs && originalRenderTabs) {
+                renderPending.tabs = false;
+                let isBagOpen = document.querySelector('#tab-weapons:not(.hidden),#tab-armors:not(.hidden),#tab-items:not(.hidden)');
+                if (rate > 10 && !isBagOpen) {
+                    // 背包沒開，不用重繪 tab 內容
+                } else {
+                    originalRenderTabs.call(window, true);
+                }
+            }
+
+            // 計算並更新實際倍率
+            let nowTime = Date.now();
+            let elapsedRateWindow = nowTime - rateWindowStarted;
+            if (elapsedRateWindow >= 1000) {
+                let actualRate = (totalTicks * 100) / elapsedRateWindow;
+                let textEl = document.getElementById('gm-actual-speed-text');
+                if (textEl) {
+                    textEl.innerText = ` (實際: ${actualRate.toFixed(1)}x)`;
+                }
+                totalTicks = 0;
+                rateWindowStarted = nowTime;
+            }
+        }
+
+        // 啟動加速泵
+        requestAnimationFrame(speedPump);
     })();
 
     // 其他全域 GM 倍率變數
@@ -57,7 +199,7 @@
     window.__gmDropRateRate = parseFloat(localStorage.getItem('klh_gm_drop_rate_rate')) || 1.0;
     window.__gmGoldRate = parseFloat(localStorage.getItem('klh_gm_gold_rate')) || 1.0;
     window.__gmPotionRate = parseFloat(localStorage.getItem('klh_gm_potion_rate')) || 1.0;
-    window.__gmSpawnDelayRate = parseFloat(localStorage.getItem('klh_gm_spawn_delay_rate')) || 1.0;
+
 
     // 刻度定義與輔助函式
     const speedTicks = [1, 2, 3, 5, 10];
@@ -2339,7 +2481,7 @@
                                     <div class="gm-shop-char-section-title">⚙️ 遊戲倍率與強度調整</div>
                                     
                                     <div class="gm-shop-char-input-group">
-                                        <span class="gm-shop-control-label">遊戲運行速度 (1.0 ~ 100.0 倍, 預設 1.0)</span>
+                                        <span class="gm-shop-control-label">遊戲運行速度 (1.0 ~ 100.0 倍, 預設 1.0) <span id="gm-actual-speed-text" style="color: #38bdf8; font-weight: bold; margin-left: 6px;"></span></span>
                                         <div style="display: flex; align-items: center; gap: 8px;">
                                             <input type="range" id="gm-game-speed-range" min="1.0" max="100.0" step="0.1" value="1.0" list="gm-speed-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('game-speed', this.value)">
                                             <input type="number" id="gm-game-speed-input" class="gm-shop-char-input text-center" min="1.0" max="100.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('game-speed', this.value)">
@@ -2470,29 +2612,7 @@
                                         </datalist>
                                     </div>
 
-                                    <div class="gm-shop-char-input-group">
-                                        <span class="gm-shop-control-label">出怪延遲倍率 (0.1 ~ 2.0 倍, 預設 1.0)</span>
-                                        <div style="display: flex; align-items: center; gap: 8px;">
-                                            <input type="range" id="gm-spawn-delay-range" min="0.1" max="2.0" step="0.05" value="1.0" list="gm-spawn-delay-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('spawn-delay', this.value)">
-                                            <input type="number" id="gm-spawn-delay-input" class="gm-shop-char-input text-center" min="0.1" max="2.0" step="0.05" value="1.0" style="max-width: 80px;" oninput="updateGMRate('spawn-delay', this.value)">
-                                        </div>
-                                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;" id="gm-spawn-delay-pills">
-                                            <button class="gm-rate-pill" onclick="updateGMRate('spawn-delay', 0.1)">0.1x</button>
-                                            <button class="gm-rate-pill" onclick="updateGMRate('spawn-delay', 0.25)">0.25x</button>
-                                            <button class="gm-rate-pill" onclick="updateGMRate('spawn-delay', 0.5)">0.5x</button>
-                                            <button class="gm-rate-pill" onclick="updateGMRate('spawn-delay', 0.75)">0.75x</button>
-                                            <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('spawn-delay', 1)">1x (預設)</button>
-                                            <button class="gm-rate-pill" onclick="updateGMRate('spawn-delay', 2)">2x</button>
-                                        </div>
-                                        <datalist id="gm-spawn-delay-ticks">
-                                            <option value="0.1"></option>
-                                            <option value="0.25"></option>
-                                            <option value="0.5"></option>
-                                            <option value="0.75"></option>
-                                            <option value="1.0"></option>
-                                            <option value="2.0"></option>
-                                        </datalist>
-                                    </div>
+
                                 </div>
                                 
                                 <!-- 右側：說明引導 -->
@@ -2567,7 +2687,7 @@
             'drop-rate': 'gm-drop-rate-pills',
             'gold': 'gm-gold-pills',
             'potion': 'gm-potion-pills',
-            'spawn-delay': 'gm-spawn-delay-pills'
+
         };
         let containerId = containerIdMap[type];
         if (!containerId) return;
@@ -2595,12 +2715,12 @@
         if (lvlInput) lvlInput.value = player.lv || 1;
         if (bonusInput) bonusInput.value = player.bonus || 0;
 
-        // 載入遊戲倍率調整數值
+        // 載入遊戲倍率調整數值（遊戲速度每次開啟都重置為預設 1.0）
+        window.__gmGameSpeed = 1.0;
         let gsR = document.getElementById('gm-game-speed-range');
         let gsI = document.getElementById('gm-game-speed-input');
-        let currentSpeed = window.__gmGameSpeed || 1.0;
-        if (gsR) gsR.value = currentSpeed;
-        if (gsI) gsI.value = currentSpeed;
+        if (gsR) gsR.value = 1.0;
+        if (gsI) gsI.value = 1.0;
 
         let msR = document.getElementById('gm-monster-strength-range');
         let msI = document.getElementById('gm-monster-strength-input');
@@ -2623,10 +2743,7 @@
         if (ptR) ptR.value = window.__gmPotionRate || 1.0;
         if (ptI) ptI.value = window.__gmPotionRate || 1.0;
 
-        let sdR = document.getElementById('gm-spawn-delay-range');
-        let sdI = document.getElementById('gm-spawn-delay-input');
-        if (sdR) sdR.value = window.__gmSpawnDelayRate || 1.0;
-        if (sdI) sdI.value = window.__gmSpawnDelayRate || 1.0;
+
 
         // 同步藥丸按鈕選中狀態
         updateRatePillActiveState('game-speed', currentSpeed);
@@ -2634,7 +2751,7 @@
         updateRatePillActiveState('drop-rate', window.__gmDropRateRate || 1.0);
         updateRatePillActiveState('gold', window.__gmGoldRate || 1.0);
         updateRatePillActiveState('potion', window.__gmPotionRate || 1.0);
-        updateRatePillActiveState('spawn-delay', window.__gmSpawnDelayRate || 1.0);
+
 
         const stats = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
         stats.forEach(st => {
@@ -2815,7 +2932,7 @@
             if (rEl) rEl.value = val;
             if (iEl) iEl.value = val;
             window.__gmGameSpeed = val;
-            localStorage.setItem('klh_gm_game_speed', val);
+            // 不存入 localStorage，每次開啟頁面一律重置為預設 1.0
             updateRatePillActiveState('game-speed', val);
         } else if (type === 'monster-strength') {
             val = Math.min(10.0, Math.max(0.1, val));
@@ -2856,15 +2973,7 @@
             window.__gmPotionRate = val;
             localStorage.setItem('klh_gm_potion_rate', val);
             updateRatePillActiveState('potion', val);
-        } else if (type === 'spawn-delay') {
-            val = Math.min(2.0, Math.max(0.1, val));
-            let rEl = document.getElementById('gm-spawn-delay-range');
-            let iEl = document.getElementById('gm-spawn-delay-input');
-            if (rEl) rEl.value = val;
-            if (iEl) iEl.value = val;
-            window.__gmSpawnDelayRate = val;
-            localStorage.setItem('klh_gm_spawn_delay_rate', val);
-            updateRatePillActiveState('spawn-delay', val);
+
         }
     };
 
@@ -3302,46 +3411,7 @@
             window.potionHealBase.isHookedByGMShop = true;
         }
 
-        // Hook mapState.spawnAt to scale spawn delay
-        function wrapSpawnAt(mapStateObj) {
-            if (!mapStateObj || !mapStateObj.spawnAt || mapStateObj.spawnAt.__isProxy) return;
-            const originalSpawnAt = mapStateObj.spawnAt;
-            const spawnAtProxy = new Proxy(originalSpawnAt, {
-                set(target, prop, value) {
-                    if (!isNaN(prop) && value !== null && typeof state !== 'undefined' && state.ticks !== undefined) {
-                        let delay = value - state.ticks;
-                        let rate = (window.__gmSpawnDelayRate !== undefined) ? window.__gmSpawnDelayRate : 1.0;
-                        let scaledDelay = Math.round(delay * rate);
-                        value = state.ticks + scaledDelay;
-                    }
-                    target[prop] = value;
-                    return true;
-                }
-            });
-            Object.defineProperty(spawnAtProxy, '__isProxy', {
-                value: true,
-                enumerable: false,
-                writable: false
-            });
-            mapStateObj.spawnAt = spawnAtProxy;
-        }
 
-        let curMapState = window.mapState;
-        if (curMapState) {
-            wrapSpawnAt(curMapState);
-        }
-        Object.defineProperty(window, 'mapState', {
-            get: function () {
-                return curMapState;
-            },
-            set: function (val) {
-                curMapState = val;
-                if (val) {
-                    wrapSpawnAt(val);
-                }
-            },
-            configurable: true
-        });
     }
 
     // 7. 初始化外掛

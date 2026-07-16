@@ -621,8 +621,8 @@
             { 
                 id: 'offline.js', 
                 name: '離線掛機補丁', 
-                desc: '在原版遊戲網站中，載入並結算離線時間打怪收益。', 
-                details: '此模組專為非 Chaos 版（如官方原版）設計。啟用後，若偵測到當前為非 Chaos 版網址，會自動從 Chaos 版主網站跨網域載入並執行離線掛機模擬腳本，結算離線時間的打怪金幣與經驗收益。若在 Chaos 版網站下則會自動跳過載入。', 
+                desc: '在原版遊戲網站中，載入並結算離線時間打怪收益（⚠ 必須搭配「核心功能初始化」）。', 
+                details: '此模組專為非 Chaos 版（如官方原版）設計。啟用後，若偵測到當前為非 Chaos 版網址，會自動載入離線掛機模擬腳本，結算離線金幣與經驗收益。<br><b style="color: #ef4444;">⚠ 注意：此模組極度依賴「核心功能初始化 (klh_initial.js)」提供的資料統計掛接點，勾選時系統會自動為您強制勾選該初始化模組。</b>', 
                 isCore: false, 
                 checked: false 
             }
@@ -683,6 +683,18 @@
             const plugin = activePlugins.find(p => p.id === id);
             if (plugin) {
                 plugin.checked = !plugin.checked;
+                
+                // 連動邏輯：
+                if (id === 'offline.js' && plugin.checked) {
+                    // 勾選離線掛機時，自動強制勾選核心功能初始化
+                    const initPlugin = activePlugins.find(p => p.id === 'klh_initial.js');
+                    if (initPlugin) initPlugin.checked = true;
+                } else if (id === 'klh_initial.js' && !plugin.checked) {
+                    // 取消勾選核心功能初始化時，自動取消勾選離線掛機（因為沒有初始化離線無法運作）
+                    const offlinePlugin = activePlugins.find(p => p.id === 'offline.js');
+                    if (offlinePlugin) offlinePlugin.checked = false;
+                }
+
                 renderList();
             }
         };

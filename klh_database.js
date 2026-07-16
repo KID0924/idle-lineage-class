@@ -900,16 +900,29 @@
 
     window.copyCloudCacheToLocalSaves = function () {
         const mode = localStorage.getItem('klh_storage_mode') || 'local';
-        if (mode !== 'supabase') {
-            window.showToast('此功能僅支援雲端金鑰 (Supabase) 模式！', 'warning');
+        if (mode !== 'supabase' && mode !== 'cloud' && mode !== 'firebase') {
+            window.showToast('此功能僅支援雲端模式 (Supabase / JSONBlob / Firebase)！', 'warning');
             return;
         }
-        const activeKey = (localStorage.getItem('klh_supabase_key') || '').trim();
+        
+        let activeKey = '';
+        let modeName = '';
+        if (mode === 'supabase') {
+            activeKey = (localStorage.getItem('klh_supabase_key') || '').trim();
+            modeName = 'Supabase 雲端';
+        } else if (mode === 'cloud') {
+            activeKey = (window.activeKey || localStorage.getItem('lineage_idle_jsonblob_url') || '').trim();
+            modeName = 'JSONBlob 雲端';
+        } else if (mode === 'firebase') {
+            activeKey = (localStorage.getItem('klh_firebase_sync_id') || '').trim();
+            modeName = 'Firebase 雲端';
+        }
+
         if (!activeKey) {
-            window.showToast('當前雲端金鑰不存在，無法複製！', 'error');
+            window.showToast(`當前${modeName}金鑰不存在，無法複製！`, 'error');
             return;
         }
-        if (!confirm('確定要把當前雲端存檔複製並覆蓋到本地嗎？本地原有的進度將會被覆蓋！')) return;
+        if (!confirm(`確定要把當前${modeName}存檔複製並覆蓋到本地嗎？本地原有的進度將會被覆蓋！`)) return;
         
         const suffix = '_' + activeKey.trim();
         const maxSlots = getMaxSaveSlot();
@@ -935,7 +948,7 @@
         } else {
             originalRemoveItem.call(localStorage, 'lineage_idle_warehouse');
         }
-        console.log("[KLH] 已成功將 Supabase 雲端存檔複製到本地進度。後綴:", suffix);
+        console.log(`[KLH] 已成功將 ${modeName} 存檔複製到本地進度。後綴:`, suffix);
         window.showToast(`複製成功！已將 ${copyCount} 個槽位的雲端進度同步至本地。`, 'success');
         
         // 刷新 UI
@@ -1831,7 +1844,7 @@
         // 複製至本地按鈕顯示控制
         const copyToLocalContainer = document.getElementById('btn-copy-to-local-container');
         if (copyToLocalContainer) {
-            copyToLocalContainer.style.display = (mode === 'supabase') ? 'block' : 'none';
+            copyToLocalContainer.style.display = (mode === 'supabase' || mode === 'cloud' || mode === 'firebase') ? 'block' : 'none';
         }
 
         // Supabase 建立金鑰提示 banner 顯示/隱藏

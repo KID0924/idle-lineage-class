@@ -325,10 +325,10 @@
     }
 
     // ==========================================
-    // 離線掛機其餘 3 處可省去的勾子注入點（已註解）
+    // 離線掛機其餘 3 處勾子注入點（啟用中）
     // ==========================================
-    /*
-    // 4. changeMap 注入
+
+    // 4. changeMap 注入：切圖時蓋離線時間戳
     if (typeof window.changeMap === 'function') {
         const originalChangeMap = window.changeMap;
         window.changeMap = function () {
@@ -340,7 +340,7 @@
         };
     }
 
-    // 5. killMob 注入
+    // 5. killMob 注入：離線結算期間統計殺怪數（快速結算取樣用）
     if (typeof window.killMob === 'function') {
         const originalKillMob = window.killMob;
         window.killMob = function (idx) {
@@ -354,7 +354,7 @@
         };
     }
 
-    // 6. gainItem 注入
+    // 6. gainItem 注入：離線結算期間統計獲得物品（消耗品耗率計算用）
     if (typeof window.gainItem === 'function') {
         const originalGainItem = window.gainItem;
         window.gainItem = function (id, cnt=1) {
@@ -364,7 +364,6 @@
             return originalGainItem.apply(this, arguments);
         };
     }
-    */
 
     /* ============================================================================
      *  ⚡ 3. 存檔列表與難度資訊顯示 Hook (Slot Selection & Difficulty Display Hooks)
