@@ -476,6 +476,39 @@
         .pulse {
             animation: pulse 2s infinite;
         }
+
+        /* 快速控制與預設按鈕 */
+        .quick-controls {
+            margin-bottom: 1.2rem;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .btn-quick {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .btn-quick:hover {
+            background: rgba(0, 242, 254, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+        }
+        .btn-preset {
+            border-color: rgba(157, 78, 221, 0.35);
+        }
+        .btn-preset:hover {
+            background: rgba(157, 78, 221, 0.15);
+            border-color: var(--secondary);
+            box-shadow: 0 0 10px rgba(157, 78, 221, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -495,6 +528,13 @@
                 </div>
                 <p class="section-desc">請勾選想要啟用的外掛。推薦將 <b>klh_initial.js</b> 置於最上方，以確保其他功能正常初始化。</p>
                 
+                <div class="quick-controls">
+                    <button class="btn-quick" onclick="selectAll(true)">全選</button>
+                    <button class="btn-quick" onclick="selectAll(false)">全部取消</button>
+                    <button class="btn-quick btn-preset" onclick="applyPreset('mobile')">📱 手機效能優化</button>
+                    <button class="btn-quick btn-preset" onclick="applyPreset('game')">🎮 遊戲優化</button>
+                </div>
+
                 <div class="files-container" id="files-list">
                     <!-- 檔案項目會在此處動態生成 -->
                 </div>
@@ -619,6 +659,14 @@
                 checked: false 
             },
             { 
+                id: 'klh_remove-banner.js', 
+                name: '淡化首頁公告，請勿用於商業用途', 
+                desc: '自動修正部分螢幕比例或解析度下的介面偏移問題。', 
+                details: '在特定寬螢幕或特殊視窗比例時，自動重置並修正頂部導覽列與版面容器的相對位移（--orig-bar-h），確保介面元素不被裁切或錯位。', 
+                isCore: false, 
+                checked: false 
+            },
+            { 
                 id: 'offline.js', 
                 name: '離線掛機補丁', 
                 desc: '在原版遊戲網站中，載入並結算離線時間打怪收益（⚠ 必須搭配「核心功能初始化」）。', 
@@ -679,6 +727,36 @@
         }
 
         // ═══════════════ 狀態操作 ═══════════════
+        window.selectAll = function(checked) {
+            activePlugins.forEach(p => {
+                p.checked = checked;
+            });
+            renderList();
+        };
+
+        window.applyPreset = function(presetType) {
+            if (presetType === 'mobile') {
+                const targetIds = ['klh_mobile-perf.js', 'klh_perf-monitor.js'];
+                activePlugins.forEach(p => {
+                    p.checked = targetIds.includes(p.id);
+                });
+            } else if (presetType === 'game') {
+                const targetIds = [
+                    'klh_initial.js',
+                    'klh_mobile-perf.js',
+                    'klh_mobile_allies_hud.js',
+                    'klh_Addition.js',
+                    'klh_Pandora.js',
+                    'klh_remove-banner.js',
+                    'offline.js'
+                ];
+                activePlugins.forEach(p => {
+                    p.checked = targetIds.includes(p.id);
+                });
+            }
+            renderList();
+        };
+
         window.togglePlugin = function(id) {
             const plugin = activePlugins.find(p => p.id === id);
             if (plugin) {
