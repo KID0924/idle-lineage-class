@@ -47,7 +47,7 @@
     }
     window.checkIsPrivileged = checkIsPrivileged;
 
-    // 注入 CSS 樣式（難度按鈕、創角面板滾動條、iOS 修復）
+    // 注入 CSS 樣式（難度按鈕、創角面板滾動條、iOS 修復、登出確認與遮罩）
     if (!document.getElementById('klh-initial-style-el')) {
         const styleEl = document.createElement('style');
         styleEl.id = 'klh-initial-style-el';
@@ -138,6 +138,95 @@
             }
             body.m-mobile .town-npc:hover {
                 transform: translate(-50%, -100%) scale(calc(1.07 * var(--town-scale, 1))) !important;
+            }
+
+            /* 登出確認視窗 */
+            #m-logout-modal {
+                display: none;
+                position: fixed;
+                inset: 0;
+                z-index: 99999;
+                background: rgba(2, 6, 23, 0.7);
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+            }
+            #m-logout-modal.open {
+                display: flex;
+            }
+            #m-logout-card {
+                width: min(360px, 92vw);
+                background: #0f172a;
+                border: 1px solid #334155;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+            }
+            #m-logout-msg {
+                color: #e2e8f0;
+                font-size: 15px;
+                line-height: 1.7;
+                text-align: center;
+                margin-bottom: 18px;
+            }
+            #m-logout-btns {
+                display: flex;
+                gap: 10px;
+            }
+            #m-logout-btns button {
+                flex: 1;
+                padding: 11px;
+                border-radius: 8px;
+                font-size: 15px;
+                font-weight: bold;
+                cursor: pointer;
+                font-family: inherit;
+                border: 1px solid #334155;
+                touch-action: manipulation;
+            }
+            #m-logout-cancel {
+                background: #1e293b;
+                color: #cbd5e1;
+            }
+            #m-logout-cancel:active {
+                background: #334155;
+            }
+            #m-logout-ok {
+                background: #b45309;
+                color: #fff;
+                border-color: #d97706;
+            }
+            #m-logout-ok:active {
+                background: #92400e;
+            }
+
+            /* 登出遮罩 */
+            #m-logout-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 100000;
+                background: #020617;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 18px;
+            }
+            #m-logout-overlay-spin {
+                width: 38px;
+                height: 38px;
+                border: 3px solid #334155;
+                border-top-color: #f59e0b;
+                border-radius: 50%;
+                animation: m-logout-spin 0.8s linear infinite;
+            }
+            #m-logout-overlay-txt {
+                color: #e2e8f0;
+                font-size: 15px;
+                letter-spacing: 0.5px;
+            }
+            @keyframes m-logout-spin {
+                to { transform: rotate(360deg); }
             }
         `;
         document.head.appendChild(styleEl);
@@ -1427,12 +1516,84 @@
     }
 
     /* ============================================================================
+     *  ⚡ 8.5 登出功能與主選單按鈕注入 (Logout & Main Menu Button Injection)
+     * ============================================================================ */
+    window.doLogout = function () {
+        const m = document.getElementById('m-logout-modal') || buildLogoutModal();
+        m.classList.add('open');
+    };
+
+    function buildLogoutModal() {
+        const m = document.createElement('div');
+        m.id = 'm-logout-modal';
+        m.innerHTML =
+          '<div id="m-logout-card">' +
+            '<div id="m-logout-msg">回首頁前會<b>自動幫你存檔</b>，進度不會遺失。<br>登出後會開始離線掛機（上限 24 小時）。<br>確定回首頁？</div>' +
+            '<div id="m-logout-btns">' +
+              '<button id="m-logout-cancel" type="button">取消</button>' +
+              '<button id="m-logout-ok" type="button">確定回首頁</button>' +
+            '</div>' +
+          '</div>';
+        document.body.appendChild(m);
+        const close = () => { m.classList.remove('open'); };
+        m.addEventListener('click', function (e) { if (e.target === m) close(); });   // 點背景關閉
+        m.querySelector('#m-logout-cancel').addEventListener('click', close);
+        
+        m.querySelector('#m-logout-ok').addEventListener('click', function () {
+            // 這個 onclick 如果沒有被 klh_database.js 攔截（備用執行）
+            setTimeout(async function() {
+                try { if (typeof window.saveGame === 'function') await window.saveGame(true); } catch (e) {}
+                try { if (window.__afk && window.__afk.stamp) window.__afk.stamp(); } catch (e) {}
+                showLogoutOverlay();
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        try { location.reload(); } catch (e) {}
+                    });
+                });
+            }, 50);
+        });
+        return m;
+    }
+
+    function showLogoutOverlay() {
+        if (document.getElementById('m-logout-overlay')) return;
+        const o = document.createElement('div');
+        o.id = 'm-logout-overlay';
+        o.innerHTML = '<div id="m-logout-overlay-spin"></div><div id="m-logout-overlay-txt">已自動存檔，正在回首頁…</div>';
+        document.body.appendChild(o);
+    }
+
+    function injectInGameLogoutBtn() {
+        const tabBars = document.querySelectorAll('.tab-bar');
+        tabBars.forEach(tabBar => {
+            if (tabBar.querySelector('#btn-game-logout')) return;
+            const logoutBtn = document.createElement('button');
+            logoutBtn.id = 'btn-game-logout';
+            logoutBtn.className = 'btn text-base py-2 font-bold px-0';
+            logoutBtn.style.gridColumn = 'span 3 / span 3';
+            logoutBtn.style.background = 'linear-gradient(180deg, #991b1b 0%, #7f1d1d 100%)';
+            logoutBtn.style.borderColor = '#b91c1c';
+            logoutBtn.style.color = '#fca5a5';
+            logoutBtn.style.textShadow = '0 1px 2px #000';
+            logoutBtn.style.boxShadow = 'inset 0 0 9px rgba(239, 68, 68, 0.35), 0 2px 5px #000';
+            logoutBtn.innerHTML = '🚪 登出遊戲 (回首頁)';
+            logoutBtn.onclick = function () {
+                window.doLogout();
+            };
+            tabBar.appendChild(logoutBtn);
+        });
+    }
+
+    /* ============================================================================
      *  ⚡ 9. 初始化啟動執行與動畫省電設定 (Initialization Startup & Power Saving Executor)
      * ============================================================================ */
     let started = false;
     function startupInitial() {
         if (started) return;
         started = true;
+
+        injectInGameLogoutBtn();
+        setInterval(injectInGameLogoutBtn, 2000);
 
         // 預設存檔模式
         if (localStorage.getItem('klh_storage_mode') === null) {
