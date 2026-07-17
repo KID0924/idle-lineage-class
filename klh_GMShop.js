@@ -2717,6 +2717,7 @@
 
         // 載入遊戲倍率調整數值（遊戲速度每次開啟都重置為預設 1.0）
         window.__gmGameSpeed = 1.0;
+        let currentSpeed = 1.0;
         let gsR = document.getElementById('gm-game-speed-range');
         let gsI = document.getElementById('gm-game-speed-input');
         if (gsR) gsR.value = 1.0;
