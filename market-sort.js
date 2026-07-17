@@ -1,68 +1,86 @@
-(function () {
-  // 防重複載入
-  if (window._ms) return;
-
-  var o = window.paintTradeList;
-  if (typeof o !== 'function') return;
-
-  window._ms = 1;
-  window._mc = 'n';
-
-  window.paintTradeList = function () {
-    var m = window.marketData;
-    if (m && Array.isArray(m) && window._mc !== 'n') {
-      m.sort(function (a, b) {
-        var s = window._mc;
-        var ac = a.cnt || 1;
-        var bc = b.cnt || 1;
-        if (s === 'pa') return a.price - b.price;
-        if (s === 'pd') return b.price - a.price;
-        if (s === 'ua') return (a.price / ac) - (b.price / bc);
-        if (s === 'ud') return (b.price / bc) - (a.price / ac);
-        return 0;
-      });
+(function() {
+    // 防重複載入
+    if (window._mySortInitialized) {
+        return;
     }
-
-    var r = o.apply(this, arguments);
-
-    var si = document.getElementById('trade-search');
-    if (si && si.parentNode && si.parentNode.id !== 'msu') {
-      // 建立並排容器
-      var w = document.createElement('div');
-      w.id = 'msu';
-      w.style.cssText = 'display:flex;gap:6px;margin-bottom:8px;width:100%';
-      si.parentNode.insertBefore(w, si);
-
-      // 搜尋框變窄
-      si.style.flex = '1';
-      si.style.minWidth = '0';
-      si.style.marginBottom = '0';
-      w.appendChild(si);
-
-      // 排序下拉選單
-      var se = document.createElement('select');
-      se.style.cssText = 'flex:0 0 auto;padding:8px 4px;border-radius:8px;border:1px solid #5a4a26;background:#efe9dc;color:#2a2018;font-size:13px;font-weight:bold';
-      se.innerHTML =
-        '<option value="n">\u{1F500}\u9810\u8A2D</option>' +
-        '<option value="pa">\u{1F4B0}\u7E3D\u50F9\u4F4E\u2192\u9AD8</option>' +
-        '<option value="pd">\u{1F4B0}\u7E3D\u50F9\u9AD8\u2192\u4F4E</option>' +
-        '<option value="ua">\u{1F4E6}\u55AE\u50F9\u4F4E\u2192\u9AD8</option>' +
-        '<option value="ud">\u{1F4E6}\u55AE\u50F9\u9AD8\u2192\u4F4E</option>';
-      w.appendChild(se);
-      se.value = window._mc;
-
-      se.onchange = function () {
-        window._mc = se.value;
-        if (typeof tradeShowMax !== 'undefined') tradeShowMax = 80;
+    
+    var origPaint = window.paintTradeList;
+    if (typeof origPaint !== 'function') {
+        return;
+    }
+    
+    window._origPaintTradeList = origPaint;
+    window._myCurrentSort = 'none';
+    
+    window.paintTradeList = function() {
+        // 關鍵修復：直接呼叫 marketData，不要加上 window.
+        if (typeof marketData !== 'undefined' && Array.isArray(marketData)) {
+            var sortType = window._myCurrentSort;
+            if (sortType && sortType !== 'none') {
+                marketData.sort(function(a, b) {
+                    var aCnt = a.cnt || 1;
+                    var bCnt = b.cnt || 1;
+                    var aUnit = a.price / aCnt;
+                    var bUnit = b.price / bCnt;
+                    if (sortType === 'priceAsc') return a.price - b.price;
+                    if (sortType === 'priceDesc') return b.price - a.price;
+                    if (sortType === 'unitPriceAsc') return aUnit - bUnit;
+                    if (sortType === 'unitPriceDesc') return bUnit - aUnit;
+                    return 0;
+                });
+            }
+        }
+        
+        var result = window._origPaintTradeList.apply(this, arguments);
+        
+        if (document.getElementById('trade-list')) {
+            var searchInput = document.getElementById('trade-search');
+            if (searchInput && searchInput.parentNode && searchInput.parentNode.id !== 'my-sort-ui') {
+                var wrapper = document.createElement('div');
+                wrapper.id = 'my-sort-ui';
+                wrapper.style.display = 'flex';
+                wrapper.style.gap = '6px';
+                wrapper.style.marginBottom = '8px';
+                wrapper.style.width = '100%';
+                
+                searchInput.parentNode.insertBefore(wrapper, searchInput);
+                
+                searchInput.style.marginBottom = '0';
+                searchInput.style.flex = '1';
+                searchInput.style.minWidth = '0';
+                wrapper.appendChild(searchInput);
+                
+                var selectEl = document.createElement('select');
+                selectEl.id = 'my-sort-select';
+                selectEl.style.flex = '0 0 auto';
+                selectEl.style.padding = '8px 4px';
+                selectEl.style.borderRadius = '8px';
+                selectEl.style.border = '1px solid #5a4a26';
+                selectEl.style.background = '#efe9dc';
+                selectEl.style.color = '#2a2018';
+                selectEl.style.fontSize = '13.5px';
+                selectEl.style.fontWeight = 'bold';
+                
+                selectEl.innerHTML = '<option value="none">🔀 預設</option>' +
+                                     '<option value="priceAsc">💰 總價:低➡️高</option>' +
+                                     '<option value="priceDesc">💰 總價:高➡️低</option>' +
+                                     '<option value="unitPriceAsc">📦 單價:低➡️高</option>' +
+                                     '<option value="unitPriceDesc">📦 單價:高➡️低</option>';
+                wrapper.appendChild(selectEl);
+                
+                selectEl.value = window._myCurrentSort;
+                selectEl.addEventListener('change', function(e) {
+                    window._myCurrentSort = e.target.value;
+                    if (typeof tradeShowMax !== 'undefined') tradeShowMax = 80;
+                    window.paintTradeList();
+                });
+            }
+        }
+        return result;
+    };
+    
+    window._mySortInitialized = true;
+    if (document.getElementById('trade-list')) {
         window.paintTradeList();
-      };
     }
-
-    return r;
-  };
-
-  // 如果已經在交易所畫面，立即套用
-  if (document.getElementById('trade-list')) {
-    window.paintTradeList();
-  }
 })();
