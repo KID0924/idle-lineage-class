@@ -34,6 +34,9 @@
         var result = window._origPaintTradeList.apply(this, arguments);
         
         if (document.getElementById('trade-list')) {
+            var box = document.getElementById('trade-list');
+            
+            // 1. 建立並排的排序下拉選單
             var searchInput = document.getElementById('trade-search');
             if (searchInput && searchInput.parentNode && searchInput.parentNode.id !== 'my-sort-ui') {
                 var wrapper = document.createElement('div');
@@ -74,6 +77,30 @@
                     if (typeof tradeShowMax !== 'undefined') tradeShowMax = 80;
                     window.paintTradeList();
                 });
+            }
+            
+            // 2. 針對複數商品計算並在 DOM 上標註單價
+            var items = box.querySelectorAll('.shop-item');
+            for (var i = 0; i < items.length; i++) {
+                var info = items[i].querySelector('.si-info');
+                if (info && info.dataset.detail) {
+                    var itemId = parseInt(info.dataset.detail, 10);
+                    var itemData = typeof marketData !== 'undefined' && marketData.find(function(x) { return x.id === itemId; });
+                    if (itemData && itemData.cnt > 1) {
+                        var unitPrice = Math.floor(itemData.price / itemData.cnt);
+                        var sip = items[i].querySelector('.si-p');
+                        if (sip && !sip.querySelector('.my-unit-price')) {
+                            var unitSpan = document.createElement('span');
+                            unitSpan.className = 'my-unit-price';
+                            unitSpan.style.color = '#d97706'; // 醒目的深橘色
+                            unitSpan.style.marginLeft = '8px';
+                            unitSpan.style.fontSize = '12px';
+                            unitSpan.style.fontWeight = 'bold';
+                            unitSpan.textContent = '(單價: ' + unitPrice.toLocaleString() + ')';
+                            sip.appendChild(unitSpan);
+                        }
+                    }
+                }
             }
         }
         return result;
