@@ -810,7 +810,7 @@
                     height: 28px !important;
                     text-align: center !important;
                 }
-                #gm-char-gold-input {
+                #gm-char-gold-input, #gm-char-diamond-input {
                     max-width: 100% !important;
                     text-align: left !important;
                 }
@@ -2080,10 +2080,24 @@
                                         <span class="gm-shop-control-label">角色金幣 (Gold, 上限 9999 億)</span>
                                         <input type="number" id="gm-char-gold-input" class="gm-shop-char-input" min="0" max="999999999999">
                                         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
-                                            <button class="gm-rate-pill" onclick="setGMCharGold(1000000)">100萬</button>
-                                            <button class="gm-rate-pill" onclick="setGMCharGold(10000000)">1000萬</button>
-                                            <button class="gm-rate-pill" onclick="setGMCharGold(100000000)">1億</button>
-                                            <button class="gm-rate-pill" onclick="setGMCharGold(1000000000)">10億</button>
+                                            <button type="button" class="gm-rate-pill" onclick="setGMCharGold(1000000)">100萬</button>
+                                            <button type="button" class="gm-rate-pill" onclick="setGMCharGold(10000000)">1000萬</button>
+                                            <button type="button" class="gm-rate-pill" onclick="setGMCharGold(100000000)">1億</button>
+                                            <button type="button" class="gm-rate-pill" onclick="setGMCharGold(1000000000)">10億</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="gm-shop-char-input-group">
+                                        <span class="gm-shop-control-label">龍之鑽石 (共用資產)</span>
+                                        <div style="display: flex; gap: 8px; align-items: center;">
+                                            <input type="number" id="gm-char-diamond-input" class="gm-shop-char-input" min="0" max="99999999" style="flex: 1;">
+                                            <button type="button" class="gm-shop-char-btn-adj" style="padding: 4px 12px; height: 32px; background: #6366f1; border-color: #4f46e5; color: white; white-space: nowrap; font-size: 13px; border-radius: 4px; font-weight: bold; cursor: pointer;" onclick="triggerGMWanderers()">🔄 滿載收購商</button>
+                                        </div>
+                                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
+                                            <button type="button" class="gm-rate-pill" onclick="setGMCharDiamond(100)">100顆</button>
+                                            <button type="button" class="gm-rate-pill" onclick="setGMCharDiamond(1000)">1000顆</button>
+                                            <button type="button" class="gm-rate-pill" onclick="setGMCharDiamond(10000)">1萬顆</button>
+                                            <button type="button" class="gm-rate-pill" onclick="setGMCharDiamond(100000)">10萬顆</button>
                                         </div>
                                     </div>
                                 </div>
@@ -2715,6 +2729,20 @@
         if (lvlInput) lvlInput.value = player.lv || 1;
         if (bonusInput) bonusInput.value = player.bonus || 0;
 
+        let diamondInput = document.getElementById('gm-char-diamond-input');
+        if (diamondInput && typeof _lzGet === 'function' && typeof _saveUnwrap === 'function') {
+            let raw = _lzGet('fb5_pandora_relic_market_v1');
+            if (raw) {
+                let unwrapped = _saveUnwrap(raw);
+                if (unwrapped.ok) {
+                    let st = JSON.parse(unwrapped.payload);
+                    diamondInput.value = st.diamonds || 0;
+                }
+            } else {
+                diamondInput.value = 0;
+            }
+        }
+
         // 載入遊戲倍率調整數值（遊戲速度每次開啟都重置為預設 1.0）
         window.__gmGameSpeed = 1.0;
         let currentSpeed = 1.0;
@@ -2985,6 +3013,148 @@
         }
     };
 
+    window.setGMCharDiamond = function (amount) {
+        let input = document.getElementById('gm-char-diamond-input');
+        if (input) {
+            input.value = amount;
+        }
+    };
+
+    window.triggerGMWanderers = function () {
+        if (typeof DB === 'undefined' || !DB.items || !DB.towns) return;
+        if (typeof _lzGet !== 'function' || typeof _lzSet !== 'function' || typeof _saveWrap !== 'function' || typeof _saveUnwrap !== 'function') {
+            alert("系統尚未完全載入，請稍後再試。");
+            return;
+        }
+
+        const EXCLUDED_TOWNS = new Set([
+            'town_silent', 'town_elder_council', 'town_pride', 'town_rift', 'town_sherine'
+        ]);
+        const EXCLUDED_TOWN_NAMES = ['拉斯塔巴德', '傲慢之塔', '時空裂痕', '席琳神殿'];
+
+        function getEligibleTowns() {
+            return Object.keys(DB.towns).filter(id => {
+                let t = DB.towns[id];
+                if (!t || EXCLUDED_TOWNS.has(id)) return false;
+                let name = String(t.n || '');
+                return !EXCLUDED_TOWN_NAMES.some(x => name.includes(x));
+            });
+        }
+
+        function getWandererItemPool() {
+            return Object.keys(DB.items).filter(id => {
+                let d = DB.items[id];
+                let w = Math.floor(Number(d && d.gachaWeight) || 0);
+                return !!(d && d.n && !d.relic && w >= 1 && w <= 10);
+            });
+        }
+
+        function isEquipmentDef(d) {
+            if (!d) return false;
+            return d.type === 'wpn' || d.type === 'arm' || d.type === 'acc' || d.slot === 'petwpn' || d.slot === 'petarm';
+        }
+
+        function isEnhanceableDef(d) {
+            return isEquipmentDef(d) && !d.noEnhance && !d.isArrow && Number.isFinite(Number(d.safe));
+        }
+
+        function safeValue(d) {
+            return Math.max(0, Math.min(20, Math.floor(Number(d && d.safe) || 0)));
+        }
+
+        const PLAYER_AVATARS = [
+            '王子', '公主', '男騎士', '女騎士', '男法師', '女法師', '男妖精', '女妖精',
+            '男黑暗妖精', '女黑暗妖精', '男幻術士', '女幻術士', '男龍騎士', '女龍騎士', '男戰士', '女戰士'
+        ];
+        const NAME_PREFIX = ['蒼', '緋', '玄', '墨', '銀', '白', '青', '赤', '紫', '碧', '幽', '夜', '月', '星', '霜', '雪', '風', '雲', '雷', '炎', '燼', '影', '夢', '幻', '孤', '醉', '逆', '零'];
+        const NAME_IMAGE = ['狼', '狐', '龍', '羽', '刃', '劍', '弦', '花', '葉', '海', '川', '山', '嵐', '歌', '月', '星', '塵', '魂', '心', '影', '光', '痕'];
+        const NAME_TITLE = ['行者', '旅人', '浪客', '劍士', '術士', '獵人', '守望者', '歸人', '逐風者', '追月者', '無眠', '未央', '長歌', '無雙'];
+        const NAME_SURNAME = ['南宮', '上官', '司徒', '慕容', '東方', '北辰', '長孫', '令狐', '歐陽', '夏侯'];
+        const NAME_GIVEN = ['無月', '長歌', '聽雪', '清風', '流雲', '暮雨', '星河', '青鋒', '白夜', '未央', '若水', '凌霜'];
+        const NAME_CASUAL = ['小隊長', '老玩家', '別打我', '路過', '掛機中', '求組隊', '練功中', '只收不賣', '佛系玩家'];
+
+        function makeName() {
+            let mode = Math.random();
+            if (mode < 0.40) {
+                return NAME_PREFIX[Math.floor(Math.random() * NAME_PREFIX.length)] + NAME_IMAGE[Math.floor(Math.random() * NAME_IMAGE.length)] + NAME_TITLE[Math.floor(Math.random() * NAME_TITLE.length)];
+            } else if (mode < 0.65) {
+                return NAME_SURNAME[Math.floor(Math.random() * NAME_SURNAME.length)] + NAME_GIVEN[Math.floor(Math.random() * NAME_GIVEN.length)];
+            } else if (mode < 0.85) {
+                return NAME_PREFIX[Math.floor(Math.random() * NAME_PREFIX.length)] + NAME_GIVEN[Math.floor(Math.random() * NAME_GIVEN.length)];
+            } else {
+                return NAME_CASUAL[Math.floor(Math.random() * NAME_CASUAL.length)];
+            }
+        }
+
+        let raw = _lzGet('fb5_pandora_relic_market_v1');
+        let st;
+        if (raw) {
+            let unwrapped = _saveUnwrap(raw);
+            if (unwrapped.ok) {
+                st = JSON.parse(unwrapped.payload);
+            }
+        }
+        if (!st) {
+            alert("找不到黑市狀態，請先與潘朵拉對話開啟黑市以初始化狀態。");
+            return;
+        }
+
+        let now = Date.now();
+        let WANDERER_LIFE_MS = 2 * 60 * 60 * 1000;
+        let towns = getEligibleTowns();
+        let items = getWandererItemPool();
+
+        if (!towns.length || !items.length) {
+            alert("沒有可用的村莊或道具。");
+            return;
+        }
+
+        // 清除舊收購商，並在每個村莊都生成一位
+        st.wanderers = [];
+        towns.forEach(townId => {
+            let itemId = items[Math.floor(Math.random() * items.length)];
+            let d = DB.items[itemId];
+            let en = null;
+            if (isEnhanceableDef(d)) {
+                let max = safeValue(d) + 3;
+                en = Math.floor(Math.random() * (max + 1));
+            }
+            let weight = Math.max(1, Math.min(10, Math.floor(Number(d.gachaWeight) || 10)));
+            let over = en == null ? 0 : Math.max(0, en - safeValue(d));
+            let mult = over === 1 ? 1.2 : over === 2 ? 1.5 : over >= 3 ? 2 : 1;
+            let reward = Math.max(1, Math.ceil((11 - weight) * mult));
+
+            st.wanderers.push({
+                id: 'wander-' + now.toString(36) + '-' + Math.floor(Math.random() * 0xffffff).toString(36),
+                townId: townId,
+                name: makeName(),
+                avatar: PLAYER_AVATARS[Math.floor(Math.random() * PLAYER_AVATARS.length)],
+                itemId: itemId,
+                en: en,
+                weight: weight,
+                reward: reward,
+                spawnedAt: now,
+                expiresAt: now + WANDERER_LIFE_MS,
+                broadcastStopped: false,
+                quietAt: 0
+            });
+        });
+
+        st.updatedAt = now;
+        _lzSet('fb5_pandora_relic_market_v1', _saveWrap(JSON.stringify(st)));
+
+        // 重新執行 SystemTick 更新地圖與觸發廣播
+        if (typeof wanderingBuyerSystemTick === 'function') {
+            wanderingBuyerSystemTick();
+        }
+
+        if (typeof showToast === 'function') {
+            showToast("已成功在所有合格村莊重新生成收購商！", 'success');
+        } else {
+            alert("已成功在所有合格村莊重新生成收購商！");
+        }
+    };
+
     window.setAllBaseStatsTo60 = function () {
         const stats = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
         stats.forEach(st => {
@@ -3017,9 +3187,15 @@
         let goldVal = parseInt(document.getElementById('gm-char-gold-input').value);
         let lvlVal = parseInt(document.getElementById('gm-char-lvl-input').value);
         let bonusVal = parseInt(document.getElementById('gm-char-bonus-input').value);
+        let diamondInput = document.getElementById('gm-char-diamond-input');
+        let diamondVal = diamondInput ? parseInt(diamondInput.value) : NaN;
 
         if (isNaN(goldVal) || goldVal < 0 || goldVal > 999999999999) {
             alert("請輸入有效的金幣數量 (0 ~ 999,999,999,999)！");
+            return;
+        }
+        if (diamondInput && (isNaN(diamondVal) || diamondVal < 0 || diamondVal > 99999999)) {
+            alert("請輸入有效的龍之鑽石數量 (0 ~ 99,999,999)！");
             return;
         }
         if (isNaN(lvlVal) || lvlVal < 1 || lvlVal > 999) {
@@ -3047,6 +3223,25 @@
 
         // 套用修改
         player.gold = goldVal;
+
+        if (!isNaN(diamondVal) && typeof _lzGet === 'function' && typeof _lzSet === 'function' && typeof _saveWrap === 'function' && typeof _saveUnwrap === 'function') {
+            let raw = _lzGet('fb5_pandora_relic_market_v1');
+            if (raw) {
+                let unwrapped = _saveUnwrap(raw);
+                if (unwrapped.ok) {
+                    let st = JSON.parse(unwrapped.payload);
+                    st.diamonds = diamondVal;
+                    st.updatedAt = Date.now();
+                    _lzSet('fb5_pandora_relic_market_v1', _saveWrap(JSON.stringify(st)));
+                    
+                    // 同步更新頁面中所有顯示龍之鑽石數量的 DOM 元素
+                    let diamondDisplays = document.querySelectorAll('.pandora-diamond-count');
+                    diamondDisplays.forEach(el => {
+                        el.innerText = diamondVal.toLocaleString();
+                    });
+                }
+            }
+        }
 
         let oldLv = player.lv || 1;
         player.lv = lvlVal;
