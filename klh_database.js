@@ -1033,6 +1033,31 @@
 
     window.addEventListener('beforeunload', () => { window.__klh_is_unloading = true; });
 
+    // 🔧 共用遊戲資料收集與還原（明確列舉需要雲端同步的 localStorage 鍵值）
+    //    目前包含：寵物名冊、龍之鑽石/黑市。日後有新增再手動加入。
+    const _SHARED_KEYS = [
+        'fb5_pet_roster',                // 寵物名冊（一般模式）
+        'fb5_pet_roster_classic',         // 寵物名冊（經典模式）
+        'fb5_pandora_relic_market_v1'     // 龍之鑽石、流浪收購商、遺物布告欄
+    ];
+    function _collectSharedData() {
+        const shared = {};
+        for (const key of _SHARED_KEYS) {
+            const val = localStorage.getItem(key);
+            if (val !== null) shared[key] = val;
+        }
+        return Object.keys(shared).length ? shared : null;
+    }
+    function _restoreSharedData(shared) {
+        if (!shared || typeof shared !== 'object') return;
+        for (const key of _SHARED_KEYS) {
+            const val = shared[key];
+            if (val !== undefined && val !== null) {
+                localStorage.setItem(key, (typeof val === 'object') ? JSON.stringify(val) : val);
+            }
+        }
+    }
+
     window.uploadToCloud = async function (isManual = false, forceFullOverwrite = false, skipMergeSlot = null) {
         if (!window.__klh_cloud_sync_success) {
             if (isManual && typeof window.showToast === 'function') window.showToast('同步失敗：尚未成功下載雲端最新存檔，已攔截上傳以防覆寫！', 'error');
@@ -1048,6 +1073,8 @@
         const maxSlots = getMaxSaveSlot();
         const payload = { warehouse: localStorage.getItem('lineage_idle_warehouse') };
         for (let n = 1; n <= maxSlots; n++) payload['save_' + n] = localStorage.getItem('lineage_idle_save_' + n);
+        const sharedData = _collectSharedData();
+        if (sharedData) payload.shared = sharedData;
         const activeSlot = (typeof currentSlot !== 'undefined') ? parseInt(currentSlot, 10) : null;
         if (activeSlot >= 1 && activeSlot <= maxSlots) {
             if (!payload['save_' + activeSlot]) {
@@ -1098,6 +1125,7 @@
                     const warehouseVal = payload.warehouse || payload.lineage_idle_warehouse;
                     if (warehouseVal !== undefined && warehouseVal !== null) localStorage.setItem('lineage_idle_warehouse', (typeof warehouseVal === 'object') ? JSON.stringify(warehouseVal) : warehouseVal);
                     else localStorage.removeItem('lineage_idle_warehouse');
+                    if (payload.shared) _restoreSharedData(payload.shared);
                     if (isManual) {
                         const isPublic = PUBLIC_KEYS.includes(activeKeyLower);
                         window.showToast(isPublic ? '進入諸神共用殿堂成功！(管道：' + (res.connectionMethod || '未知') + ')' : '雲端存檔讀取成功！(管道：' + (res.connectionMethod || '未知') + ')', isPublic ? 'danger' : 'success');
@@ -1167,9 +1195,11 @@
         
         const databaseURL = getFirebaseDatabaseURL();
         const maxSlots = getMaxSaveSlot();
+        const sharedDataFB = _collectSharedData();
         const payload = {
             saves: {},
             warehouse: localStorage.getItem('lineage_idle_warehouse'),
+            shared: sharedDataFB || {},
             updatedAt: Date.now(),
             clientInfo: 'Firebase-Sync-Module-v1'
         };
@@ -1263,6 +1293,7 @@
                     } else {
                         localStorage.removeItem('lineage_idle_warehouse');
                     }
+                    if (payload.shared) _restoreSharedData(payload.shared);
                     if (isManual) window.showToast('Firebase 存檔讀取成功！', 'success');
                     window.__klh_cloud_sync_success = true;
                 } else {
@@ -1464,6 +1495,8 @@
         const maxSlots = getMaxSaveSlot();
         const payload = { warehouse: localStorage.getItem('lineage_idle_warehouse') };
         for (let n = 1; n <= maxSlots; n++) payload['save_' + n] = localStorage.getItem('lineage_idle_save_' + n);
+        const sharedDataSB = _collectSharedData();
+        if (sharedDataSB) payload.shared = sharedDataSB;
         const activeSlot = (typeof window.currentSlot !== 'undefined') ? parseInt(window.currentSlot, 10) : null;
         if (activeSlot >= 1 && activeSlot <= maxSlots && !payload['save_' + activeSlot]) {
             if (isManual) window.showToast('偵測到本地當前槽位存檔為空，已攔截雲端覆寫！', 'error');
@@ -1533,6 +1566,7 @@
             const warehouseVal = payload.warehouse;
             if (warehouseVal !== undefined && warehouseVal !== null) localStorage.setItem('lineage_idle_warehouse', (typeof warehouseVal === 'object') ? JSON.stringify(warehouseVal) : warehouseVal);
             else localStorage.removeItem('lineage_idle_warehouse');
+            if (payload.shared) _restoreSharedData(payload.shared);
             window.__klh_cloud_sync_success = true;
             if (isManual) window.showToast('雲端存檔同步成功！', 'success');
             refreshLoadBtnVisibility();
