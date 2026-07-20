@@ -668,7 +668,11 @@
         }
       } else if (!isNowVisible && _tabPanelWasVisible) {
         _tabPanelWasVisible = false;
-        console.log('📱 [手機優化] 背包滑出畫面：切換為虛擬 DOM (跳過繪製)');
+        console.log('📱 [手機優化] 背包滑出畫面：自動切換至「能力」分頁以節省資源');
+        if (typeof window.switchTab === 'function') {
+          var statsBtn = document.querySelector("button[onclick*=\"'stats'\"]");
+          try { window.switchTab('stats', statsBtn); } catch (e) {}
+        }
       }
     }, { capture: true, passive: true });
 
