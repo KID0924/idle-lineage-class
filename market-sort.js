@@ -58,12 +58,12 @@
                     { text: '⚡ 快速填入', val: '' },
                     { text: '卷', val: '卷' },
                     { text: '武器施法的卷軸', val: '武器施法的卷軸' },
-                    { text: '武器祝福的卷軸', val: '武器祝福的卷軸' },
+                    { text: '武器祝福卷軸', val: '武器祝福卷軸' },
                     { text: '盔甲施法的卷軸', val: '盔甲施法的卷軸' },
-                    { text: '盔甲祝福的卷軸', val: '盔甲祝福的卷軸' },
+                    { text: '盔甲祝福卷軸', val: '盔甲祝福卷軸' },
                     { text: '飾品', val: '飾品' },
                     { text: '飾品施法的卷軸', val: '飾品施法的卷軸' },
-                    { text: '飾品祝福的卷軸', val: '飾品祝福的卷軸' },
+                    { text: '飾品祝福卷軸', val: '飾品祝福卷軸' },
                     { text: '力量魔法頭盔', val: '力量魔法頭盔' },
                     { text: '敏捷魔法頭盔', val: '敏捷魔法頭盔' },
                     { text: '萬能藥', val: '萬能藥' },
@@ -82,7 +82,7 @@
                 var quickSelectEl = document.createElement('select');
                 quickSelectEl.id = 'my-quick-select';
                 quickSelectEl.style.flex = '0 0 auto';
-                quickSelectEl.style.maxWidth = '105px';
+                quickSelectEl.style.maxWidth = '90px';
                 quickSelectEl.style.padding = '8px 2px';
                 quickSelectEl.style.borderRadius = '8px';
                 quickSelectEl.style.border = '1px solid #5a4a26';
@@ -101,8 +101,7 @@
                     quickSelectEl.value = searchInput.value;
                 }
 
-                quickSelectEl.addEventListener('change', function(e) {
-                    var val = e.target.value;
+                function doQuickSearch(val) {
                     searchInput.value = val;
                     if (typeof tradeSearch !== 'undefined') {
                         tradeSearch = val;
@@ -116,6 +115,55 @@
                         searchInput.dispatchEvent(new Event('input', { bubbles: true }));
                     }
                     window.paintTradeList();
+                }
+
+                quickSelectEl.addEventListener('change', function(e) {
+                    doQuickSearch(e.target.value);
+                });
+
+                // 新增「◀」上一個與「▶」下一個切換按鈕
+                var prevBtn = document.createElement('button');
+                prevBtn.id = 'my-quick-prev-btn';
+                prevBtn.textContent = '◀';
+                prevBtn.title = '點擊切換至上一個選項';
+                prevBtn.style.flex = '0 0 auto';
+                prevBtn.style.padding = '8px 5px';
+                prevBtn.style.borderRadius = '8px';
+                prevBtn.style.border = '1px solid #5a4a26';
+                prevBtn.style.background = '#efe9dc';
+                prevBtn.style.color = '#2a2018';
+                prevBtn.style.fontSize = '12px';
+                prevBtn.style.fontWeight = 'bold';
+                prevBtn.style.cursor = 'pointer';
+
+                prevBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    var total = quickSelectEl.options.length;
+                    var prevIdx = (quickSelectEl.selectedIndex - 1 + total) % total;
+                    quickSelectEl.selectedIndex = prevIdx;
+                    doQuickSearch(quickSelectEl.value);
+                });
+
+                var nextBtn = document.createElement('button');
+                nextBtn.id = 'my-quick-next-btn';
+                nextBtn.textContent = '▶';
+                nextBtn.title = '點擊切換至下一個選項';
+                nextBtn.style.flex = '0 0 auto';
+                nextBtn.style.padding = '8px 5px';
+                nextBtn.style.borderRadius = '8px';
+                nextBtn.style.border = '1px solid #5a4a26';
+                nextBtn.style.background = '#efe9dc';
+                nextBtn.style.color = '#2a2018';
+                nextBtn.style.fontSize = '12px';
+                nextBtn.style.fontWeight = 'bold';
+                nextBtn.style.cursor = 'pointer';
+
+                nextBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    var total = quickSelectEl.options.length;
+                    var nextIdx = (quickSelectEl.selectedIndex + 1) % total;
+                    quickSelectEl.selectedIndex = nextIdx;
+                    doQuickSearch(quickSelectEl.value);
                 });
 
                 searchInput.addEventListener('input', function() {
@@ -131,6 +179,8 @@
                 });
 
                 wrapper.appendChild(quickSelectEl);
+                wrapper.appendChild(prevBtn);
+                wrapper.appendChild(nextBtn);
                 
                 // 3. 建立排序下拉選單
                 var selectEl = document.createElement('select');
