@@ -42,7 +42,7 @@
                 var wrapper = document.createElement('div');
                 wrapper.id = 'my-sort-ui';
                 wrapper.style.display = 'flex';
-                wrapper.style.gap = '6px';
+                wrapper.style.gap = '4px';
                 wrapper.style.marginBottom = '8px';
                 wrapper.style.width = '100%';
                 
@@ -52,7 +52,87 @@
                 searchInput.style.flex = '1';
                 searchInput.style.minWidth = '0';
                 wrapper.appendChild(searchInput);
+
+                // 2. 建立快速填入下拉選單 (放置於搜尋名稱與排序選單中間)
+                var quickItems = [
+                    { text: '⚡ 快速填入', val: '' },
+                    { text: '卷', val: '卷' },
+                    { text: '武器施法的卷軸', val: '武器施法的卷軸' },
+                    { text: '武器祝福的卷軸', val: '武器祝福的卷軸' },
+                    { text: '盔甲施法的卷軸', val: '盔甲施法的卷軸' },
+                    { text: '盔甲祝福的卷軸', val: '盔甲祝福的卷軸' },
+                    { text: '飾品', val: '飾品' },
+                    { text: '飾品施法的卷軸', val: '飾品施法的卷軸' },
+                    { text: '飾品祝福的卷軸', val: '飾品祝福的卷軸' },
+                    { text: '力量魔法頭盔', val: '力量魔法頭盔' },
+                    { text: '敏捷魔法頭盔', val: '敏捷魔法頭盔' },
+                    { text: '萬能藥', val: '萬能藥' },
+                    { text: 'STR', val: 'STR' },
+                    { text: 'INT', val: 'INT' },
+                    { text: 'DEX', val: 'DEX' },
+                    { text: 'CHA', val: 'CHA' },
+                    { text: 'CON', val: 'CON' },
+                    { text: 'WIS', val: 'WIS' },
+                    { text: '十字', val: '十字' },
+                    { text: '腰帶', val: '腰帶' },
+                    { text: '不死', val: '不死' },
+                    { text: '鑰匙', val: '鑰匙' }
+                ];
+
+                var quickSelectEl = document.createElement('select');
+                quickSelectEl.id = 'my-quick-select';
+                quickSelectEl.style.flex = '0 0 auto';
+                quickSelectEl.style.maxWidth = '105px';
+                quickSelectEl.style.padding = '8px 2px';
+                quickSelectEl.style.borderRadius = '8px';
+                quickSelectEl.style.border = '1px solid #5a4a26';
+                quickSelectEl.style.background = '#efe9dc';
+                quickSelectEl.style.color = '#2a2018';
+                quickSelectEl.style.fontSize = '13.5px';
+                quickSelectEl.style.fontWeight = 'bold';
+
+                var qHtml = '';
+                for (var q = 0; q < quickItems.length; q++) {
+                    qHtml += '<option value="' + quickItems[q].val + '">' + quickItems[q].text + '</option>';
+                }
+                quickSelectEl.innerHTML = qHtml;
+
+                if (searchInput.value) {
+                    quickSelectEl.value = searchInput.value;
+                }
+
+                quickSelectEl.addEventListener('change', function(e) {
+                    var val = e.target.value;
+                    searchInput.value = val;
+                    if (typeof tradeSearch !== 'undefined') {
+                        tradeSearch = val;
+                    }
+                    if (typeof tradeShowMax !== 'undefined') {
+                        tradeShowMax = 80;
+                    }
+                    if (typeof searchInput.oninput === 'function') {
+                        searchInput.oninput();
+                    } else {
+                        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    window.paintTradeList();
+                });
+
+                searchInput.addEventListener('input', function() {
+                    var cur = searchInput.value;
+                    var has = false;
+                    for (var q = 0; q < quickItems.length; q++) {
+                        if (quickItems[q].val && quickItems[q].val === cur) {
+                            has = true;
+                            break;
+                        }
+                    }
+                    quickSelectEl.value = has ? cur : '';
+                });
+
+                wrapper.appendChild(quickSelectEl);
                 
+                // 3. 建立排序下拉選單
                 var selectEl = document.createElement('select');
                 selectEl.id = 'my-sort-select';
                 selectEl.style.flex = '0 0 auto';
