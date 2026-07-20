@@ -429,6 +429,8 @@
 
     // ── 所有等級 ──
     css += '[class*="backdrop-blur"],.backdrop-blur-sm{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}\n';
+    // 🚀 虛擬滾動/渲染剔除：利用 CSS 原生機制跳過不可見裝備的 DOM 佈局與繪製，極大幅降低功耗
+    css += '#tab-weapons .list-item, #tab-armors .list-item, #tab-items .list-item { content-visibility: auto; contain-intrinsic-size: 72px; }\n';
 
     // ── 中度以上 ──
     if (lv >= 2) {
