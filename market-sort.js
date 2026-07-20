@@ -66,9 +66,16 @@
                     { text: '飾品祝福卷軸', val: '飾品祝福卷軸' },
                     { text: '力量魔法頭盔', val: '力量魔法頭盔' },
                     { text: '敏捷魔法頭盔', val: '敏捷魔法頭盔' },
+                    { text: '搜索狀', val: '搜索狀' },
                     { text: '萬能藥', val: '萬能藥' },
                     { text: '十字', val: '十字' },
+                    { text: '腕甲', val: '腕甲' },
+                    { text: '艾', val: '艾' },
+                    { text: '精靈鏈甲', val: '精靈鏈甲' },
+                    { text: '精靈金屬盔甲', val: '精靈金屬盔甲' },
                     { text: '腰帶', val: '腰帶' },
+                    { text: '項鍊', val: '項鍊' },
+                    { text: '戒指', val: '戒指' },
                     { text: '不死', val: '不死' },
                     { text: '鑰匙', val: '鑰匙' },
                     { text: 'STR', val: 'STR' },
@@ -76,7 +83,11 @@
                     { text: 'DEX', val: 'DEX' },
                     { text: 'CHA', val: 'CHA' },
                     { text: 'CON', val: 'CON' },
-                    { text: 'WIS', val: 'WIS' }
+                    { text: 'WIS', val: 'WIS' },
+                    { text: '+9', val: '+9' },
+                    { text: '+8', val: '+8' },
+                    { text: '+7', val: '+7' },
+                    { text: '+6', val: '+6' }
                 ];
 
                 var quickSelectEl = document.createElement('select');
