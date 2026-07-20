@@ -100,7 +100,7 @@
                     { text: '+7', val: '+7' },
                     { text: '+6', val: '+6' },
                     { text: '抗魔法', val: '抗魔法' },
-                    { text: '放魔法頭盔', val: '放魔法頭盔' }
+                    { text: '抗魔法頭盔', val: '抗魔法頭盔' }
                 ];
 
                 var quickSelectEl = document.createElement('select');
