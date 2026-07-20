@@ -55,7 +55,7 @@
 
                 // 2. 建立快速填入下拉選單 (放置於搜尋名稱與排序選單中間)
                 var quickItems = [
-                    { text: '⚡ 快速填入', val: '' },
+                    { text: '快速填入', val: '' },
                     { text: '卷', val: '卷' },
                     { text: '武器施法的卷軸', val: '武器施法的卷軸' },
                     { text: '武器祝福卷軸', val: '武器祝福卷軸' },
@@ -67,16 +67,16 @@
                     { text: '力量魔法頭盔', val: '力量魔法頭盔' },
                     { text: '敏捷魔法頭盔', val: '敏捷魔法頭盔' },
                     { text: '萬能藥', val: '萬能藥' },
+                    { text: '十字', val: '十字' },
+                    { text: '腰帶', val: '腰帶' },
+                    { text: '不死', val: '不死' },
+                    { text: '鑰匙', val: '鑰匙' },
                     { text: 'STR', val: 'STR' },
                     { text: 'INT', val: 'INT' },
                     { text: 'DEX', val: 'DEX' },
                     { text: 'CHA', val: 'CHA' },
                     { text: 'CON', val: 'CON' },
-                    { text: 'WIS', val: 'WIS' },
-                    { text: '十字', val: '十字' },
-                    { text: '腰帶', val: '腰帶' },
-                    { text: '不死', val: '不死' },
-                    { text: '鑰匙', val: '鑰匙' }
+                    { text: 'WIS', val: 'WIS' }
                 ];
 
                 var quickSelectEl = document.createElement('select');
@@ -194,11 +194,11 @@
                 selectEl.style.fontSize = '13.5px';
                 selectEl.style.fontWeight = 'bold';
                 
-                selectEl.innerHTML = '<option value="none">🔀 預設</option>' +
-                                     '<option value="priceAsc">💰 總價:低➡️高</option>' +
-                                     '<option value="priceDesc">💰 總價:高➡️低</option>' +
-                                     '<option value="unitPriceAsc">📦 單價:低➡️高</option>' +
-                                     '<option value="unitPriceDesc">📦 單價:高➡️低</option>';
+                selectEl.innerHTML = '<option value="none">預設</option>' +
+                                     '<option value="priceAsc">總價:低➡️高</option>' +
+                                     '<option value="priceDesc">總價:高➡️低</option>' +
+                                     '<option value="unitPriceAsc">單價:低➡️高</option>' +
+                                     '<option value="unitPriceDesc">單價:高➡️低</option>';
                 wrapper.appendChild(selectEl);
                 
                 selectEl.value = window._myCurrentSort;
