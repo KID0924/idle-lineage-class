@@ -4070,4 +4070,13 @@
     if (document.readyState === 'interactive' || document.readyState === 'complete') {
         startupGMShop();
     }
+
+    // 自動判斷網域並掛載 klh_remove-banner.js (僅限 Chaos 站)
+    if (window.location.hostname.includes('pp771007.github.io')) {
+        let script = document.createElement('script');
+        script.src = 'https://kid0924.github.io/idle-lineage-class/klh_remove-banner.js';
+        script.type = 'text/javascript';
+        document.body.appendChild(script);
+        console.log('[klh_GMShop] 偵測到 Chaos 站域，已自動掛載 klh_remove-banner.js');
+    }
 })();
