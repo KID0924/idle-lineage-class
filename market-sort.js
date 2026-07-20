@@ -220,15 +220,16 @@
                 });
             }
             
-            // 2. 針對複數商品計算並在 DOM 上標註單價
+            // 2. 針對所有商品計算並在 DOM 上標註單價（單數與複數皆顯示，保持一致性）
             var items = box.querySelectorAll('.shop-item');
             for (var i = 0; i < items.length; i++) {
                 var info = items[i].querySelector('.si-info');
                 if (info && info.dataset.detail) {
                     var itemId = parseInt(info.dataset.detail, 10);
                     var itemData = typeof marketData !== 'undefined' && marketData.find(function(x) { return x.id === itemId; });
-                    if (itemData && itemData.cnt > 1) {
-                        var unitPrice = Math.floor(itemData.price / itemData.cnt);
+                    if (itemData && itemData.price) {
+                        var cnt = itemData.cnt || 1;
+                        var unitPrice = Math.floor(itemData.price / cnt);
                         var sip = items[i].querySelector('.si-p');
                         if (sip && !sip.querySelector('.my-unit-price')) {
                             var unitSpan = document.createElement('span');
