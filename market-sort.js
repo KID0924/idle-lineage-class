@@ -74,10 +74,13 @@
                     { text: '精靈鏈甲', val: '精靈鏈甲' },
                     { text: '精靈金屬盔甲', val: '精靈金屬盔甲' },
                     { text: '腰帶', val: '腰帶' },
+                    { text: '泰坦', val: '泰坦' },
                     { text: '項鍊', val: '項鍊' },
                     { text: '戒指', val: '戒指' },
                     { text: '不死', val: '不死' },
                     { text: '鑰匙', val: '鑰匙' },
+                    { text: '變形怪', val: '變形怪' },
+                    { text: '蛇女', val: '蛇女' },
                     { text: '潘', val: '潘' },
                     { text: '樹枝', val: '樹枝' },
                     { text: '金屬塊', val: '金屬塊' },
@@ -85,6 +88,7 @@
                     { text: '鋼鐵頭盔', val: '鋼鐵頭盔' },
                     { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                     { text: '鋼鐵手套', val: '鋼鐵手套' },
+                    { text: '品質', val: '品質' },
                     { text: 'STR', val: 'STR' },
                     { text: 'INT', val: 'INT' },
                     { text: 'DEX', val: 'DEX' },
@@ -94,7 +98,9 @@
                     { text: '+9', val: '+9' },
                     { text: '+8', val: '+8' },
                     { text: '+7', val: '+7' },
-                    { text: '+6', val: '+6' }
+                    { text: '+6', val: '+6' },
+                    { text: '抗魔法', val: '抗魔法' },
+                    { text: '放魔法頭盔', val: '放魔法頭盔' }
                 ];
 
                 var quickSelectEl = document.createElement('select');
