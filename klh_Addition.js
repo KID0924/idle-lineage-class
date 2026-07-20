@@ -33,7 +33,6 @@
             for (let townId in DB.towns) {
                 let town = DB.towns[townId];
                 if (town.npcs) {
-                    // 先移除非象牙塔的時光使者以防殘留，且只將其加入到象牙塔
                     town.npcs = town.npcs.filter(n => n.id !== "npc_rebirth");
                     if (townId === "town_ivory_tower") {
                         town.npcs.push(rebirthNpc);
@@ -251,6 +250,13 @@
             };
             window.resetStatsCandle.__klhRebirthWrapped = true;
         }
+
+        // 若目前正在城鎮畫面中，自動刷新地圖渲染 NPC
+        try {
+            if (typeof mapState !== 'undefined' && mapState.type === 'town' && typeof renderTownNPCs === 'function') {
+                renderTownNPCs(mapState.current);
+            }
+        } catch (e) {}
     }
 
     // 註冊 DOM 載入與即時啟動

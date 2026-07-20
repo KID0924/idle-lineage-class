@@ -2010,7 +2010,7 @@
                         <span class="text-slate-500 font-mono text-[10px]">1. 序號：019f3dad-406e-7673-b9df-8594bd436b9c<br>
                         2. 網址：https://jsonblob.com/019f3dad-406e-7673...<br>
                         3. API：https://jsonblob.com/019f3dad-406e-7673.../json</span><br>
-                        <span class="text-cyan-400 font-bold">💡 JSONBlob 適合**存檔較小（如初期玩家、進度較少，總存檔 &lt; 1MB）**的單人使用者。<a href="https://github.com/KID0924/idle-lineage-class" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold ml-1">詳情說明 🔗</a></span>
+                        <span class="text-cyan-400 font-bold">💡 JSONBlob 適合 <b>存檔較小</b>（如初期玩家、進度較少，總存檔 &lt; 1MB）的 <b>單人使用者</b>。<a href="https://github.com/KID0924/idle-lineage-class" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold ml-1">詳情說明 🔗</a></span>
                     </div>
                     <div id="firebase-hint" class="text-[11px] text-slate-400 text-left -mt-1 leading-relaxed bg-slate-900/50 p-2 rounded" style="display: none;">
                         🔧 <b>Firebase 快速設定步驟：</b><br>
@@ -2019,7 +2019,7 @@
                         3. 進入左側 <b>Realtime Database</b> ➔ 點擊 <b>建立資料庫</b>（位置選美國/預設即可）。<br>
                         4. 切換到 <b>規則 (Rules)</b> 頁籤，將讀寫值皆改為 <b><code>true</code></b> 並點擊 <b>發布</b>。<br>
                         5. 複製資料庫主頁的 <b>資料庫網址</b><br>（格式：<span class="text-orange-400 font-mono text-[10px]">https://...firebaseio.com</span>）。<br>
-                        <span class="text-cyan-400 font-bold">💡 Firebase 適合**存檔較大（遊玩進度極深、遊戲數據龐大，免費存儲高達 1GB，可以建立不同存檔給多人同時使用）**的使用者。<a href="https://github.com/KID0924/idle-lineage-class" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold ml-1">詳情說明 🔗</a></span>
+                        <span class="text-cyan-400 font-bold">💡 Firebase 適合 <b>存檔較大</b>（遊玩進度極深、遊戲數據龐大，免費容量高達 <b>1GB</b>，可建立不同存檔供 <b>30 ~ 50 人同時使用無壓力</b>）的使用者。<a href="https://github.com/KID0924/idle-lineage-class" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold ml-1">詳情說明 🔗</a></span>
                     </div>
                     <div id="supabase-hint" class="text-[11px] text-slate-400 text-left -mt-1 leading-relaxed bg-slate-900/50 p-2 rounded" style="display: none;">
                         伺服器頻寬有限，請盡量改用 Jsonblob 連線。

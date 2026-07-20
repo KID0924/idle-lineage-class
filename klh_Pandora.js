@@ -669,23 +669,22 @@
     function startupGM() {
         initGachaWeights();
 
-        // 動態將「潘朵拉的妹妹」注入到所有包含潘朵拉的城鎮中
+        // 動態將「潘朵拉的妹妹」限定注入至說話之島 (town_talking)
         if (typeof DB !== 'undefined' && DB.towns) {
             for (let townId in DB.towns) {
                 let town = DB.towns[townId];
                 if (town.npcs) {
-                    let pandoraIdx = town.npcs.findIndex(n => n.id === 'npc_pandora');
-                    if (pandoraIdx !== -1) {
-                        if (!town.npcs.some(n => n.id === 'npc_pandora_sister')) {
-                            // 插入到潘朵拉後面
-                            town.npcs.splice(pandoraIdx + 1, 0, {
-                                id: "npc_pandora_sister",
-                                n: "潘朵拉的妹妹",
-                                title: "白商",
-                                type: "shop",
-                                d: "提供金幣隨機抽獎。"
-                            });
-                        }
+                    town.npcs = town.npcs.filter(n => n.id !== 'npc_pandora_sister');
+                    if (townId === 'town_talking') {
+                        let pandoraIdx = town.npcs.findIndex(n => n.id === 'npc_pandora');
+                        let insertPos = pandoraIdx !== -1 ? pandoraIdx + 1 : town.npcs.length;
+                        town.npcs.splice(insertPos, 0, {
+                            id: "npc_pandora_sister",
+                            n: "潘朵拉的妹妹",
+                            title: "白商",
+                            type: "shop",
+                            d: "提供金幣隨機抽獎。"
+                        });
                     }
                 }
             }
@@ -709,6 +708,13 @@
             };
             window.interactNPC.__klhGMWrapped = true;
         }
+
+        // 若目前正在城鎮畫面中，自動刷新地圖渲染 NPC
+        try {
+            if (typeof mapState !== 'undefined' && mapState.type === 'town' && typeof renderTownNPCs === 'function') {
+                renderTownNPCs(mapState.current);
+            }
+        } catch (e) {}
     }
 
     document.addEventListener('DOMContentLoaded', startupGM);

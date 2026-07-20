@@ -2089,9 +2089,11 @@
 
                                     <div class="gm-shop-char-input-group">
                                         <span class="gm-shop-control-label">龍之鑽石 (共用資產)</span>
-                                        <div style="display: flex; gap: 8px; align-items: center;">
-                                            <input type="number" id="gm-char-diamond-input" class="gm-shop-char-input" min="0" max="99999999" style="flex: 1;">
-                                            <button type="button" class="gm-shop-char-btn-adj" style="padding: 4px 12px; height: 32px; background: #6366f1; border-color: #4f46e5; color: white; white-space: nowrap; font-size: 13px; border-radius: 4px; font-weight: bold; cursor: pointer;" onclick="triggerGMWanderers()">🔄 滿載收購商</button>
+                                        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                                            <input type="number" id="gm-char-diamond-input" class="gm-shop-char-input" min="0" max="99999999" style="flex: 1; min-width: 90px;">
+                                            <button type="button" class="gm-shop-char-btn-adj" style="padding: 4px 8px; height: 32px; background: #6366f1; border-color: #4f46e5; color: white; white-space: nowrap; font-size: 12px; border-radius: 4px; font-weight: bold; cursor: pointer;" onclick="triggerGMWanderers()">🔄 滿載</button>
+                                            <button type="button" class="gm-shop-char-btn-adj" style="padding: 4px 8px; height: 32px; background: #d97706; border-color: #b45309; color: white; white-space: nowrap; font-size: 12px; border-radius: 4px; font-weight: bold; cursor: pointer;" onclick="tauntAllGMWanderers()">🗣️ 嘲諷</button>
+                                            <button type="button" class="gm-shop-char-btn-adj" style="padding: 4px 8px; height: 32px; background: #ef4444; border-color: #dc2626; color: white; white-space: nowrap; font-size: 12px; border-radius: 4px; font-weight: bold; cursor: pointer;" onclick="clearAllGMWanderers()">🚫 驅離</button>
                                         </div>
                                         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
                                             <button type="button" class="gm-rate-pill" onclick="setGMCharDiamond(100)">100顆</button>
@@ -2099,6 +2101,7 @@
                                             <button type="button" class="gm-rate-pill" onclick="setGMCharDiamond(10000)">1萬顆</button>
                                             <button type="button" class="gm-rate-pill" onclick="setGMCharDiamond(100000)">10萬顆</button>
                                         </div>
+                                        <div id="gm-wanderers-list-container" style="margin-top: 10px;"></div>
                                     </div>
                                 </div>
 
@@ -2108,7 +2111,11 @@
                                 <div class="gm-shop-char-section" style="overflow-y: auto; max-height: 60vh; padding-right: 8px;">
                                     <div class="gm-shop-char-section-title flex justify-between items-center">
                                         <span>📊 六大屬性詳細修改</span>
-                                        <button class="gm-rate-pill" style="font-size: 11px; padding: 2px 8px; background: rgba(234, 179, 8, 0.15) !important; border: 1px solid rgba(234, 179, 8, 0.4) !important; color: #facc15 !important;" onclick="setAllBaseStatsTo60()">⚡ 全部起始設為 60</button>
+                                        <div style="display: flex; gap: 4px;">
+                                            <button class="gm-rate-pill" style="font-size: 11px; padding: 2px 6px; background: rgba(234, 179, 8, 0.15) !important; border: 1px solid rgba(234, 179, 8, 0.4) !important; color: #facc15 !important;" onclick="setAllBaseStatsToVal(60)">⚡ 起始 60</button>
+                                            <button class="gm-rate-pill" style="font-size: 11px; padding: 2px 6px; background: rgba(234, 179, 8, 0.15) !important; border: 1px solid rgba(234, 179, 8, 0.4) !important; color: #facc15 !important;" onclick="setAllBaseStatsToVal(40)">40</button>
+                                            <button class="gm-rate-pill" style="font-size: 11px; padding: 2px 6px; background: rgba(234, 179, 8, 0.15) !important; border: 1px solid rgba(234, 179, 8, 0.4) !important; color: #facc15 !important;" onclick="setAllBaseStatsToVal(20)">20</button>
+                                        </div>
                                     </div>
                                     
                                     <div class="gm-shop-char-input-group mb-4" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 8px;">
@@ -2492,7 +2499,10 @@
                             <div class="gm-shop-char-grid">
                                 <!-- 左側：六大倍率設定 -->
                                 <div class="gm-shop-char-section">
-                                    <div class="gm-shop-char-section-title">⚙️ 遊戲倍率與強度調整</div>
+                                    <div class="gm-shop-char-section-title flex justify-between items-center">
+                                        <span>⚙️ 遊戲倍率與強度調整</span>
+                                        <button class="gm-rate-pill" style="font-size: 11px; padding: 2px 8px; background: rgba(234, 179, 8, 0.15) !important; border: 1px solid rgba(234, 179, 8, 0.4) !important; color: #facc15 !important;" onclick="resetAllGMRatesToDefault()">⚡ 恢復預設</button>
+                                    </div>
                                     
                                     <div class="gm-shop-char-input-group">
                                         <span class="gm-shop-control-label">遊戲運行速度 (1.0 ~ 100.0 倍, 預設 1.0) <span id="gm-actual-speed-text" style="color: #38bdf8; font-weight: bold; margin-left: 6px;"></span></span>
@@ -2549,12 +2559,13 @@
                                     </div>
 
                                     <div class="gm-shop-char-input-group">
-                                        <span class="gm-shop-control-label">掉寶率倍率 (1.0 ~ 100.0 倍, 預設 1.0)</span>
+                                        <span class="gm-shop-control-label">掉寶率倍率 (0.1 ~ 100.0 倍, 預設 1.0)</span>
                                         <div style="display: flex; align-items: center; gap: 8px;">
-                                            <input type="range" id="gm-drop-rate-range" min="1.0" max="100.0" step="0.1" value="1.0" list="gm-drop-rate-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('drop-rate', this.value)">
-                                            <input type="number" id="gm-drop-rate-input" class="gm-shop-char-input text-center" min="1.0" max="100.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('drop-rate', this.value)">
+                                            <input type="range" id="gm-drop-rate-range" min="0.1" max="100.0" step="0.1" value="1.0" list="gm-drop-rate-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('drop-rate', this.value)">
+                                            <input type="number" id="gm-drop-rate-input" class="gm-shop-char-input text-center" min="0.1" max="100.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('drop-rate', this.value)">
                                         </div>
                                         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;" id="gm-drop-rate-pills">
+                                            <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 0.1)">0.1x</button>
                                             <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('drop-rate', 1)">1x (預設)</button>
                                             <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 2)">2x</button>
                                             <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 3)">3x</button>
@@ -2565,6 +2576,7 @@
                                             <button class="gm-rate-pill" onclick="updateGMRate('drop-rate', 100)">100x</button>
                                         </div>
                                         <datalist id="gm-drop-rate-ticks">
+                                            <option value="0.1"></option>
                                             <option value="1.0"></option>
                                             <option value="2.0"></option>
                                             <option value="3.0"></option>
@@ -2577,12 +2589,13 @@
                                     </div>
 
                                     <div class="gm-shop-char-input-group">
-                                        <span class="gm-shop-control-label">金幣量倍率 (1.0 ~ 100.0 倍, 預設 1.0)</span>
+                                        <span class="gm-shop-control-label">金幣量倍率 (0.1 ~ 100.0 倍, 預設 1.0)</span>
                                         <div style="display: flex; align-items: center; gap: 8px;">
-                                            <input type="range" id="gm-gold-range" min="1.0" max="100.0" step="0.1" value="1.0" list="gm-gold-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('gold', this.value)">
-                                            <input type="number" id="gm-gold-input-rate" class="gm-shop-char-input text-center" min="1.0" max="100.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('gold', this.value)">
+                                            <input type="range" id="gm-gold-range" min="0.1" max="100.0" step="0.1" value="1.0" list="gm-gold-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('gold', this.value)">
+                                            <input type="number" id="gm-gold-input-rate" class="gm-shop-char-input text-center" min="0.1" max="100.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('gold', this.value)">
                                         </div>
                                         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;" id="gm-gold-pills">
+                                            <button class="gm-rate-pill" onclick="updateGMRate('gold', 0.1)">0.1x</button>
                                             <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('gold', 1)">1x (預設)</button>
                                             <button class="gm-rate-pill" onclick="updateGMRate('gold', 2)">2x</button>
                                             <button class="gm-rate-pill" onclick="updateGMRate('gold', 3)">3x</button>
@@ -2593,6 +2606,7 @@
                                             <button class="gm-rate-pill" onclick="updateGMRate('gold', 100)">100x</button>
                                         </div>
                                         <datalist id="gm-gold-ticks">
+                                            <option value="0.1"></option>
                                             <option value="1.0"></option>
                                             <option value="2.0"></option>
                                             <option value="3.0"></option>
@@ -2638,8 +2652,22 @@
                                         <li><strong>怪物強度倍率：</strong>即時調整所有怪物的最大 HP 與攻擊力/屬性加成，可用於測試極限挑戰或快速清圖。</li>
                                         <li><strong>掉寶率與金幣倍率：</strong>直接乘算最終結算獎勵，提升刷裝與累積資金的效率。</li>
                                         <li><strong>藥水效力：</strong>增強恢復類藥水（紅水、橙水、白水）的治癒數值，保障高倍速戰鬥下的存活率。</li>
-                                        <li><strong>出怪延遲：</strong>調整怪物生成間隔（0.1 ~ 2.0 倍），0.1 倍可以達到極速的刷怪體驗，2.0 倍則可減緩刷怪節奏。</li>
                                     </ul>
+
+                                    <div class="mt-4 p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-lg space-y-2 text-slate-300">
+                                        <div class="text-indigo-300 font-bold flex items-center gap-1.5 text-xs">
+                                            📱 ⚡ 手機效能優化與外掛模組設定建議
+                                        </div>
+                                        <div class="text-[11px] leading-relaxed text-slate-300 flex flex-col gap-1">
+                                            <div>1. 若在手機或平板瀏覽器遊玩感到卡頓，建議新增<b>「手機效能優化書籤」</b>，執行後可大幅提升遊戲流暢度！</div>
+                                            <div>2. 進入設定頁面時，請務必勾選 <b class="text-yellow-400">☑️ GM 商店修改面板 [模組] (klh_GMShop.js)</b>，即可同時啟用效能加速與完整外掛面板！</div>
+                                        </div>
+                                        <div class="pt-1">
+                                            <a href="https://kid0924.github.io/idle-lineage-class/bookmarklet.html" target="_blank" style="color: #60a5fa; text-decoration-color: #60a5fa;" class="hover:opacity-80 underline underline-offset-2 font-bold text-[11px] inline-flex items-center gap-1">
+                                                🔗 點此前往設定手機效能優化書籤 🚀
+                                            </a>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2831,6 +2859,10 @@
             }
             addFormSel.innerHTML = html;
         }
+
+        if (typeof renderGMWanderersList === 'function') {
+            renderGMWanderersList();
+        }
     };
 
     window.onGMPetSelectChange = function () {
@@ -2976,7 +3008,7 @@
                 window.__gmApplyMonsterStrength();
             }
         } else if (type === 'drop-rate') {
-            val = Math.min(100.0, Math.max(1.0, val));
+            val = Math.min(100.0, Math.max(0.1, val));
             let rEl = document.getElementById('gm-drop-rate-range');
             let iEl = document.getElementById('gm-drop-rate-input');
             if (rEl) rEl.value = val;
@@ -2985,7 +3017,7 @@
             localStorage.setItem('klh_gm_drop_rate_rate', val);
             updateRatePillActiveState('drop-rate', val);
         } else if (type === 'gold') {
-            val = Math.min(100.0, Math.max(1.0, val));
+            val = Math.min(100.0, Math.max(0.1, val));
             let rEl = document.getElementById('gm-gold-range');
             let iEl = document.getElementById('gm-gold-input-rate');
             if (rEl) rEl.value = val;
@@ -3002,7 +3034,17 @@
             window.__gmPotionRate = val;
             localStorage.setItem('klh_gm_potion_rate', val);
             updateRatePillActiveState('potion', val);
+        }
+    };
 
+    window.resetAllGMRatesToDefault = function () {
+        window.updateGMRate('game-speed', 1.0);
+        window.updateGMRate('monster-strength', 1.0);
+        window.updateGMRate('drop-rate', 1.0);
+        window.updateGMRate('gold', 1.0);
+        window.updateGMRate('potion', 1.0);
+        if (typeof showToast === 'function') {
+            showToast("已將所有遊戲倍率重置為 1.0 預設值！", 'success');
         }
     };
 
@@ -3109,34 +3151,50 @@
             return;
         }
 
-        // 清除舊收購商，並在每個村莊都生成一位
+        // 清除舊收購商，並在每個村莊都生成金幣與龍鑽收購商
         st.wanderers = [];
         towns.forEach(townId => {
-            let itemId = items[Math.floor(Math.random() * items.length)];
-            let d = DB.items[itemId];
-            let en = null;
-            if (isEnhanceableDef(d)) {
-                let max = safeValue(d) + 3;
-                en = Math.floor(Math.random() * (max + 1));
-            }
-            let weight = Math.max(1, Math.min(10, Math.floor(Number(d.gachaWeight) || 10)));
-            let over = en == null ? 0 : Math.max(0, en - safeValue(d));
-            let mult = over === 1 ? 1.2 : over === 2 ? 1.5 : over >= 3 ? 2 : 1;
-            let reward = Math.max(1, Math.ceil((11 - weight) * mult));
+            ['diamond', 'gold'].forEach(currency => {
+                let pool = (typeof _wandererItemPool === 'function') ? _wandererItemPool(currency) : items;
+                if (!pool || !pool.length) pool = items;
+                let itemId = pool[Math.floor(Math.random() * pool.length)];
+                let d = DB.items[itemId];
+                if (!d) return;
+                let en = null;
+                if (isEnhanceableDef(d)) {
+                    let max = safeValue(d) + 3;
+                    en = Math.floor(Math.random() * (max + 1));
+                }
+                let weight = Math.max(1, Math.min(currency === 'gold' ? 80 : 10, Math.floor(Number(d.gachaWeight) || 10)));
+                let over = en == null ? 0 : Math.max(0, en - safeValue(d));
+                let mult = over === 1 ? 1.2 : over === 2 ? 1.5 : over >= 3 ? 2 : 1;
 
-            st.wanderers.push({
-                id: 'wander-' + now.toString(36) + '-' + Math.floor(Math.random() * 0xffffff).toString(36),
-                townId: townId,
-                name: makeName(),
-                avatar: PLAYER_AVATARS[Math.floor(Math.random() * PLAYER_AVATARS.length)],
-                itemId: itemId,
-                en: en,
-                weight: weight,
-                reward: reward,
-                spawnedAt: now,
-                expiresAt: now + WANDERER_LIFE_MS,
-                broadcastStopped: false,
-                quietAt: 0
+                let buyer = {
+                    id: 'wander-' + currency + '-' + now.toString(36) + '-' + Math.floor(Math.random() * 0xffffff).toString(36),
+                    townId: townId,
+                    name: makeName(),
+                    avatar: PLAYER_AVATARS[Math.floor(Math.random() * PLAYER_AVATARS.length)],
+                    currency: currency,
+                    itemId: itemId,
+                    en: en,
+                    weight: weight,
+                    spawnedAt: now,
+                    expiresAt: now + WANDERER_LIFE_MS,
+                    broadcastStopped: false,
+                    quietAt: 0
+                };
+
+                if (currency === 'gold') {
+                    if (typeof _makeGoldBuyerPrice === 'function') {
+                        buyer.price = _makeGoldBuyerPrice(st, d, mult, 0);
+                    } else {
+                        buyer.price = Math.max(1000, Math.floor((10000 + Math.random() * 200000) * mult));
+                    }
+                } else {
+                    buyer.reward = Math.max(1, Math.ceil((11 - weight) * mult));
+                }
+
+                st.wanderers.push(buyer);
             });
         });
 
@@ -3148,6 +3206,10 @@
             wanderingBuyerSystemTick();
         }
 
+        if (typeof renderGMWanderersList === 'function') {
+            renderGMWanderersList();
+        }
+
         if (typeof showToast === 'function') {
             showToast("已成功在所有合格村莊重新生成收購商！", 'success');
         } else {
@@ -3155,17 +3217,342 @@
         }
     };
 
-    window.setAllBaseStatsTo60 = function () {
+    window.setGMWandererTab = function (tab) {
+        window.__gmWandererTab = tab;
+        if (typeof renderGMWanderersList === 'function') renderGMWanderersList();
+    };
+
+    window.renderGMWanderersList = function () {
+        let container = document.getElementById('gm-wanderers-list-container');
+        if (!container) return;
+
+        if (typeof _lzGet !== 'function' || typeof _saveUnwrap !== 'function') {
+            container.innerHTML = '';
+            return;
+        }
+
+        let raw = _lzGet('fb5_pandora_relic_market_v1');
+        let st;
+        if (raw) {
+            let unwrapped = _saveUnwrap(raw);
+            if (unwrapped.ok) {
+                try { st = JSON.parse(unwrapped.payload); } catch (e) {}
+            }
+        }
+
+        if (!st || !st.wanderers || st.wanderers.length === 0) {
+            container.innerHTML = '<div style="font-size: 11px; color: #64748b; text-align: center; padding: 6px 0;">目前沒有活躍的叫賣收購商</div>';
+            return;
+        }
+
+        let activeTab = window.__gmWandererTab || 'all';
+        let diamondList = st.wanderers.filter(w => w.currency !== 'gold' && w.price == null);
+        let goldList = st.wanderers.filter(w => w.currency === 'gold' || w.price != null);
+
+        let displayList = st.wanderers;
+        if (activeTab === 'diamond') displayList = diamondList;
+        else if (activeTab === 'gold') displayList = goldList;
+
+        let tabAllStyle = activeTab === 'all' ? 'background: rgba(99, 102, 241, 0.3); border-color: #818cf8; color: #a5b4fc; font-weight: bold;' : 'background: rgba(30, 41, 59, 0.6); border-color: rgba(51, 65, 85, 0.5); color: #94a3b8;';
+        let tabDiamondStyle = activeTab === 'diamond' ? 'background: rgba(16, 185, 129, 0.3); border-color: #34d399; color: #6ee7b7; font-weight: bold;' : 'background: rgba(30, 41, 59, 0.6); border-color: rgba(51, 65, 85, 0.5); color: #94a3b8;';
+        let tabGoldStyle = activeTab === 'gold' ? 'background: rgba(234, 179, 8, 0.3); border-color: #facc15; color: #fef08a; font-weight: bold;' : 'background: rgba(30, 41, 59, 0.6); border-color: rgba(51, 65, 85, 0.5); color: #94a3b8;';
+
+        let html = '<div style="font-size: 12px; font-weight: bold; color: #818cf8; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px;">' +
+            '<span>🏴 叫賣收購商 (' + st.wanderers.length + ' 位)</span>' +
+            '<div style="display: flex; gap: 4px;">' +
+                '<button onclick="tauntAllGMWanderers()" style="font-size: 11px; background: rgba(217, 119, 6, 0.2); border: 1px solid rgba(217, 119, 6, 0.5); color: #fcd34d; padding: 2px 6px; border-radius: 4px; cursor: pointer;">🗣️ 嘲諷</button>' +
+                '<button onclick="clearAllGMWanderers()" style="font-size: 11px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 2px 6px; border-radius: 4px; cursor: pointer;">🚫 驅離</button>' +
+            '</div>' +
+        '</div>';
+
+        // 頁籤 Tab 列
+        html += '<div style="display: flex; gap: 4px; margin-bottom: 6px;">' +
+            `<button onclick="setGMWandererTab('all')" style="font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; ${tabAllStyle}">全部 (${st.wanderers.length})</button>` +
+            `<button onclick="setGMWandererTab('diamond')" style="font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; ${tabDiamondStyle}">💎 龍鑽 (${diamondList.length})</button>` +
+            `<button onclick="setGMWandererTab('gold')" style="font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; ${tabGoldStyle}">💰 金幣 (${goldList.length})</button>` +
+        '</div>';
+
+        let renderCard = function(w) {
+            let townName = (typeof DB !== 'undefined' && DB.towns && DB.towns[w.townId]) ? DB.towns[w.townId].n : w.townId;
+            let itemDef = (typeof DB !== 'undefined' && DB.items && DB.items[w.itemId]) ? DB.items[w.itemId] : null;
+            let itemName = itemDef ? itemDef.n : w.itemId;
+            let enhanceTxt = (w.en != null && w.en > 0) ? (`+${w.en} `) : '';
+            let fullItemName = enhanceTxt + itemName;
+            
+            let now = Date.now();
+            let remainMs = Math.max(0, (w.expiresAt || 0) - now);
+            let remainMins = Math.floor(remainMs / 60000);
+
+            let priceHtml = (w.currency === 'gold' || w.price != null)
+                ? `<span style="color: #facc15; font-weight: bold;">💰 ${Number(w.price || 0).toLocaleString()} 金幣</span>`
+                : `<span style="color: #34d399; font-weight: bold;">💎 ${w.reward || 1} 龍鑽</span>`;
+
+            return `
+                <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(51, 65, 85, 0.8); border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-weight: bold; color: #fde047; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${w.name || '叫賣玩家'}</span>
+                            <span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(30, 27, 75, 0.9); color: #a5b4fc; border: 1px solid rgba(67, 56, 202, 0.5); white-space: nowrap;">${townName}</span>
+                        </div>
+                        <div style="color: #cbd5e1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            收購：<span style="color: #fef08a; font-weight: 600;">${fullItemName}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; font-size: 11px;">
+                            ${priceHtml}
+                            <span style="color: #94a3b8; font-size: 10px;">剩餘 ${remainMins} 分鐘</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 3px;">
+                            <button onclick="tauntSingleGMWanderer('${w.id}')" title="嘲諷此買家" style="font-size: 10px; background: rgba(217, 119, 6, 0.25); border: 1px solid rgba(217, 119, 6, 0.6); color: #fcd34d; padding: 1px 5px; border-radius: 3px; cursor: pointer;">🗣️</button>
+                            <button onclick="clearSingleGMWanderer('${w.id}')" title="驅離此買家" style="font-size: 10px; background: rgba(239, 68, 68, 0.25); border: 1px solid rgba(239, 68, 68, 0.6); color: #fca5a5; padding: 1px 5px; border-radius: 3px; cursor: pointer;">🚫</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        html += '<div style="display: flex; flex-direction: column; gap: 5px; max-height: 180px; overflow-y: auto; padding-right: 2px;">';
+        if (displayList.length === 0) {
+            html += '<div style="font-size: 11px; color: #64748b; text-align: center; padding: 12px 0;">此類別下暫無收購商</div>';
+        } else {
+            displayList.forEach(w => { html += renderCard(w); });
+        }
+        html += '</div>';
+
+        container.innerHTML = html;
+    };
+
+    window.clearAllGMWanderers = function () {
+        if (typeof _lzGet !== 'function' || typeof _lzSet !== 'function' || typeof _saveUnwrap !== 'function' || typeof _saveWrap !== 'function') return;
+
+        let raw = _lzGet('fb5_pandora_relic_market_v1');
+        let st;
+        if (raw) {
+            let unwrapped = _saveUnwrap(raw);
+            if (unwrapped.ok) {
+                try { st = JSON.parse(unwrapped.payload); } catch (e) {}
+            }
+        }
+
+        if (!st) st = {};
+        st.wanderers = [];
+        st.updatedAt = Date.now();
+        _lzSet('fb5_pandora_relic_market_v1', _saveWrap(JSON.stringify(st)));
+
+        if (typeof wanderingBuyerSystemTick === 'function') {
+            wanderingBuyerSystemTick();
+        }
+
+        if (typeof mapState !== 'undefined' && mapState && String(mapState.current || '').startsWith('town_') && typeof renderTownNPCMap === 'function') {
+            renderTownNPCMap(mapState.current);
+        }
+
+        if (typeof renderGMWanderersList === 'function') {
+            renderGMWanderersList();
+        }
+
+        if (typeof showToast === 'function') {
+            showToast("已成功驅離所有叫賣收購商！", 'success');
+        } else {
+            alert("已成功驅離所有叫賣收購商！");
+        }
+    };
+
+    window.tauntAllGMWanderers = function () {
+        if (typeof _lzGet !== 'function' || typeof _saveUnwrap !== 'function') return;
+
+        let raw = _lzGet('fb5_pandora_relic_market_v1');
+        let st;
+        if (raw) {
+            let unwrapped = _saveUnwrap(raw);
+            if (unwrapped.ok) {
+                try { st = JSON.parse(unwrapped.payload); } catch (e) {}
+            }
+        }
+
+        if (!st || !st.wanderers || st.wanderers.length === 0) {
+            if (typeof showToast === 'function') showToast("當前沒有叫賣收購商可供嘲諷！", 'error');
+            return;
+        }
+
+        const tauntPhrases = [
+            { q: "你的出價也太低了吧！賣給潘朵拉都比賣給你多！", a: "不爽不要賣啦！你算哪根蔥？" },
+            { q: "擺這什麼價格？別在村子裡丟人現眼了！", a: "嫌貴去別處買啊！你買得起嗎？" },
+            { q: "這道具全伺服器只有你有嗎？還敢開這種價！", a: "要你管！買不起就滾邊去！" },
+            { q: "太坑了吧，這價錢是在騙新手嗎？", a: "路過的少管閒事，沒人逼你買！" },
+            { q: "我看你是在這裡做白日夢吧！", a: "閉嘴！你懂不懂市場行情？" }
+        ];
+
+        let tauntedCount = 0;
+        st.wanderers.forEach((w, idx) => {
+            if (!w || !w.name) return;
+            tauntedCount++;
+
+            let pair = tauntPhrases[idx % tauntPhrases.length];
+            let align = Math.max(-32767, Math.min(32767, Math.round(Number(w.alignmentValue) || 0)));
+            let nameHtml = (typeof pvpNameHtml === 'function') ? pvpNameHtml(w.name, align, 'font-bold') : `<span class="font-bold">${w.name}</span>`;
+
+            if (typeof logSys === 'function') {
+                logSys(
+                    `<span class="wander-chat-out"><span class="wander-chat-arrow">-&gt;</span> ` +
+                    `<span class="wander-chat-target">[${nameHtml}]</span> ${pair.q}</span>`
+                );
+                logSys(
+                    `<span class="wander-chat-in"><span class="wander-chat-speaker">[${nameHtml}]</span> ` +
+                    `${pair.a}</span>`
+                );
+            }
+
+            // ⚡ 觸發遊戲原生「惡狠狠地記住了你……」與追殺機制
+            if (typeof window._startWandererChase === 'function') {
+                window._startWandererChase(w);
+                if (typeof logSys === 'function') {
+                    logSys(`<span class="text-rose-400 font-bold">[${nameHtml}] 惡狠狠地記住了你……</span>`);
+                }
+            } else {
+                if (typeof player !== 'undefined' && player) {
+                    if (!Array.isArray(player.trollPlayers)) player.trollPlayers = [];
+                    let chase = {
+                        n: w.name,
+                        avatar: w.avatar || '男戰士',
+                        alignmentValue: align,
+                        until: Date.now() + 2 * 60 * 60 * 1000
+                    };
+                    player.trollPlayers = player.trollPlayers.filter(t => t && t.n !== w.name);
+                    player.trollPlayers.push(chase);
+                    if (typeof logSys === 'function') {
+                        logSys(`<span class="text-rose-400 font-bold">[${nameHtml}] 惡狠狠地記住了你……</span>`);
+                    }
+                }
+            }
+        });
+
+        try { if (typeof saveGame === 'function') saveGame(); } catch (e) {}
+        try { if (typeof renderGMWanderersList === 'function') renderGMWanderersList(); } catch (e) {}
+
+        if (typeof showToast === 'function') {
+            showToast(`已同時嘲諷 ${tauntedCount} 位收購商！全員惡狠狠記住你並進入野外追殺名單！`, 'success');
+        }
+    };
+
+    window.tauntSingleGMWanderer = function (wandererId) {
+        if (typeof _lzGet !== 'function' || typeof _saveUnwrap !== 'function') return;
+
+        let raw = _lzGet('fb5_pandora_relic_market_v1');
+        let st;
+        if (raw) {
+            let unwrapped = _saveUnwrap(raw);
+            if (unwrapped.ok) {
+                try { st = JSON.parse(unwrapped.payload); } catch (e) {}
+            }
+        }
+
+        if (!st || !st.wanderers) return;
+        let w = st.wanderers.find(x => x && x.id === wandererId);
+        if (!w) {
+            if (typeof showToast === 'function') showToast("找不到該叫賣收購商！", 'error');
+            return;
+        }
+
+        const tauntPhrases = [
+            { q: "你的出價也太低了吧！賣給潘朵拉都比賣給你多！", a: "不爽不要賣啦！你算哪根蔥？" },
+            { q: "擺這什麼價格？別在村子裡丟人現眼了！", a: "嫌貴去別處買啊！你買得起嗎？" },
+            { q: "這道具全伺服器只有你有嗎？還敢開這種價！", a: "要你管！買不起就滾邊去！" },
+            { q: "太坑了吧，這價錢是在騙新手嗎？", a: "路過的少管閒事，沒人逼你買！" },
+            { q: "我看你是在這裡做白日夢吧！", a: "閉嘴！你懂不懂市場行情？" }
+        ];
+
+        let pair = tauntPhrases[Math.floor(Math.random() * tauntPhrases.length)];
+        let align = Math.max(-32767, Math.min(32767, Math.round(Number(w.alignmentValue) || 0)));
+        let nameHtml = (typeof pvpNameHtml === 'function') ? pvpNameHtml(w.name, align, 'font-bold') : `<span class="font-bold">${w.name}</span>`;
+
+        if (typeof logSys === 'function') {
+            logSys(
+                `<span class="wander-chat-out"><span class="wander-chat-arrow">-&gt;</span> ` +
+                `<span class="wander-chat-target">[${nameHtml}]</span> ${pair.q}</span>`
+            );
+            logSys(
+                `<span class="wander-chat-in"><span class="wander-chat-speaker">[${nameHtml}]</span> ` +
+                `${pair.a}</span>`
+            );
+        }
+
+        if (typeof player !== 'undefined' && player) {
+            if (!Array.isArray(player.trollPlayers)) player.trollPlayers = [];
+            let chase = {
+                n: w.name,
+                avatar: w.avatar || '男戰士',
+                alignmentValue: align,
+                until: Date.now() + 2 * 60 * 60 * 1000
+            };
+            player.trollPlayers = player.trollPlayers.filter(t => t && t.n !== w.name);
+            player.trollPlayers.push(chase);
+            if (typeof logSys === 'function') {
+                logSys(`<span class="text-rose-400 font-bold">[${nameHtml}] 惡狠狠地記住了你……</span>`);
+            }
+        }
+
+        try { if (typeof saveGame === 'function') saveGame(); } catch (e) {}
+        try { if (typeof renderGMWanderersList === 'function') renderGMWanderersList(); } catch (e) {}
+
+        if (typeof showToast === 'function') {
+            showToast(`已成功嘲諷 [${w.name}]！對方惡狠狠記住你並加入野外追殺名單！`, 'success');
+        }
+    };
+
+    window.clearSingleGMWanderer = function (wandererId) {
+        if (typeof _lzGet !== 'function' || typeof _lzSet !== 'function' || typeof _saveUnwrap !== 'function' || typeof _saveWrap !== 'function') return;
+
+        let raw = _lzGet('fb5_pandora_relic_market_v1');
+        let st;
+        if (raw) {
+            let unwrapped = _saveUnwrap(raw);
+            if (unwrapped.ok) {
+                try { st = JSON.parse(unwrapped.payload); } catch (e) {}
+            }
+        }
+
+        if (!st || !st.wanderers) return;
+        let target = st.wanderers.find(x => x && x.id === wandererId);
+        let targetName = target ? target.name : '此買家';
+
+        st.wanderers = st.wanderers.filter(x => x && x.id !== wandererId);
+        st.updatedAt = Date.now();
+        _lzSet('fb5_pandora_relic_market_v1', _saveWrap(JSON.stringify(st)));
+
+        if (typeof wanderingBuyerSystemTick === 'function') {
+            wanderingBuyerSystemTick();
+        }
+
+        if (typeof mapState !== 'undefined' && mapState && String(mapState.current || '').startsWith('town_') && typeof renderTownNPCMap === 'function') {
+            renderTownNPCMap(mapState.current);
+        }
+
+        if (typeof renderGMWanderersList === 'function') {
+            renderGMWanderersList();
+        }
+
+        if (typeof showToast === 'function') {
+            showToast(`已成功驅離 [${targetName}]！`, 'success');
+        }
+    };
+
+    window.setAllBaseStatsToVal = function (val) {
         const stats = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
         stats.forEach(st => {
             let input = document.getElementById('gm-char-' + st + '-base-input');
             if (input) {
-                input.value = 60;
+                input.value = val;
             }
         });
         if (typeof showToast === 'function') {
-            showToast("已將六大起始屬性設為 60！", 'success');
+            showToast("已將六大起始屬性設為 " + val + "！", 'success');
         }
+    };
+
+    window.setAllBaseStatsTo60 = function () {
+        window.setAllBaseStatsToVal(60);
     };
 
     window.adjustGMCharAttr = function (id, amount) {

@@ -661,8 +661,8 @@
             { 
                 id: 'klh_remove-banner.js', 
                 name: '淡化首頁公告，請勿用於商業用途', 
-                desc: '自動修正部分螢幕比例或解析度下的介面偏移問題。', 
-                details: '在特定寬螢幕或特殊視窗比例時，自動重置並修正頂部導覽列與版面容器的相對位移（--orig-bar-h），確保介面元素不被裁切或錯位。', 
+                desc: '自動修正部分螢幕比例或解析度下的介面偏移問題（與離線掛機相反，僅在 Chaos 站生效）。', 
+                details: '在特定寬螢幕或特殊視窗比例時，自動重置並修正頂部導覽列與版面容器的相對位移（--orig-bar-h），確保介面元素不被裁切或錯位。<br><b style="color: #38bdf8;">ⓘ 提示：與離線掛機補丁相反，此模組僅在 Chaos 版網頁 (pp771007) 中生效，於非 Chaos 網頁會自動跳過。</b>', 
                 isCore: false, 
                 checked: false 
             },
@@ -853,18 +853,22 @@
 
             const base = BASE_URL;
             const hasOffline = checkedPlugins.some(p => p.id === 'offline.js');
+            const hasRemoveBanner = checkedPlugins.some(p => p.id === 'klh_remove-banner.js');
             let bookmarkletCode = '';
 
-            if (hasOffline) {
-                // 有勾選離線掛機時：加入網址智慧判斷 (Chaos 站跳過 / 其他站載入 Chaos 的 offline.js)
-                const otherIds = checkedPlugins.filter(p => p.id !== 'offline.js').map(p => p.id);
-                const otherIdsJson = JSON.stringify(otherIds);
-                bookmarkletCode = `javascript:(function(){const b="${base}",t=window.location.hostname.includes("pp771007"),o=${otherIdsJson},n=t?o.map(x=>b+x):["https://pp771007.github.io/idle-lineage-class/js/offline.js",...o.map(x=>b+x)];function s(e,t){const n=document.createElement("div");n.textContent=e,n.style.cssText="position:fixed;top:20px;right:20px;background:"+(t?"#2ecc71":"#e74c3c")+";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s",document.body.appendChild(n),setTimeout(()=>{n.style.opacity="0",setTimeout(()=>n.remove(),500)},2500)}function l(e){return new Promise((t,n)=>{const o=document.createElement("script");o.src=e+"?v="+Date.now(),o.onload=(()=>{t()}),o.onerror=(()=>{n()}),document.body.appendChild(o)})}n.reduce((e,t)=>e.then(()=>l(t)),Promise.resolve()).then(()=>{s("🎉 "+(t?"【外掛模組】":"【離線掛機 + 外掛模組】")+"注入成功！",!0)}).catch(e=>{s("❌ 部分外掛載入失敗，請按 F12 檢查控制台。",!1)})})();`;
+            if (hasOffline || hasRemoveBanner) {
+                // 有勾選離線掛機或修復補丁時：加入網域智慧判斷 (Chaos 站載入 klh_remove-banner.js / 非 Chaos 站載入 offline.js)
+                const commonIds = checkedPlugins.filter(p => p.id !== 'offline.js' && p.id !== 'klh_remove-banner.js').map(p => p.id);
+                const commonJson = JSON.stringify(commonIds);
+                const offlineSnippet = hasOffline ? '["https://pp771007.github.io/idle-lineage-class/afk-offline.js"],' : '[],';
+                const bannerSnippet = hasRemoveBanner ? '[b+"klh_remove-banner.js"],' : '[],';
+
+                bookmarkletCode = `javascript:(function(){const b="${base}",t=window.location.hostname.includes("pp771007"),c=${commonJson}.map(x=>b+x),n=t?[...${bannerSnippet}...c]:[...${offlineSnippet}...c];function s(e,t){const n=document.createElement("div");n.textContent=e,n.style.cssText="position:fixed;top:20px;right:20px;background:"+(t?"#2ecc71":"#e74c3c")+";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s",document.body.appendChild(n),setTimeout(()=>{n.style.opacity="0",setTimeout(()=>n.remove(),500)},2500)}function l(e){return new Promise((t,n)=>{const o=document.createElement("script");o.src=e+"?v="+Date.now(),o.onload=(()=>{t()}),o.onerror=(()=>{n(e)}),document.body.appendChild(o)})}n.reduce((e,t)=>e.then(()=>l(t)),Promise.resolve()).then(()=>{s("🎉 "+(t?"【外掛模組】":"【離線掛機 + 外掛模組】")+"注入成功！",!0)}).catch(r=>{const f=(r&&typeof r==="string")?r.split("/").pop().split("?")[0]:"";s("❌ 載入失敗"+(f?"："+f:"！"),!1)})})();`;
             } else {
-                // 沒有勾選離線掛機時：生成最輕量直接的循序載入代碼
+                // 沒有勾選特殊網域條件模組時：生成最輕量直接的循序載入代碼
                 const ids = checkedPlugins.map(p => p.id);
                 const idsJson = JSON.stringify(ids);
-                bookmarkletCode = `javascript:(function(){const b="${base}",n=${idsJson}.map(x=>b+x);function s(e,t){const n=document.createElement("div");n.textContent=e,n.style.cssText="position:fixed;top:20px;right:20px;background:"+(t?"#2ecc71":"#e74c3c")+";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s",document.body.appendChild(n),setTimeout(()=>{n.style.opacity="0",setTimeout(()=>n.remove(),500)},2500)}function l(e){return new Promise((t,n)=>{const o=document.createElement("script");o.src=e+"?v="+Date.now(),o.onload=(()=>{t()}),o.onerror=(()=>{n()}),document.body.appendChild(o)})}n.reduce((e,t)=>e.then(()=>l(t)),Promise.resolve()).then(()=>{s("🎉 【外掛模組】注入成功！",!0)}).catch(e=>{s("❌ 部分外掛載入失敗，請按 F12 檢查控制台。",!1)})})();`;
+                bookmarkletCode = `javascript:(function(){const b="${base}",n=${idsJson}.map(x=>b+x);function s(e,t){const n=document.createElement("div");n.textContent=e,n.style.cssText="position:fixed;top:20px;right:20px;background:"+(t?"#2ecc71":"#e74c3c")+";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s",document.body.appendChild(n),setTimeout(()=>{n.style.opacity="0",setTimeout(()=>n.remove(),500)},2500)}function l(e){return new Promise((t,n)=>{const o=document.createElement("script");o.src=e+"?v="+Date.now(),o.onload=(()=>{t()}),o.onerror=(()=>{n(e)}),document.body.appendChild(o)})}n.reduce((e,t)=>e.then(()=>l(t)),Promise.resolve()).then(()=>{s("🎉 【外掛模組】注入成功！",!0)}).catch(r=>{const f=(r&&typeof r==="string")?r.split("/").pop().split("?")[0]:"";s("❌ 載入失敗"+(f?"："+f:"！"),!1)})})();`;
             }
 
             bookmarkletLink.href = bookmarkletCode;
