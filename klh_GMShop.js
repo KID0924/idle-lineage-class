@@ -232,7 +232,7 @@
                 position: fixed !important;
                 bottom: 85px !important;
                 right: 20px !important;
-                z-index: 1000 !important;
+                z-index: 2147483647 !important;
                 background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%) !important;
                 border: 2px solid #a78bfa !important;
                 color: #fff !important;
@@ -256,7 +256,7 @@
             .gm-shop-modal {
                 position: fixed !important;
                 inset: 0 !important;
-                z-index: 99999 !important;
+                z-index: 2147483647 !important;
                 display: flex !important;
                 align-items: center !important;
                 justify-content: center !important;
