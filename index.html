@@ -1,17 +1,1463 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
-    <!-- 秒數設為 0，代表開啟後立刻跳轉 -->
-    <meta http-equiv="refresh" content="0; url=https://kid0924.github.io/idle-lineage-class/bookmarklet.html">
-    <title>正在跳轉頁面...</title>
-</head>
-<body>
-    <!-- JavaScript 備用方案，萬一瀏覽器禁用 meta 自動重新整理 -->
-    <script>
-        window.location.href = "https://kid0924.github.io/idle-lineage-class/bookmarklet.html";
-    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>☁️ 雲端金鑰存檔匯出工具</title>
 
-    <p>如果頁面沒有自動跳轉，請點擊 <a href="https://kid0924.github.io/idle-lineage-class/bookmarklet.html">這裡</a>。</p>
+    <!-- 引入必要的函式庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --primary: #8b5cf6;
+            --primary-hover: #7c3aed;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --border-color: rgba(139, 92, 246, 0.3);
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(rgba(2, 6, 23, 0.45), rgba(15, 23, 42, 0.55)), url('reincarnation_ad_banner.png') no-repeat center center fixed;
+            background-size: cover;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--bg-card);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: 0 0 40px rgba(139, 92, 246, 0.15);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0 0 12px 0;
+            background: linear-gradient(to right, #a78bfa, #818cf8);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-sub);
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .input-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-sub);
+        }
+
+        .key-input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 18px;
+            text-align: center;
+            letter-spacing: 2px;
+            outline: none;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .key-input:focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 15px rgba(167, 139, 250, 0.4);
+        }
+
+        .btn-fetch {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+        }
+
+        .btn-fetch:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5);
+        }
+
+        .btn-fetch:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-box {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            color: var(--text-sub);
+            min-height: 80px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .status-msg {
+            margin-bottom: 8px;
+        }
+
+        .status-success {
+            color: var(--success);
+        }
+
+        .status-error {
+            color: var(--error);
+        }
+
+        .status-info {
+            color: #60a5fa;
+        }
+
+        .results-area {
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .results-area.active {
+            display: flex;
+        }
+
+        .slots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        .download-slot-card {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 10px;
+            padding: 14px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            box-sizing: border-box;
+            text-align: center;
+            transition: all 0.25s ease;
+        }
+
+        .border-normal {
+            border: 1.5px solid rgba(139, 92, 246, 0.35);
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.05);
+        }
+        .border-normal .slot-title {
+            color: #a78bfa;
+        }
+
+        .border-classic {
+            border: 2px solid #d97706;
+            box-shadow: 0 0 15px rgba(217, 119, 6, 0.4);
+        }
+        .border-classic .slot-title {
+            color: #fbbf24;
+        }
+
+        .border-trad {
+            border: 2px solid #7c3aed;
+            box-shadow: 0 0 15px rgba(124, 58, 237, 0.4);
+        }
+        .border-trad .slot-title {
+            color: #c4b5fd;
+        }
+
+        .border-both {
+            border: 2px solid #0d9488;
+            box-shadow: 0 0 18px rgba(13, 148, 136, 0.5);
+        }
+        .border-both .slot-title {
+            color: #2dd4bf;
+        }
+
+        .btn-download-action {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+            color: white;
+            border: none;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: center;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+            margin-top: 4px;
+            display: inline-block;
+        }
+
+        .btn-download-action:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.1);
+        }
+
+        .slot-name {
+            font-size: 11px;
+            color: var(--success);
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .btn-download-all {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            text-align: center;
+            text-decoration: none;
+            display: block;
+        }
+
+        .btn-download-all:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+        }
+
+        /* 滾動條樣式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+
+        /* Tabs 切換樣式 */
+        .tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 12px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            color: var(--text-sub);
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .tab-btn:hover {
+            background: rgba(30, 41, 59, 0.8);
+            color: var(--text-main);
+            border-color: rgba(139, 92, 246, 0.4);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(124, 58, 237, 0.2) 100%);
+            border-color: var(--primary);
+            color: #c084fc;
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.15);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 本機存檔樣式 */
+        .local-group-card {
+            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .local-group-card:hover {
+            border-color: rgba(139, 92, 246, 0.2);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .local-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .local-group-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #a78bfa;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            word-break: break-all;
+        }
+
+        .active-badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .refresh-btn {
+            background: rgba(148, 163, 184, 0.1);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: var(--text-main);
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(148, 163, 184, 0.2);
+            border-color: rgba(148, 163, 184, 0.4);
+        }
+
+        .no-saves-box {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-sub);
+            font-size: 14px;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.2);
+            line-height: 1.6;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1 class="title" id="page-title">☁️ 雲端金鑰存檔匯出工具</h1>
+            <p class="subtitle" id="page-subtitle">輸入您的雲端金鑰，直接檢索並打包匯出所有角色存檔，<br>輕鬆轉移您的遊戲進度！</p>
+        </div>
+
+        <div class="tabs">
+            <button id="tab-btn-cloud" class="tab-btn active" onclick="switchTab('cloud')">☁️ 雲端備份匯出</button>
+            <button id="tab-btn-local" class="tab-btn" onclick="switchTab('local')">💻 本機瀏覽器存檔</button>
+            <button id="tab-btn-bookmarklet" class="tab-btn" onclick="switchTab('bookmarklet')">金鑰●百花齊放</button>
+        </div>
+
+        <!-- 雲端匯出分頁 -->
+        <div id="tab-cloud-content" class="tab-content active">
+            <div class="input-group">
+                <label class="input-label" for="player-id">請輸入您的雲端金鑰 (Player ID)</label>
+                <input type="text" id="player-id" class="key-input" placeholder="例如: *a1b2c3d4e5f6g7h 或 @金鑰" maxlength="16"
+                    autocomplete="off">
+            </div>
+
+            <button id="btn-fetch" class="btn-fetch" onclick="startReincarnation()">讀取並匯出</button>
+
+            <div class="status-box" id="status-box">
+                <div class="status-msg">等待輸入金鑰...</div>
+            </div>
+
+            <div class="results-area" id="results-area">
+                <div
+                    style="font-size: 14px; font-weight: bold; color: var(--text-sub); border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    🎉 存檔準備完成！請選擇下載方式：
+                </div>
+
+                <a id="btn-download-all" class="btn-download-all" style="display: none;">📦 一鍵打包下載全部 (ZIP)</a>
+
+                <div class="slots-grid" id="slots-grid">
+                    <!-- 動態生成下載按鈕 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 本機存檔分頁 -->
+        <div id="tab-local-content" class="tab-content">
+            <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 14px; color: var(--text-sub);">偵測到此瀏覽器中的存檔列表：</span>
+                <button class="refresh-btn" onclick="scanAndRenderLocalSaves()">
+                    <span>🔄</span> 重新整理
+                </button>
+            </div>
+
+            <div id="local-saves-container">
+                <!-- 動態生成本機存檔群組 -->
+            </div>
+        </div>
+
+        <!-- 金鑰百花齊放分頁 -->
+        <div id="tab-bookmarklet-content" class="tab-content">
+            <div style="margin-bottom: 16px; font-size: 14px; color: var(--text-sub); line-height: 1.6; background: rgba(15, 23, 42, 0.4); padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); text-align: center;">
+                <div style="color: #ec4899; font-weight: bold; margin-bottom: 12px; font-size: 18px;">🌸 金鑰●百花齊放 🌸</div>
+                <p style="margin-bottom: 20px;">這是一顆神奇的魔法按鈕。請直接用滑鼠<strong>按住下方按鈕不放</strong>，然後<strong>拖曳到您的瀏覽器「書籤列」上放開</strong>即可建立書籤！</p>
+                
+                <a href="javascript:(function(){var s=document.createElement('script');s.src='https://kid0924.github.io/idle-lineage-class/klh_database.js%27;s.onload=function(){console.log(%27klh_database.js 載入成功！%27);if(typeof logSys===%27function%27){logSys(%27<span class=&quot;text-emerald-400 font-bold&quot;>klh_database.js 載入成功！</span>%27)}else{alert(%27klh_database.js 載入成功！%27)}};s.onerror=function(){alert(%27klh_database.js 載入失敗！請確認該網頁安全性原則 (CSP) 是否允許載入外部資源。%27)};document.head.appendChild(s);})();" 
+                   style="display: inline-block; background: #1e293b; color: #cbd5e1; padding: 10px 20px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 14px; cursor: grab; transition: all 0.2s; border: 1px solid #475569; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" 
+                   onmouseover="this.style.background='#334155'; this.style.color='#f8fafc';" 
+                   onmouseout="this.style.background='#1e293b'; this.style.color='#cbd5e1';"
+                   title="拖曳我到書籤列！">
+                   金鑰.百花齊放
+                </a>
+
+                <p style="margin-top: 24px; font-size: 13px; color: #94a3b8; text-align: left;">
+                    完成後，當您在其他作者的網頁版本遊玩時，只要點擊書籤列上的這個書籤，就能瞬間注入雲端存檔功能，跨越網頁讀取您自己的存檔！<br>
+                    <span style="font-size: 11px; opacity: 0.7;">(若無法拖曳，請手動複製以下代碼並新增書籤：)</span>
+                </p>
+                <textarea readonly style="width: 100%; height: 60px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-color); color: #a78bfa; border-radius: 8px; padding: 8px; font-size: 11px; font-family: monospace; resize: none; box-sizing: border-box; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);" onclick="this.select()">javascript:(function(){var s=document.createElement('script');s.src='https://kid0924.github.io/idle-lineage-class/klh_database.js%27;s.onload=function(){console.log(%27klh_database.js 載入成功！%27);if(typeof logSys===%27function%27){logSys(%27<span class="text-emerald-400 font-bold">klh_database.js 載入成功！</span>%27)}else{alert(%27klh_database.js 載入成功！%27)}};s.onerror=function(){alert(%27klh_database.js 載入失敗！請確認該網頁安全性原則 (CSP) 是否允許載入外部資源。%27)};document.head.appendChild(s);})();</textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. Supabase 設定與連線
+        // ==========================================
+        const SUPABASE_URL = "https://tteveuemmbyesbskeoty.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_mkhMpjoJR31jQ7740P7WPg_pivSaiFI";
+        let supabaseClient = null;
+
+        // ==========================================
+        // 2. 原版防偽簽章演算法
+        // ==========================================
+        const _SAVE_SALT = 'fb5#9c3a7e1d-save-integrity-salt-do-not-edit#a1b2c3';
+        function _seedHash(str) {
+            str = String(str); let h = 1779033703 ^ str.length;
+            for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+            h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909);
+            return (h ^ (h >>> 16)) >>> 0;
+        }
+        function _signSave(s) {
+            let a = _seedHash(_SAVE_SALT + '::' + s);
+            let b = _seedHash(s + '::' + _SAVE_SALT + '::' + a);
+            return (a >>> 0).toString(36) + '.' + (b >>> 0).toString(36) + '.' + (s.length).toString(36);
+        }
+        function _saveWrap(payloadStr) {
+            return 'SIG1:' + _signSave(payloadStr) + ':' + payloadStr;
+        }
+        function _saveUnwrap(raw) {
+            if (raw == null) return { payload: null, signed: false, ok: true };
+            if (String(raw).slice(0, 5) === 'SIG1:') {
+                let rest = raw.slice(5), i = rest.indexOf(':');
+                if (i < 0) return { payload: raw, signed: true, ok: false };
+                let sig = rest.slice(0, i), payload = rest.slice(i + 1);
+                return { payload: payload, signed: true, ok: (_signSave(payload) === sig) };
+            }
+            return { payload: raw, signed: false, ok: true };
+        }
+        function unpackSlotData(raw) {
+            if (raw == null) return null;
+            if (typeof raw === 'object') return raw;
+            let text = String(raw);
+            if (text.startsWith('SIG1:')) {
+                const unwrapped = _saveUnwrap(text);
+                if (unwrapped.ok && unwrapped.payload) text = unwrapped.payload;
+            }
+            if (text.startsWith('LZ1:')) {
+                try {
+                    const decompressed = LZString.decompressFromUTF16(text.slice(4));
+                    if (decompressed) text = decompressed;
+                } catch (e) {
+                    console.error("LZ1 decompress error:", e);
+                }
+            }
+            if (text.startsWith('SIG1:')) {
+                const unwrapped = _saveUnwrap(text);
+                if (unwrapped.ok && unwrapped.payload) text = unwrapped.payload;
+            }
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.error("JSON parse error:", e, text);
+                throw new Error("解析存檔內容失敗: " + e.message);
+            }
+        }
+
+        // ==========================================
+        // 3. 淨化邏輯設定
+        // ==========================================
+        const customItemIds = [
+            'potion_super_white',
+            'potion_hyper_white',
+            'potion_droprate',
+            'potion_god_bless'
+        ];
+
+        function sanitizeSaveData(_obj) {
+            try {
+                if (_obj.p) {
+                    // 清除背包外掛藥水
+                    if (_obj.p.inv && Array.isArray(_obj.p.inv)) {
+                        _obj.p.inv = _obj.p.inv.filter(i => i && !customItemIds.includes(i.id));
+                    }
+                    // 清除外掛設定與喝水還原
+                    if (_obj.p.config) {
+                        _obj.p.config.setPot = 'potion_heal';
+                        delete _obj.p.config.setDroprate;
+                        delete _obj.p.config.setAutoBuyDroprate;
+                        delete _obj.p.config.setGodBless;
+                        if (_obj.p.config.autoBuffSkills) {
+                            delete _obj.p.config.autoBuffSkills.droprate;
+                            delete _obj.p.config.autoBuffSkills.god_bless;
+                        }
+                    }
+                    // 清除外掛 Buff
+                    if (_obj.p.buffs) {
+                        delete _obj.p.buffs.droprate;
+                        delete _obj.p.buffs.god_bless;
+                    }
+                    // 清除外掛傭兵設定
+                    delete _obj.p.klhTeamConfig;
+                    // 清除傭兵背包外掛藥水
+                    if (Array.isArray(_obj.p.allies)) {
+                        _obj.p.allies.forEach(ally => {
+                            if (ally && Array.isArray(ally.inv)) {
+                                ally.inv = ally.inv.filter(i => i && !customItemIds.includes(i.id));
+                            }
+                        });
+                    }
+                    // 清除轉生欄位
+                    delete _obj.p.rebirthCount;
+                    delete _obj.p.rebirthPoints;
+                    // 清除廢品記憶外掛簽章
+                    if (_obj.p.junkPrefs && typeof _obj.p.junkPrefs === 'object') {
+                        for (let sig in _obj.p.junkPrefs) {
+                            if (customItemIds.some(id => sig.startsWith(id + '|') || sig === id)) {
+                                delete _obj.p.junkPrefs[sig];
+                            }
+                        }
+                    }
+                }
+                // 清除倉庫外掛藥水
+                if (_obj.wh && Array.isArray(_obj.wh.items)) {
+                    _obj.wh.items = _obj.wh.items.filter(i => i && !customItemIds.includes(i.id));
+                }
+                // 清除外掛難度
+                delete _obj.difficulty;
+
+                return _obj;
+            } catch (e) {
+                console.error("Sanitization error:", e);
+                throw e;
+            }
+        }
+
+        // ==========================================
+        // 4. UI 互動與核心處理流程
+        // ==========================================
+        let processedSaves = []; // [{ slot: 1, name: '...', content: 'SIG1:...' }, ...]
+        let localProcessedSaves = {}; // { groupKey: [{ slot: 1, name: '...', content: 'SIG1:...', slotObj: {...} }, ...] }
+        let localGroupsData = {}; // { groupKey: group }
+
+        function getClassIcon(className) {
+            const clsIconMap = {
+                '騎士': '🛡️',
+                '法師': '🔮',
+                '妖精': '🏹',
+                '黑暗妖精': '🗡️',
+                '幻術士': '🌀',
+                '龍騎士': '🐉',
+                '戰士': '🪓',
+                '王族': '👑'
+            };
+            return clsIconMap[className] || '👤';
+        }
+
+        function getBorderClass(isClassic, isTrad) {
+            if (isClassic && isTrad) return 'border-both';
+            if (isClassic) return 'border-classic';
+            if (isTrad) return 'border-trad';
+            return 'border-normal';
+        }
+
+        function toggleCloudSlotMode(slot, modeType, isChecked) {
+            const save = processedSaves.find(s => s.slot === slot);
+            if (!save || !save.slotObj) return;
+            if (!save.slotObj.p) save.slotObj.p = {};
+
+            // 更新模式
+            if (modeType === 'classic') {
+                save.slotObj.p.classicMode = isChecked;
+            } else if (modeType === 'trad') {
+                save.slotObj.p.traditionalMode = isChecked;
+            }
+
+            // 重新打包與簽章
+            const finalJsonStr = JSON.stringify(save.slotObj);
+            save.content = _saveWrap(finalJsonStr);
+
+            // 更新卡片外框線
+            const card = document.getElementById(`card-cloud-${slot}`);
+            if (card) {
+                const isClassic = !!save.slotObj.p.classicMode;
+                const isTrad = !!save.slotObj.p.traditionalMode;
+                card.className = `download-slot-card ${getBorderClass(isClassic, isTrad)}`;
+            }
+
+            // 更新下載連結的 blob URL
+            const url = createDownloadBlob(save.content);
+            const downloadBtn = document.getElementById(`btn-download-cloud-${slot}`);
+            if (downloadBtn) {
+                const oldUrl = downloadBtn.getAttribute('href');
+                if (oldUrl && oldUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(oldUrl);
+                }
+                downloadBtn.href = url;
+            }
+        }
+
+        function toggleLocalSlotMode(groupKey, slot, modeType, isChecked) {
+            const group = localGroupsData[groupKey];
+            const charList = localProcessedSaves[groupKey];
+            if (!group || !charList) return;
+
+            const char = charList.find(c => c.slot === slot);
+            if (!char || !char.slotObj) return;
+            if (!char.slotObj.p) char.slotObj.p = {};
+
+            // 更新模式
+            if (modeType === 'classic') {
+                char.slotObj.p.classicMode = isChecked;
+            } else if (modeType === 'trad') {
+                char.slotObj.p.traditionalMode = isChecked;
+            }
+
+            // 重新打包與簽章
+            const finalJsonStr = JSON.stringify(char.slotObj);
+            const signedData = _saveWrap(finalJsonStr);
+            char.content = signedData;
+
+            // 更新 group.slots，讓雲端轉移碼與 ZIP 包含修改後的資料
+            group.slots[slot] = signedData;
+
+            // 更新卡片外框線
+            const card = document.getElementById(`card-local-${groupKey}-${slot}`);
+            if (card) {
+                const isClassic = !!char.slotObj.p.classicMode;
+                const isTrad = !!char.slotObj.p.traditionalMode;
+                card.className = `download-slot-card ${getBorderClass(isClassic, isTrad)}`;
+            }
+
+            // 更新下載連結的 blob URL
+            const url = createDownloadBlob(char.content);
+            const downloadBtn = document.getElementById(`btn-download-local-${groupKey}-${slot}`);
+            if (downloadBtn) {
+                const oldUrl = downloadBtn.getAttribute('href');
+                if (oldUrl && oldUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(oldUrl);
+                }
+                downloadBtn.href = url;
+            }
+        }
+
+        function logStatus(msg, type = '') {
+            const box = document.getElementById('status-box');
+            let colorClass = '';
+            if (type === 'success') colorClass = 'status-success';
+            if (type === 'error') colorClass = 'status-error';
+            if (type === 'info') colorClass = 'status-info';
+
+            const time = new Date().toLocaleTimeString();
+            box.innerHTML += `<div class="status-msg ${colorClass}">[${time}] ${msg}</div>`;
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // ==========================================
+        // 4.5 防爆破與冷卻時間邏輯 (LocalStorage 跨刷新防護)
+        // ==========================================
+        const COOLDOWN_SECONDS = 10;
+        let cooldownTimer = null;
+
+        function updateCooldownUI() {
+            const btn = document.getElementById('btn-fetch');
+            const input = document.getElementById('player-id');
+            if (!btn || !input) return;
+            const lastTime = parseInt(localStorage.getItem('klh_reincarnation_last_time') || '0', 10);
+            const now = Date.now();
+            const elapsed = Math.floor((now - lastTime) / 1000);
+
+            if (elapsed < COOLDOWN_SECONDS) {
+                const remaining = COOLDOWN_SECONDS - elapsed;
+                btn.disabled = true;
+                input.disabled = true;
+                btn.innerHTML = `請等待 ${remaining} 秒...`;
+                if (cooldownTimer) clearTimeout(cooldownTimer);
+                cooldownTimer = setTimeout(updateCooldownUI, 1000);
+            } else {
+                btn.disabled = false;
+                input.disabled = false;
+                btn.innerHTML = "讀取並匯出";
+                if (cooldownTimer) clearTimeout(cooldownTimer);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateCooldownUI();
+        });
+
+        async function startReincarnation() {
+            const btn = document.getElementById('btn-fetch');
+            const input = document.getElementById('player-id');
+            const resultsArea = document.getElementById('results-area');
+            const slotsGrid = document.getElementById('slots-grid');
+
+            const playerId = input.value.trim();
+
+            if (!playerId) {
+                alert("請輸入金鑰！");
+                return;
+            }
+
+            // 雙重保險：檢查 localStorage 中的冷卻時間
+            const lastTime = parseInt(localStorage.getItem('klh_reincarnation_last_time') || '0', 10);
+            const now = Date.now();
+            const elapsed = Math.floor((now - lastTime) / 1000);
+            if (elapsed < COOLDOWN_SECONDS) {
+                alert(`請求過於頻繁，請等待 ${COOLDOWN_SECONDS - elapsed} 秒後再試`);
+                return;
+            }
+
+            // 寫入 localStorage 的最新請求時間戳記 (防 F5 刷新)
+            localStorage.setItem('klh_reincarnation_last_time', Date.now().toString());
+            updateCooldownUI();
+
+            // UI Reset
+            btn.disabled = true;
+            input.disabled = true;
+            document.getElementById('status-box').innerHTML = '';
+            resultsArea.classList.remove('active');
+            slotsGrid.innerHTML = '';
+            processedSaves = [];
+
+            logStatus("開始處理...", "info");
+            logStatus(`正在連線雲端尋找金鑰：${playerId}`);
+
+            try {
+                if (!supabaseClient) {
+                    if (typeof window.supabase === 'undefined' || typeof window.supabase.createClient !== 'function') {
+                        throw new Error("Supabase SDK 尚未載入完成，請檢查網路連線或稍後再試。");
+                    }
+                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                }
+
+                // 讀取雲端存檔
+                const { data: rawData, error } = await supabaseClient.rpc('load_player_save', {
+                    player_id: playerId,
+                    client_version: 'compressed'
+                });
+
+                if (error) throw error;
+                if (!rawData) throw new Error("找不到該金鑰的存檔，或存檔已失效。");
+
+                logStatus("成功取得雲端資料，開始解壓縮...");
+
+                // 解壓縮
+                if (!rawData.__compressed__ || !rawData.data) {
+                    throw new Error("雲端資料格式不正確 (非壓縮格式)");
+                }
+
+                const decompressed = LZString.decompressFromBase64(rawData.data);
+                if (!decompressed) throw new Error("LZ-String 解壓縮失敗。");
+
+                const payload = JSON.parse(decompressed);
+                logStatus("解壓縮完畢，開始整理角色資料...", "info");
+
+                // 處理共用倉庫
+                const warehouseParsed = unpackSlotData(payload.warehouse);
+
+                // 遍歷 1~8 槽位
+                for (let n = 1; n <= 8; n++) {
+                    const slotRaw = payload['save_' + n];
+                    if (slotRaw) {
+                        try {
+                            let slotObj = unpackSlotData(slotRaw);
+                            if (!slotObj) continue;
+
+                            // 附加倉庫資料以便完整匯出
+                            if (warehouseParsed) {
+                                slotObj.wh = warehouseParsed;
+                            }
+
+                            // 取得角色資訊 (名稱、職業、等級、模式)
+                            const charName = (slotObj.p && slotObj.p.name) ? slotObj.p.name : `未命名`;
+                            const rawCls = (slotObj.p && slotObj.p.cls) ? slotObj.p.cls : '';
+                            const clsMap = { knight: '騎士', mage: '法師', elf: '妖精', dark: '黑暗妖精', illusion: '幻術士', dragon: '龍騎士', warrior: '戰士', royal: '王族' };
+                            const charCls = clsMap[rawCls] || rawCls || '未知職業';
+                            const charLv = (slotObj.p && slotObj.p.lv) ? slotObj.p.lv : 1;
+
+                            const isClassic = !!(slotObj.p && slotObj.p.classicMode);
+                            const isTrad = !!(slotObj.p && slotObj.p.traditionalMode);
+                            let modeText = '';
+                            if (isClassic && isTrad) modeText = '經典＋傳統';
+                            else if (isTrad) modeText = '傳統';
+                            else if (isClassic) modeText = '經典';
+
+                            // 執行淨化 (靜默執行)
+                            slotObj = sanitizeSaveData(slotObj);
+
+                            // 轉回字串並加上防偽簽章
+                            const finalJsonStr = JSON.stringify(slotObj);
+                            const signedData = _saveWrap(finalJsonStr);
+
+                            processedSaves.push({
+                                slot: n,
+                                name: charName,
+                                cls: charCls,
+                                lv: charLv,
+                                mode: modeText,
+                                slotObj: slotObj,
+                                content: signedData
+                            });
+
+                            const logModeStr = modeText ? ` [${modeText}]` : '';
+                            logStatus(`[槽位 ${n}]${logModeStr} ${charCls} Lv.${charLv} (${charName}) - 資料讀取與封裝完成！`, "success");
+                        } catch (err) {
+                            logStatus(`[槽位 ${n}] 處理失敗：${err.message}`, "error");
+                        }
+                    }
+                }
+
+                if (processedSaves.length === 0) {
+                    throw new Error("您的雲端存檔中沒有任何角色資料！");
+                }
+
+                logStatus(`🎉 讀取完畢！共成功整理 ${processedSaves.length} 個角色存檔。`, "success");
+
+                // ==========================================
+                // 4.6 臨時金鑰自動銷毀 (過河拆橋機制 - 僅清空資料以保留統計紀錄)
+                // ==========================================
+                if (playerId.startsWith('@')) {
+                    logStatus("偵測到此為臨時轉移金鑰，正在自動清理雲端存檔以保護隱私...", "info");
+                    try {
+                        // 直接覆蓋成空（保留 ID 以供未來使用統計，並節省連線次數）
+                        const { error: clearError } = await supabaseClient.rpc('save_player_save_short', {
+                            player_id: playerId,
+                            new_save_data: {},
+                            new_save_data_short: ""
+                        });
+
+                        if (clearError) throw clearError;
+
+                        logStatus("雲端臨時存檔清理成功！", "success");
+                    } catch (delErr) {
+                        console.error("Cleanup temp save error:", delErr);
+                        throw new Error("自動清理雲端存檔失敗，為確保隱私安全，已攔截存檔匯出。請重新整理網頁後再試！");
+                    }
+                }
+
+                // 確保所有安全性步驟都順利完成後，才讓用戶下載存檔
+                renderDownloadUI();
+
+            } catch (err) {
+                logStatus(`發生錯誤：${err.message}`, "error");
+            } finally {
+                btn.disabled = false;
+                input.disabled = false;
+            }
+        }
+
+        // ==========================================
+        // 5. 下載與 ZIP 處理
+        // ==========================================
+        function createDownloadBlob(content) {
+            const blob = new Blob([content], { type: "application/json" });
+            return URL.createObjectURL(blob);
+        }
+
+        function renderDownloadUI() {
+            const resultsArea = document.getElementById('results-area');
+            const slotsGrid = document.getElementById('slots-grid');
+            const btnDownloadAll = document.getElementById('btn-download-all');
+
+            slotsGrid.innerHTML = ''; // Ensure slots grid is cleared before rendering
+
+            // 產生單一檔案下載卡片
+            processedSaves.forEach(save => {
+                const url = createDownloadBlob(save.content);
+                const filename = `fable5_save_${save.slot}_${save.name}.json`;
+
+                const isClassic = !!(save.slotObj && save.slotObj.p && save.slotObj.p.classicMode);
+                const isTrad = !!(save.slotObj && save.slotObj.p && save.slotObj.p.traditionalMode);
+                const borderClass = getBorderClass(isClassic, isTrad);
+                const classIcon = getClassIcon(save.cls);
+
+                const card = document.createElement('div');
+                card.id = `card-cloud-${save.slot}`;
+                card.className = `download-slot-card ${borderClass}`;
+                card.innerHTML = `
+                    <div style="font-size: 24px; margin-bottom: 2px;">${classIcon}</div>
+                    <div class="slot-title" style="font-weight: 700; font-size: 13px; transition: color 0.25s ease;">槽位 ${save.slot}</div>
+                    <div style="font-size: 14px; color: #f8fafc; font-weight: 700; margin: 2px 0;">${save.cls} Lv.${save.lv}</div>
+                    <div class="slot-name" style="color: #10b981; font-size: 12px; margin-bottom: 4px;">${save.name}</div>
+                    
+                    <!-- 經典與傳統模式勾選區 -->
+                    <div style="display: flex; gap: 8px; margin: 4px 0; font-size: 12px; color: #cbd5e1; justify-content: center; align-items: center; width: 100%; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 6px;">
+                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;">
+                            <input type="checkbox" ${isClassic ? 'checked' : ''} onchange="toggleCloudSlotMode(${save.slot}, 'classic', this.checked)"> 經典
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;">
+                            <input type="checkbox" ${isTrad ? 'checked' : ''} onchange="toggleCloudSlotMode(${save.slot}, 'trad', this.checked)"> 傳統
+                        </label>
+                    </div>
+
+                    <a id="btn-download-cloud-${save.slot}" class="btn-download-action" href="${url}" download="${filename}">
+                        📥 下載此存檔
+                    </a>
+                `;
+                slotsGrid.appendChild(card);
+            });
+
+            // 產生 ZIP 下載邏輯
+            if (processedSaves.length > 1) {
+                btnDownloadAll.style.display = 'block';
+                btnDownloadAll.onclick = async (e) => {
+                    e.preventDefault();
+                    btnDownloadAll.innerHTML = "📦 正在打包...";
+                    btnDownloadAll.style.pointerEvents = 'none';
+
+                    try {
+                        const zip = new JSZip();
+                        processedSaves.forEach(save => {
+                            const filename = `fable5_save_${save.slot}_${save.name}.json`;
+                            zip.file(filename, save.content);
+                        });
+
+                        const zipBlob = await zip.generateAsync({ type: "blob" });
+                        const zipUrl = URL.createObjectURL(zipBlob);
+
+                        const tempLink = document.createElement('a');
+                        tempLink.href = zipUrl;
+                        tempLink.download = "fable5_cloud_backup_saves.zip";
+                        tempLink.click();
+
+                        URL.revokeObjectURL(zipUrl);
+                    } catch (err) {
+                        alert("打包 ZIP 失敗：" + err.message);
+                    } finally {
+                        btnDownloadAll.innerHTML = "📦 一鍵打包下載全部 (ZIP)";
+                        btnDownloadAll.style.pointerEvents = 'auto';
+                    }
+                };
+            } else {
+                btnDownloadAll.style.display = 'none';
+            }
+
+            resultsArea.classList.add('active');
+        }
+
+        // ==========================================
+        // 6. 本機瀏覽器存檔讀取與分頁切換邏輯
+        // ==========================================
+        function switchTab(tab) {
+            const btnCloud = document.getElementById('tab-btn-cloud');
+            const btnLocal = document.getElementById('tab-btn-local');
+            const btnBookmarklet = document.getElementById('tab-btn-bookmarklet');
+            
+            const contentCloud = document.getElementById('tab-cloud-content');
+            const contentLocal = document.getElementById('tab-local-content');
+            const contentBookmarklet = document.getElementById('tab-bookmarklet-content');
+            
+            const titleEl = document.getElementById('page-title');
+            const subtitleEl = document.getElementById('page-subtitle');
+
+            // Reset all
+            if (btnCloud) btnCloud.classList.remove('active');
+            if (btnLocal) btnLocal.classList.remove('active');
+            if (btnBookmarklet) btnBookmarklet.classList.remove('active');
+            if (contentCloud) contentCloud.classList.remove('active');
+            if (contentLocal) contentLocal.classList.remove('active');
+            if (contentBookmarklet) contentBookmarklet.classList.remove('active');
+
+            if (tab === 'cloud') {
+                if (btnCloud) btnCloud.classList.add('active');
+                if (contentCloud) contentCloud.classList.add('active');
+                titleEl.innerHTML = "☁️ 雲端金鑰存檔匯出工具";
+                subtitleEl.innerHTML = "輸入您的雲端金鑰，直接檢索並打包匯出所有角色存檔，<br>輕鬆備份與轉移您的遊戲進度！";
+            } else if (tab === 'local') {
+                if (btnLocal) btnLocal.classList.add('active');
+                if (contentLocal) contentLocal.classList.add('active');
+                titleEl.innerHTML = "💻 本機瀏覽器存檔匯出工具";
+                subtitleEl.innerHTML = "直接讀取您當前瀏覽器儲存的遊戲角色資料，<br>無須網路連線，一鍵備份與匯出！";
+                scanAndRenderLocalSaves();
+            } else if (tab === 'bookmarklet') {
+                if (btnBookmarklet) btnBookmarklet.classList.add('active');
+                if (contentBookmarklet) contentBookmarklet.classList.add('active');
+                titleEl.innerHTML = "金鑰●百花齊放";
+                subtitleEl.innerHTML = "使用魔法書籤，將雲端存檔功能帶到任何其他版本的遊戲網頁中！<br>突破單一作者限制，讓您的存檔百花齊放！";
+            }
+        }
+
+        function scanLocalSaves() {
+            const activeMode = localStorage.getItem('klh_storage_mode') || 'local';
+
+            const group = {
+                type: 'local',
+                name: '💻 本機獨立模式 (Local)',
+                active: (activeMode === 'local'),
+                key: null,
+                slots: {},
+                warehouse: localStorage.getItem('lineage_idle_warehouse')
+            };
+
+            for (let n = 1; n <= 8; n++) {
+                const val = localStorage.getItem('lineage_idle_save_' + n);
+                if (val) {
+                    group.slots[n] = val;
+                }
+            }
+
+            if (Object.keys(group.slots).length > 0) {
+                return { 'local': group };
+            }
+            return {};
+        }
+
+        function scanAndRenderLocalSaves() {
+            const container = document.getElementById('local-saves-container');
+            container.innerHTML = '';
+
+            const activeMode = localStorage.getItem('klh_storage_mode') || 'local';
+            if (activeMode !== 'local') {
+                const activeKey = activeMode === 'supabase' ?
+                    (localStorage.getItem('klh_supabase_key') || '') :
+                    (localStorage.getItem('lineage_idle_jsonblob_url') || '');
+                const modeName = activeMode === 'supabase' ? 'Supabase 雲端' : '舊雲端 (Jsonblob)';
+
+                const warningDiv = document.createElement('div');
+                warningDiv.style.cssText = "background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24; padding: 12px 16px; border-radius: 12px; font-size: 13px; margin-bottom: 16px; line-height: 1.5;";
+                warningDiv.innerHTML = `⚠️ <b>提示</b>：您當前瀏覽器的遊戲模式設定為 <b>${modeName} 模式</b>（金鑰: ${activeKey}）。此分頁僅顯示與匯出您的<b>本機獨立模式 (Local)</b> 存檔，若要下載您的雲端存檔，請切換至左側「雲端備份匯出」分頁。`;
+                container.appendChild(warningDiv);
+            }
+
+            let groups;
+            try {
+                groups = scanLocalSaves();
+            } catch (e) {
+                const errDiv = document.createElement('div');
+                errDiv.className = 'no-saves-box';
+                errDiv.style.color = 'var(--error)';
+                errDiv.innerHTML = `掃描本機存檔失敗: ${e.message}`;
+                container.appendChild(errDiv);
+                return;
+            }
+
+            const groupKeys = Object.keys(groups);
+            if (groupKeys.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'no-saves-box';
+                emptyDiv.innerHTML = `
+                    📭 未在此瀏覽器中偵測到任何本機獨立存檔。<br>
+                    <span style="font-size: 12px; color: var(--text-sub); margin-top: 8px; display: block;">
+                        請確認您在此瀏覽器中以「本機模式」玩過該遊戲，且擁有儲存的角色。
+                    </span>
+                `;
+                container.appendChild(emptyDiv);
+                return;
+            }
+
+            groupKeys.forEach(groupKey => {
+                const group = groups[groupKey];
+                const groupCard = document.createElement('div');
+                groupCard.className = 'local-group-card';
+
+                const badge = group.active ? `<span class="active-badge">當前作用中</span>` : '';
+
+                // 動態解析此群組的所有角色資訊
+                const charList = [];
+                const warehouseParsed = unpackSlotData(group.warehouse);
+
+                for (let n = 1; n <= 8; n++) {
+                    const slotRaw = group.slots[n];
+                    if (slotRaw) {
+                        try {
+                            let slotObj = unpackSlotData(slotRaw);
+                            if (!slotObj) continue;
+
+                            // 附加倉庫
+                            if (warehouseParsed) {
+                                slotObj.wh = warehouseParsed;
+                            }
+
+                            const charName = (slotObj.p && slotObj.p.name) ? slotObj.p.name : `未命名`;
+                            const rawCls = (slotObj.p && slotObj.p.cls) ? slotObj.p.cls : '';
+                            const clsMap = { knight: '騎士', mage: '法師', elf: '妖精', dark: '黑暗妖精', illusion: '幻術士', dragon: '龍騎士', warrior: '戰士', royal: '王族' };
+                            const charCls = clsMap[rawCls] || rawCls || '未知職業';
+                            const charLv = (slotObj.p && slotObj.p.lv) ? slotObj.p.lv : 1;
+
+                            const isClassic = !!(slotObj.p && slotObj.p.classicMode);
+                            const isTrad = !!(slotObj.p && slotObj.p.traditionalMode);
+                            let modeText = '';
+                            if (isClassic && isTrad) modeText = '經典＋傳統';
+                            else if (isTrad) modeText = '傳統';
+                            else if (isClassic) modeText = '經典';
+
+                            // 執行淨化
+                            slotObj = sanitizeSaveData(slotObj);
+
+                            // 轉回字串並加上簽章
+                            const finalJsonStr = JSON.stringify(slotObj);
+                            const signedData = _saveWrap(finalJsonStr);
+
+                            charList.push({
+                                slot: n,
+                                name: charName,
+                                cls: charCls,
+                                lv: charLv,
+                                slotObj: slotObj,
+                                content: signedData
+                            });
+                        } catch (err) {
+                            console.error(`解析本機槽位 ${n} 失敗:`, err);
+                        }
+                    }
+                }
+
+                if (charList.length === 0) {
+                    return; // 此群組沒有有效角色則不渲染
+                }
+
+                // 渲染群組標題區與打包按鈕
+                const uniqueGroupId = `local-group-${groupKey.replace(/[^a-zA-Z0-9]/g, '')}`;
+
+                let actionButtonsHtml = '<div style="display: flex; gap: 8px;">';
+                if (charList.length > 1) {
+                    actionButtonsHtml += `
+                        <button class="btn-download-all" id="btn-zip-${uniqueGroupId}" style="padding: 8px 16px; font-size: 13px; border-radius: 8px; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2); margin-top: 0; width: auto; margin-bottom: 0;">
+                            📦 打包此群組 (ZIP)
+                        </button>
+                    `;
+                }
+                actionButtonsHtml += `
+                    <button class="btn-download-all" id="btn-upload-${uniqueGroupId}" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%); box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2); padding: 8px 16px; font-size: 13px; border-radius: 8px; margin-top: 0; width: auto; margin-bottom: 0;">
+                        📤 產生臨時轉移碼 (雲端)
+                    </button>
+                </div>`;
+
+                groupCard.innerHTML = `
+                    <div class="local-group-header">
+                        <div class="local-group-title">
+                            ${group.name} ${badge}
+                        </div>
+                        ${actionButtonsHtml}
+                    </div>
+                    <div class="slots-grid" id="grid-${uniqueGroupId}"></div>
+                `;
+
+                container.appendChild(groupCard);
+
+                // 存入全局變數方便動態修改
+                localGroupsData[groupKey] = group;
+                localProcessedSaves[groupKey] = charList;
+
+                // 渲染群組內的角色下載按鈕
+                const grid = document.getElementById(`grid-${uniqueGroupId}`);
+                charList.forEach(char => {
+                    const url = createDownloadBlob(char.content);
+                    const filename = `fable5_save_${char.slot}_${char.name}.json`;
+                    
+                    const isClassic = !!(char.slotObj && char.slotObj.p && char.slotObj.p.classicMode);
+                    const isTrad = !!(char.slotObj && char.slotObj.p && char.slotObj.p.traditionalMode);
+                    const borderClass = getBorderClass(isClassic, isTrad);
+                    const classIcon = getClassIcon(char.cls);
+
+                    const card = document.createElement('div');
+                    card.id = `card-local-${groupKey}-${char.slot}`;
+                    card.className = `download-slot-card ${borderClass}`;
+                    card.innerHTML = `
+                        <div style="font-size: 24px; margin-bottom: 2px;">${classIcon}</div>
+                        <div class="slot-title" style="font-weight: 700; font-size: 13px; transition: color 0.25s ease;">槽位 ${char.slot}</div>
+                        <div style="font-size: 14px; color: #f8fafc; font-weight: 700; margin: 2px 0;">${char.cls} Lv.${char.lv}</div>
+                        <div class="slot-name" style="color: #10b981; font-size: 12px; margin-bottom: 4px;">${char.name}</div>
+                        
+                        <!-- 經典與傳統模式勾選區 -->
+                        <div style="display: flex; gap: 8px; margin: 4px 0; font-size: 12px; color: #cbd5e1; justify-content: center; align-items: center; width: 100%; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 6px;">
+                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;">
+                                <input type="checkbox" ${isClassic ? 'checked' : ''} onchange="toggleLocalSlotMode('${groupKey}', ${char.slot}, 'classic', this.checked)"> 經典
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;">
+                                <input type="checkbox" ${isTrad ? 'checked' : ''} onchange="toggleLocalSlotMode('${groupKey}', ${char.slot}, 'trad', this.checked)"> 傳統
+                            </label>
+                        </div>
+
+                        <a id="btn-download-local-${groupKey}-${char.slot}" class="btn-download-action" href="${url}" download="${filename}">
+                            📥 下載此存檔
+                        </a>
+                    `;
+                    grid.appendChild(card);
+                });
+
+                // 綁定打包 ZIP 點擊事件
+                if (charList.length > 1) {
+                    const zipBtn = document.getElementById(`btn-zip-${uniqueGroupId}`);
+                    zipBtn.onclick = async (e) => {
+                        e.preventDefault();
+                        zipBtn.innerHTML = "📦 正在打包...";
+                        zipBtn.style.pointerEvents = 'none';
+
+                        try {
+                            const zip = new JSZip();
+                            charList.forEach(char => {
+                                const filename = `fable5_save_${char.slot}_${char.name}.json`;
+                                zip.file(filename, char.content);
+                            });
+
+                            const zipBlob = await zip.generateAsync({ type: "blob" });
+                            const zipUrl = URL.createObjectURL(zipBlob);
+
+                            const tempLink = document.createElement('a');
+                            tempLink.href = zipUrl;
+
+                            const backupName = group.key ? `fable5_local_backup_${group.key}` : 'fable5_local_backup_local';
+                            tempLink.download = `${backupName}.zip`;
+                            tempLink.click();
+
+                            URL.revokeObjectURL(zipUrl);
+                        } catch (err) {
+                            alert("打包 ZIP 失敗：" + err.message);
+                        } finally {
+                            zipBtn.innerHTML = "📦 打包此群組 (ZIP)";
+                            zipBtn.style.pointerEvents = 'auto';
+                        }
+                    };
+                }
+
+                // 綁定產生轉移金鑰點擊事件
+                const uploadBtn = document.getElementById(`btn-upload-${uniqueGroupId}`);
+                if (uploadBtn) {
+                    uploadBtn.onclick = (e) => {
+                        e.preventDefault();
+                        uploadTempSave(group);
+                    };
+                }
+            });
+            // 渲染完成後更新上傳按鈕冷卻 UI
+            updateUploadCooldownUI();
+        }
+
+        // ==========================================
+        // 7. 臨時金鑰產生與 UI 互動邏輯
+        // ==========================================
+        let uploadCooldownTimer = null;
+        function updateUploadCooldownUI() {
+            const uploadBtn = document.getElementById(`btn-upload-local-group-local`);
+            const targetBtn = uploadBtn || document.querySelector('[id^="btn-upload-local-group"]');
+            if (!targetBtn) return;
+
+            const lastTime = parseInt(localStorage.getItem('klh_last_upload_time') || '0', 10);
+            const now = Date.now();
+            const elapsed = Math.floor((now - lastTime) / 1000);
+            const cooldown = 60;
+
+            if (elapsed < cooldown) {
+                const remaining = cooldown - elapsed;
+                targetBtn.disabled = true;
+                targetBtn.style.pointerEvents = 'none';
+                targetBtn.style.opacity = '0.6';
+                targetBtn.innerHTML = `請等待 ${remaining} 秒...`;
+                if (uploadCooldownTimer) clearTimeout(uploadCooldownTimer);
+                uploadCooldownTimer = setTimeout(updateUploadCooldownUI, 1000);
+            } else {
+                targetBtn.disabled = false;
+                targetBtn.style.pointerEvents = 'auto';
+                targetBtn.style.opacity = '1';
+                targetBtn.innerHTML = "📤 產生臨時轉移碼 (雲端)";
+                if (uploadCooldownTimer) clearTimeout(uploadCooldownTimer);
+            }
+        }
+
+        function showTempKeyModal(tempKey) {
+            const existing = document.getElementById('temp-key-modal');
+            if (existing) existing.remove();
+
+            const backdrop = document.createElement('div');
+            backdrop.id = 'temp-key-modal';
+            backdrop.style.cssText = 'position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); z-index: 10001; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.25s ease;';
+
+            backdrop.innerHTML = `
+                <div style="background: #1e293b; border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 20px; padding: 24px; max-width: 420px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); text-align: center; position: relative; box-sizing: border-box;">
+                    <div style="font-size: 40px; margin-bottom: 12px;">🔑</div>
+                    <h3 style="margin: 0 0 8px 0; color: #a78bfa; font-size: 18px; font-weight: bold;">臨時轉移金鑰產生成功！</h3>
+                    <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin: 0 0 16px 0; text-align: left;">
+                        這是您當前瀏覽器本機存檔的臨時轉移碼。請複製下方代碼，並在另一台裝置或瀏覽器的「雲端備份匯出」輸入此金鑰。<br><br>
+                        <span style="color: #f87171;">⚠️ 注意：此金鑰一經讀取成功即會永久自動銷毀，且僅供臨時備份轉移使用。</span>
+                    </p>
+                    <div onclick="navigator.clipboard.writeText('${tempKey}'); alert('金鑰已複製到剪貼簿！');" style="background: #090d16; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 20px; font-weight: bold; color: #22d3ee; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 20px; transition: background 0.2s;" onmouseover="this.style.background='#0f172a'" onmouseout="this.style.background='#090d16'">
+                        <span>${tempKey}</span>
+                        <span style="font-size: 14px;">📋</span>
+                    </div>
+                    <button id="btn-close-temp-modal" style="background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.2); color: #cbd5e1; padding: 10px; width: 100%; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; border: none; outline: none;">關閉視窗</button>
+                </div>
+            `;
+
+            document.body.appendChild(backdrop);
+
+            // 漸顯效果
+            setTimeout(() => { backdrop.style.opacity = '1'; }, 10);
+
+            const closeBtn = document.getElementById('btn-close-temp-modal');
+            closeBtn.onclick = () => {
+                backdrop.style.opacity = '0';
+                setTimeout(() => { backdrop.remove(); }, 250);
+            };
+        }
+
+        async function uploadTempSave(group) {
+            const uploadBtn = document.getElementById(`btn-upload-local-group-local`);
+            const targetBtn = uploadBtn || document.querySelector('[id^="btn-upload-local-group"]');
+
+            if (targetBtn) {
+                targetBtn.innerHTML = "📤 正在建立轉移碼...";
+                targetBtn.style.pointerEvents = 'none';
+            }
+
+            try {
+                if (!supabaseClient) {
+                    if (typeof window.supabase === 'undefined' || typeof window.supabase.createClient !== 'function') {
+                        throw new Error("Supabase SDK 尚未載入完成，請檢查網路連線。");
+                    }
+                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                }
+
+                // 1. 取得本機雲端金鑰，加上 @ 前綴（若無則隨機產生 12 碼）
+                let baseKey = (localStorage.getItem('klh_supabase_key') || '').trim();
+                if (!baseKey) {
+                    const jsonBlobUrl = localStorage.getItem('lineage_idle_jsonblob_url') || '';
+                    if (jsonBlobUrl.includes('/')) {
+                        baseKey = jsonBlobUrl.substring(jsonBlobUrl.lastIndexOf('/') + 1).trim();
+                    }
+                }
+                if (!baseKey || baseKey.length < 12 || baseKey.length > 16) {
+                    const rand = Math.random().toString(36).substring(2, 9) + Math.random().toString(36).substring(2, 10);
+                    baseKey = '*' + rand.padEnd(15, '0').slice(0, 15);
+                }
+                const tempKey = '@' + (baseKey.startsWith('*') ? baseKey.substring(1) : baseKey.substring(0, 15));
+
+                // 2. 收集存檔明文 payload
+                const payload = {
+                    warehouse: group.warehouse
+                };
+                for (let n = 1; n <= 8; n++) {
+                    if (group.slots[n]) {
+                        payload['save_' + n] = group.slots[n];
+                    }
+                }
+
+                // 3. 壓縮 payload
+                const payloadJsonStr = JSON.stringify(payload);
+                const compressedPayload = LZString.compressToBase64(payloadJsonStr);
+
+                // 4. 呼叫 rpc 寫入資料
+                const { error } = await supabaseClient.rpc('save_player_save_short', {
+                    player_id: tempKey,
+                    new_save_data: payload,
+                    new_save_data_short: compressedPayload
+                });
+
+                if (error) throw error;
+
+                // 5. 顯示結果 Modal
+                showTempKeyModal(tempKey);
+
+                // 記錄成功上傳的時間以進行 60 秒冷卻
+                localStorage.setItem('klh_last_upload_time', Date.now().toString());
+
+            } catch (err) {
+                alert("上傳暫存檔失敗：" + err.message);
+            } finally {
+                updateUploadCooldownUI();
+            }
+        }
+    </script>
 </body>
-</html>
+
+</html></html>
