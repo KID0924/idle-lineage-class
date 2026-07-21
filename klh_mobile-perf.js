@@ -678,6 +678,7 @@
       }
     }, { capture: true, passive: true });
 
+    /*
     // 🔬 提供 Console 除錯工具
     window.checkMobilePerf = function() {
       var panelEl = document.getElementById('tab-content-panel');
@@ -705,6 +706,7 @@
         "當前背包運作模式": visible ? "真實 DOM 渲染 (Normal)" : "虛擬 DOM 渲染 (Skip DOM Paint)"
       };
     };
+    */
   })();
 
   /* ═══════════════ 啟動流程 ═══════════════ */
