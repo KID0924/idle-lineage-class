@@ -752,6 +752,27 @@
                 }
                 var avgTop20 = top20.length > 0 ? Math.floor(top20Sum / top20.length) : 0;
 
+                // 價差警示與偷甩/拋售判定 (最低與次低價差 >= 50%)
+                var isAlert = false;
+                if (matched.length >= 2) {
+                    var u1 = matched[0].unitPrice;
+                    var u2 = matched[1].unitPrice;
+                    if (u2 > 0) {
+                        var gapRatio = (u2 - u1) / u2;
+                        if (gapRatio >= 0.5) {
+                            if (searchTxt === '+9') {
+                                if (u1 < 6000000) isAlert = true;
+                            } else if (searchTxt === '+8') {
+                                if (u1 < 1000000) isAlert = true;
+                            } else if (searchTxt === '+7') {
+                                if (u1 < 500000) isAlert = true;
+                            } else {
+                                isAlert = true;
+                            }
+                        }
+                    }
+                }
+
                 catGroups.push({
                     name: searchTxt,
                     val: catItems[c].val,
@@ -760,11 +781,24 @@
                     minUnit: minUnit,
                     minUnitName: minUnitName,
                     avgTop20: avgTop20,
-                    top20Count: top20.length
+                    top20Count: top20.length,
+                    isAlert: isAlert
                 });
             }
 
-            var cHtml = '<div style="margin-bottom:8px;color:#caa668;font-size:12px;">熱門分類行情摘要（橫向滑動查看全部）：</div>';
+            // 觸發警示的項目置頂
+            var alertGroups = [];
+            var normalGroups = [];
+            for (var g = 0; g < catGroups.length; g++) {
+                if (catGroups[g].isAlert) {
+                    alertGroups.push(catGroups[g]);
+                } else {
+                    normalGroups.push(catGroups[g]);
+                }
+            }
+            var finalCatGroups = alertGroups.concat(normalGroups);
+
+            var cHtml = '<div style="margin-bottom:8px;color:#caa668;font-size:12px;">熱門分類行情摘要（紅色為撿漏/拋售警示，自動置頂）：</div>';
             cHtml += '<table style="width:100%;min-width:480px;border-collapse:collapse;font-size:12px;text-align:left;">';
             cHtml += '<thead><tr style="border-bottom:2px solid #5a4a36;color:#e8d0a0;background:#241f19;">' +
                     '<th style="padding:6px 8px;min-width:110px;white-space:nowrap;">分類關鍵字</th>' +
@@ -773,31 +807,41 @@
                     '<th style="padding:6px 8px;text-align:right;min-width:110px;white-space:nowrap;">前20低平均單價</th>' +
                     '</tr></thead><tbody>';
 
-            for (var cgIdx = 0; cgIdx < catGroups.length; cgIdx++) {
-                var cg = catGroups[cgIdx];
+            for (var cgIdx = 0; cgIdx < finalCatGroups.length; cgIdx++) {
+                var cg = finalCatGroups[cgIdx];
                 var bg;
-                if (cgIdx % 2 === 0) { bg = '#1c1916'; } else { bg = '#231f1a'; }
-                var packsText, minUnitText, avgTop20Text;
+                if (cg.isAlert) {
+                    bg = '#4e1414';
+                } else {
+                    bg = cgIdx % 2 === 0 ? '#1c1916' : '#231f1a';
+                }
+                var packsText, minUnitText, avgTop20Text, nameText;
+                if (cg.isAlert) {
+                    nameText = '🔥 ' + cg.name + ' <span style="font-size:10px;background:#dc2626;color:#ffffff;padding:1px 4px;border-radius:3px;margin-left:2px;font-weight:normal;">撿漏警示</span>';
+                } else {
+                    nameText = cg.name;
+                }
+
                 if (cg.packs > 0) {
                     packsText = cg.packs + ' 筆 (' + cg.totalCnt.toLocaleString() + '個)';
                     minUnitText = cg.minUnit.toLocaleString();
-                    minUnitText += ' <span style="font-size:11px;color:#8a8070;font-weight:normal;">(' + cg.minUnitName + ')</span>';
+                    minUnitText += ' <span style="font-size:11px;color:' + (cg.isAlert ? '#fca5a5' : '#8a8070') + ';font-weight:normal;">(' + cg.minUnitName + ')</span>';
                     
                     avgTop20Text = cg.avgTop20.toLocaleString();
-                    avgTop20Text += ' <span style="font-size:11px;color:#8a8070;font-weight:normal;">(前' + cg.top20Count + '筆)</span>';
+                    avgTop20Text += ' <span style="font-size:11px;color:' + (cg.isAlert ? '#fca5a5' : '#8a8070') + ';font-weight:normal;">(前' + cg.top20Count + '筆)</span>';
                 } else {
                     packsText = '<span style="color:#666;">無掛牌</span>';
                     minUnitText = '<span style="color:#666;">-</span>';
                     avgTop20Text = '<span style="color:#666;">-</span>';
                 }
                 cHtml += '<tr class="my-modal-row" data-name="' + cg.val + '"';
-                cHtml += ' style="border-bottom:1px solid #332b21;background:' + bg + ';cursor:pointer;"';
-                cHtml += ' onmouseover="this.style.background=\'#3a3124\'"';
+                cHtml += ' style="border-bottom:1px solid ' + (cg.isAlert ? '#991b1b' : '#332b21') + ';background:' + bg + ';cursor:pointer;"';
+                cHtml += ' onmouseover="this.style.background=\'#6b1d1d\'"';
                 cHtml += ' onmouseout="this.style.background=\'' + bg + '\'">';
-                cHtml += '<td style="padding:6px 8px;color:#fff;font-weight:bold;vertical-align:middle;white-space:nowrap;">' + cg.name + '</td>';
-                cHtml += '<td style="padding:6px 8px;text-align:center;color:#d0b898;vertical-align:middle;white-space:nowrap;">' + packsText + '</td>';
-                cHtml += '<td style="padding:6px 8px;text-align:right;color:#6ee7b7;font-weight:bold;vertical-align:middle;white-space:nowrap;">' + minUnitText + '</td>';
-                cHtml += '<td style="padding:6px 8px;text-align:right;color:#fcd34d;font-weight:bold;vertical-align:middle;white-space:nowrap;">' + avgTop20Text + '</td>';
+                cHtml += '<td style="padding:6px 8px;color:' + (cg.isAlert ? '#f87171' : '#fff') + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + nameText + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:center;color:' + (cg.isAlert ? '#fca5a5' : '#d0b898') + ';vertical-align:middle;white-space:nowrap;">' + packsText + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:right;color:' + (cg.isAlert ? '#f87171' : '#6ee7b7') + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + minUnitText + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:right;color:' + (cg.isAlert ? '#fde047' : '#fcd34d') + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + avgTop20Text + '</td>';
                 cHtml += '</tr>';
             }
             cHtml += '</tbody></table>';
