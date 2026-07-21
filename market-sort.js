@@ -16,7 +16,6 @@
     // 1. 交易所原版清單 排序與繪製 Hook
     // ----------------------------------------------------
     window.paintTradeList = function() {
-        // 直接存取全域 marketData 陣列
         if (typeof marketData !== 'undefined' && Array.isArray(marketData)) {
             var sortType = window._myCurrentSort;
             if (sortType && sortType !== 'none') {
@@ -39,7 +38,6 @@
         if (document.getElementById('trade-list')) {
             var box = document.getElementById('trade-list');
             
-            // 建立工具列包裝層
             var searchInput = document.getElementById('trade-search');
             if (searchInput && searchInput.parentNode && searchInput.parentNode.id !== 'my-sort-ui') {
                 var wrapper = document.createElement('div');
@@ -58,7 +56,6 @@
                 searchInput.style.minWidth = '0';
                 wrapper.appendChild(searchInput);
 
-                // 快速填入下拉選單
                 var quickItems = [
                     { text: '快速填入', val: '' },
                     { text: '卷', val: '卷' },
@@ -82,6 +79,8 @@
                     { text: '泰坦', val: '泰坦' },
                     { text: '項鍊', val: '項鍊' },
                     { text: '戒指', val: '戒指' },
+                    { text: '變形控制戒指', val: '變形控制戒指' },
+                    { text: '傳送控制戒指', val: '傳送控制戒指' },
                     { text: '不死', val: '不死' },
                     { text: '鑰匙', val: '鑰匙' },
                     { text: '變形怪', val: '變形怪' },
@@ -110,8 +109,8 @@
 
                 var quickSelectEl = document.createElement('select');
                 quickSelectEl.id = 'my-quick-select';
-                quickSelectEl.style.flex = '0 0 auto';
-                quickSelectEl.style.maxWidth = '90px';
+                quickSelectEl.style.flex = '0 0 90px';
+                quickSelectEl.style.width = '90px';
                 quickSelectEl.style.padding = '8px 2px';
                 quickSelectEl.style.borderRadius = '8px';
                 quickSelectEl.style.border = '1px solid #5a4a26';
@@ -150,10 +149,9 @@
                     window.doQuickSearch(e.target.value);
                 });
 
-                // 切換按鈕 ◀ 
                 var prevBtn = document.createElement('button');
                 prevBtn.id = 'my-quick-prev-btn';
-                prevBtn.textContent = '◀';
+                prevBtn.textContent = '<';
                 prevBtn.title = '上一個選項';
                 prevBtn.style.flex = '0 0 auto';
                 prevBtn.style.padding = '7px 5px';
@@ -173,10 +171,9 @@
                     window.doQuickSearch(quickSelectEl.value);
                 });
 
-                // 切換按鈕 ▶
                 var nextBtn = document.createElement('button');
                 nextBtn.id = 'my-quick-next-btn';
-                nextBtn.textContent = '▶';
+                nextBtn.textContent = '>';
                 nextBtn.title = '下一個選項';
                 nextBtn.style.flex = '0 0 auto';
                 nextBtn.style.padding = '7px 5px';
@@ -212,7 +209,6 @@
                 wrapper.appendChild(prevBtn);
                 wrapper.appendChild(nextBtn);
                 
-                // 排序下拉選單
                 var selectEl = document.createElement('select');
                 selectEl.id = 'my-sort-select';
                 selectEl.style.flex = '0 0 auto';
@@ -225,10 +221,10 @@
                 selectEl.style.fontWeight = 'bold';
                 
                 selectEl.innerHTML = '<option value="none">預設</option>' +
-                                     '<option value="priceAsc">總價:低➡️高</option>' +
-                                     '<option value="priceDesc">總價:高➡️低</option>' +
-                                     '<option value="unitPriceAsc">單價:低➡️高</option>' +
-                                     '<option value="unitPriceDesc">單價:高➡️低</option>';
+                                     '<option value="priceAsc">總價:低到高</option>' +
+                                     '<option value="priceDesc">總價:高到低</option>' +
+                                     '<option value="unitPriceAsc">單價:低到高</option>' +
+                                     '<option value="unitPriceDesc">單價:高到低</option>';
                 wrapper.appendChild(selectEl);
                 
                 selectEl.value = window._myCurrentSort;
@@ -238,10 +234,9 @@
                     window.paintTradeList();
                 });
 
-                // 🌟 新增需求：在輸入框與選單同排加入「📊 行情分析」按鈕 🌟
                 var analyticsBtn = document.createElement('button');
                 analyticsBtn.id = 'my-analytics-btn';
-                analyticsBtn.innerHTML = '📊 行情分析';
+                analyticsBtn.innerHTML = '行情分析';
                 analyticsBtn.title = '點擊打開全市場數據分析彈出視窗';
                 analyticsBtn.style.flex = '0 0 auto';
                 analyticsBtn.style.padding = '7px 10px';
@@ -269,7 +264,6 @@
                 wrapper.appendChild(analyticsBtn);
             }
             
-            // 標註清單單價
             var items = box.querySelectorAll('.shop-item');
             for (var i = 0; i < items.length; i++) {
                 var info = items[i].querySelector('.si-info');
@@ -305,10 +299,13 @@
         if (existingModal) {
             existingModal.style.display = 'flex';
             window.renderMarketAnalyticsContent();
+            var input = document.getElementById('my-auto-refresh-input');
+            if (input) {
+                input.dispatchEvent(new Event('change'));
+            }
             return;
         }
 
-        // 建立遮罩與彈出面板 DOM
         var modalOverlay = document.createElement('div');
         modalOverlay.id = 'my-market-modal';
         modalOverlay.style.position = 'fixed';
@@ -325,9 +322,9 @@
         modalOverlay.style.fontFamily = 'system-ui, -apple-system, sans-serif';
 
         var modalBox = document.createElement('div');
-        modalBox.style.width = '92%';
+        modalBox.style.width = '96%';
         modalBox.style.maxWidth = '780px';
-        modalBox.style.maxHeight = '85vh';
+        modalBox.style.maxHeight = '92vh';
         modalBox.style.background = '#1a1816';
         modalBox.style.color = '#f0e6d2';
         modalBox.style.border = '2px solid #a88238';
@@ -337,7 +334,6 @@
         modalBox.style.flexDirection = 'column';
         modalBox.style.overflow = 'hidden';
 
-        // 頂部標題欄
         var header = document.createElement('div');
         header.style.display = 'flex';
         header.style.justifyContent = 'space-between';
@@ -350,25 +346,104 @@
         title.style.fontSize = '17px';
         title.style.fontWeight = 'bold';
         title.style.color = '#f3d898';
-        title.innerHTML = '📊 交易所數據大師 <span style="font-size:12px;color:#a09078;font-weight:normal;">(全市場即時大盤)</span>';
+        title.innerHTML = '交易所數據大師 <span style="font-size:12px;color:#a09078;font-weight:normal;">(全市場即時大盤)</span>';
+
+        var headerRight = document.createElement('div');
+        headerRight.style.display = 'flex';
+        headerRight.style.alignItems = 'center';
+        headerRight.style.gap = '8px';
+
+        var refreshBtn = document.createElement('button');
+        refreshBtn.textContent = '刷新';
+        refreshBtn.style.padding = '4px 10px';
+        refreshBtn.style.borderRadius = '6px';
+        refreshBtn.style.border = '1px solid #5a4a36';
+        refreshBtn.style.background = '#3a6a3a';
+        refreshBtn.style.color = '#fff';
+        refreshBtn.style.fontSize = '12px';
+        refreshBtn.style.fontWeight = 'bold';
+        refreshBtn.style.cursor = 'pointer';
+        refreshBtn.addEventListener('click', function() {
+            window.renderMarketAnalyticsContent();
+        });
+
+        var autoLabel = document.createElement('span');
+        autoLabel.style.color = '#a09078';
+        autoLabel.style.fontSize = '12px';
+        autoLabel.textContent = '自動:';
+
+        var autoInput = document.createElement('input');
+        autoInput.id = 'my-auto-refresh-input';
+        autoInput.type = 'number';
+        autoInput.step = '0.1';
+        autoInput.min = '0';
+        autoInput.max = '600';
+        autoInput.value = '0.5';
+        autoInput.placeholder = '秒';
+        autoInput.style.width = '48px';
+        autoInput.style.padding = '3px 4px';
+        autoInput.style.borderRadius = '4px';
+        autoInput.style.border = '1px solid #5a4a36';
+        autoInput.style.background = '#141210';
+        autoInput.style.color = '#fff';
+        autoInput.style.fontSize = '12px';
+        autoInput.style.textAlign = 'center';
+
+        var autoStatus = document.createElement('span');
+        autoStatus.id = 'my-auto-refresh-status';
+        autoStatus.style.color = '#6ee7b7';
+        autoStatus.style.fontSize = '11px';
+
+        window._myAutoRefreshTimer = null;
+
+        function startAutoRefreshTimer() {
+            if (window._myAutoRefreshTimer) {
+                clearInterval(window._myAutoRefreshTimer);
+                window._myAutoRefreshTimer = null;
+            }
+            var sec = parseFloat(autoInput.value);
+            if (!isNaN(sec) && sec > 0) {
+                autoStatus.textContent = '(' + sec + 's)';
+                autoStatus.style.color = '#6ee7b7';
+                window._myAutoRefreshTimer = setInterval(function() {
+                    window.renderMarketAnalyticsContent();
+                }, Math.floor(sec * 1000));
+            } else {
+                autoStatus.textContent = '';
+                autoStatus.style.color = '#666';
+            }
+        }
+
+        autoInput.addEventListener('change', startAutoRefreshTimer);
+        startAutoRefreshTimer();
 
         var closeBtn = document.createElement('button');
-        closeBtn.innerHTML = '✕';
+        closeBtn.innerHTML = 'X';
         closeBtn.style.background = 'none';
         closeBtn.style.border = 'none';
         closeBtn.style.color = '#d0b898';
-        closeBtn.style.fontSize = '20px';
+        closeBtn.style.fontSize = '18px';
+        closeBtn.style.fontWeight = 'bold';
         closeBtn.style.cursor = 'pointer';
         closeBtn.style.padding = '0 5px';
         closeBtn.addEventListener('click', function() {
+            if (window._myAutoRefreshTimer) {
+                clearInterval(window._myAutoRefreshTimer);
+                window._myAutoRefreshTimer = null;
+            }
             modalOverlay.style.display = 'none';
         });
 
+        headerRight.appendChild(refreshBtn);
+        headerRight.appendChild(autoLabel);
+        headerRight.appendChild(autoInput);
+        headerRight.appendChild(autoStatus);
+        headerRight.appendChild(closeBtn);
+
         header.appendChild(title);
-        header.appendChild(closeBtn);
+        header.appendChild(headerRight);
         modalBox.appendChild(header);
 
-        // 工具列 (頁籤 + 內部搜尋)
         var toolbar = document.createElement('div');
         toolbar.style.display = 'flex';
         toolbar.style.justifyContent = 'space-between';
@@ -379,10 +454,12 @@
         toolbar.style.flexWrap = 'wrap';
         toolbar.style.gap = '8px';
 
-        // 頁籤按鈕組
         var tabsNav = document.createElement('div');
         tabsNav.style.display = 'flex';
         tabsNav.style.gap = '6px';
+        tabsNav.style.overflowX = 'auto';
+        tabsNav.style.maxWidth = '100%';
+        tabsNav.style.webkitOverflowScrolling = 'touch';
 
         var activeTab = 'summary';
 
@@ -413,16 +490,15 @@
             return btn;
         }
 
-        tabsNav.appendChild(createTabBtn('summary', '📈 大盤行情'));
-        tabsNav.appendChild(createTabBtn('deals', '💎 最低單價撿漏'));
-        tabsNav.appendChild(createTabBtn('categories', '🏷️ 熱門分類'));
+        tabsNav.appendChild(createTabBtn('summary', '大盤行情'));
+        tabsNav.appendChild(createTabBtn('deals', '最低單價撿漏'));
+        tabsNav.appendChild(createTabBtn('categories', '熱門分類'));
         toolbar.appendChild(tabsNav);
 
-        // 彈出視窗內部搜尋框
         var filterInput = document.createElement('input');
         filterInput.id = 'my-modal-filter-input';
         filterInput.type = 'text';
-        filterInput.placeholder = '🔍 面板內快速過濾...';
+        filterInput.placeholder = '快速過濾...';
         filterInput.style.padding = '6px 10px';
         filterInput.style.borderRadius = '6px';
         filterInput.style.border = '1px solid #5a4a36';
@@ -438,20 +514,24 @@
         toolbar.appendChild(filterInput);
         modalBox.appendChild(toolbar);
 
-        // 主內容顯示區
         var contentBody = document.createElement('div');
         contentBody.id = 'my-modal-body';
-        contentBody.style.padding = '14px 18px';
+        contentBody.style.padding = '10px 8px';
         contentBody.style.overflowY = 'auto';
+        contentBody.style.overflowX = 'auto';
+        contentBody.style.webkitOverflowScrolling = 'touch';
         contentBody.style.flex = '1';
         modalBox.appendChild(contentBody);
 
         modalOverlay.appendChild(modalBox);
         document.body.appendChild(modalOverlay);
 
-        // 點擊背景關閉
         modalOverlay.addEventListener('click', function(e) {
             if (e.target === modalOverlay) {
+                if (window._myAutoRefreshTimer) {
+                    clearInterval(window._myAutoRefreshTimer);
+                    window._myAutoRefreshTimer = null;
+                }
                 modalOverlay.style.display = 'none';
             }
         });
@@ -463,7 +543,8 @@
     // 3. 渲染 Modal 數據內容
     // ----------------------------------------------------
     window.renderMarketAnalyticsContent = function(tab) {
-        tab = tab || 'summary';
+        if (tab) { window._myActiveTab = tab; }
+        tab = tab || window._myActiveTab || 'summary';
         var body = document.getElementById('my-modal-body');
         var filterInput = document.getElementById('my-modal-filter-input');
         if (!body) return;
@@ -471,20 +552,18 @@
         var filterKw = filterInput ? filterInput.value.trim().toLowerCase() : '';
 
         if (typeof marketData === 'undefined' || !Array.isArray(marketData) || marketData.length === 0) {
-            body.innerHTML = '<div style="text-align:center;padding:40px;color:#a09078;font-size:15px;">⚠️ 尚未讀取到交易所數據，請先打開遊戲內的交易所介面！</div>';
+            body.innerHTML = '<div style="text-align:center;padding:40px;color:#a09078;font-size:15px;">尚未讀取到交易所數據，請先打開遊戲內的交易所介面！</div>';
             return;
         }
 
-        // 數據清洗與預處理
         var processedData = [];
         for (var i = 0; i < marketData.length; i++) {
             var d = marketData[i];
             var cnt = d.cnt || 1;
             var price = d.price || 0;
             var unitPrice = Math.floor(price / cnt);
-            var rawName = d.name || '未知物品';
+            var rawName = d.nameHtml || d.n || d.name || '未知物品';
             
-            // 去除 HTML 標籤抓乾淨名稱
             var cleanName = rawName.replace(/<[^>]+>/g, '').trim();
 
             processedData.push({
@@ -498,7 +577,6 @@
             });
         }
 
-        // 依關鍵字過濾
         if (filterKw) {
             processedData = processedData.filter(function(item) {
                 return item.cleanName.toLowerCase().indexOf(filterKw) !== -1;
@@ -506,7 +584,6 @@
         }
 
         if (tab === 'summary') {
-            // 📈 大盤行情：依名稱 group by 統計
             var groups = {};
             for (var j = 0; j < processedData.length; j++) {
                 var item = processedData[j];
@@ -538,97 +615,195 @@
                 groupList.push(g);
             }
 
-            // 按掛單數量與熱度排序
             groupList.sort(function(a, b) {
                 return b.packs - a.packs;
             });
 
-            var html = '<div style="margin-bottom:10px;color:#caa668;font-size:13px;">💡 共有 <b>' + groupList.length + '</b> 種相異商品掛牌中（點擊任何物品可自動帶入原版交易所搜尋）：</div>';
-            html += '<table style="width:100%;border-collapse:collapse;font-size:13px;text-align:left;">';
+            var html = '<div style="margin-bottom:8px;color:#caa668;font-size:12px;">共有 <b>' + groupList.length + '</b> 種商品掛牌中（橫向滑動查看全部）：</div>';
+            html += '<table style="width:100%;min-width:520px;border-collapse:collapse;font-size:12px;text-align:left;">';
             html += '<thead><tr style="border-bottom:2px solid #5a4a36;color:#e8d0a0;background:#241f19;">' +
-                    '<th style="padding:8px;">商品名稱</th>' +
-                    '<th style="padding:8px;text-align:center;">掛單數</th>' +
-                    '<th style="padding:8px;text-align:right;">最低單價</th>' +
-                    '<th style="padding:8px;text-align:right;">平均單價</th>' +
-                    '<th style="padding:8px;text-align:right;">最低總價</th>' +
+                    '<th style="padding:6px 8px;min-width:120px;white-space:nowrap;">商品名稱</th>' +
+                    '<th style="padding:6px 8px;text-align:center;min-width:85px;white-space:nowrap;">掛單數</th>' +
+                    '<th style="padding:6px 8px;text-align:right;min-width:85px;white-space:nowrap;">最低單價</th>' +
+                    '<th style="padding:6px 8px;text-align:right;min-width:85px;white-space:nowrap;">平均單價</th>' +
+                    '<th style="padding:6px 8px;text-align:right;min-width:85px;white-space:nowrap;">最低總價</th>' +
                     '</tr></thead><tbody>';
 
             for (var gIdx = 0; gIdx < groupList.length; gIdx++) {
                 var grp = groupList[gIdx];
                 var bg = gIdx % 2 === 0 ? '#1c1916' : '#231f1a';
-                html += '<tr class="my-modal-row" data-name="' + grp.name + '" style="border-bottom:1px solid #332b21;background:' + bg + ';cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background=\'#3a3124\'" onmouseout="this.style.background=\'' + bg + '\'">' +
-                        '<td style="padding:8px;color:#fff;font-weight:bold;">' + grp.name + '</td>' +
-                        '<td style="padding:8px;text-align:center;color:#d0b898;">' + grp.packs + ' 筆 (' + grp.totalCnt.toLocaleString() + '個)</td>' +
-                        '<td style="padding:8px;text-align:right;color:#6ee7b7;font-weight:bold;">' + grp.minUnit.toLocaleString() + '</td>' +
-                        '<td style="padding:8px;text-align:right;color:#fcd34d;">' + grp.avgUnit.toLocaleString() + '</td>' +
-                        '<td style="padding:8px;text-align:right;color:#93c5fd;">' + grp.minTotalPrice.toLocaleString() + '</td>' +
+                html += '<tr class="my-modal-row" data-name="' + grp.name + '" style="border-bottom:1px solid #332b21;background:' + bg + ';cursor:pointer;" onmouseover="this.style.background=\'#3a3124\'" onmouseout="this.style.background=\'' + bg + '\'">' +
+                        '<td style="padding:6px 8px;color:#fff;font-weight:bold;white-space:nowrap;">' + grp.name + '</td>' +
+                        '<td style="padding:6px 8px;text-align:center;color:#d0b898;white-space:nowrap;">' + grp.packs + ' 筆 (' + grp.totalCnt.toLocaleString() + '個)</td>' +
+                        '<td style="padding:6px 8px;text-align:right;color:#6ee7b7;font-weight:bold;white-space:nowrap;">' + grp.minUnit.toLocaleString() + '</td>' +
+                        '<td style="padding:6px 8px;text-align:right;color:#fcd34d;white-space:nowrap;">' + grp.avgUnit.toLocaleString() + '</td>' +
+                        '<td style="padding:6px 8px;text-align:right;color:#93c5fd;white-space:nowrap;">' + grp.minTotalPrice.toLocaleString() + '</td>' +
                         '</tr>';
             }
             html += '</tbody></table>';
             body.innerHTML = html;
 
         } else if (tab === 'deals') {
-            // 💎 最低單價撿漏榜
             processedData.sort(function(a, b) {
                 return a.unitPrice - b.unitPrice;
             });
 
             var topDeals = processedData.slice(0, 100);
 
-            var dHtml = '<div style="margin-bottom:10px;color:#caa668;font-size:13px;">💎 全市場單價最低的前 100 筆商品（直擊划算好物）：</div>';
-            dHtml += '<table style="width:100%;border-collapse:collapse;font-size:13px;text-align:left;">';
+            var dHtml = '<div style="margin-bottom:8px;color:#caa668;font-size:12px;">全市場單價最低的前 100 筆商品（橫向滑動查看全部）：</div>';
+            dHtml += '<table style="width:100%;min-width:440px;border-collapse:collapse;font-size:12px;text-align:left;">';
             dHtml += '<thead><tr style="border-bottom:2px solid #5a4a36;color:#e8d0a0;background:#241f19;">' +
-                    '<th style="padding:8px;">商品名稱</th>' +
-                    '<th style="padding:8px;text-align:center;">數量</th>' +
-                    '<th style="padding:8px;text-align:right;">單價</th>' +
-                    '<th style="padding:8px;text-align:right;">總售價</th>' +
+                    '<th style="padding:6px 8px;min-width:120px;white-space:nowrap;">商品名稱</th>' +
+                    '<th style="padding:6px 8px;text-align:center;min-width:70px;white-space:nowrap;">數量</th>' +
+                    '<th style="padding:6px 8px;text-align:right;min-width:85px;white-space:nowrap;">單價</th>' +
+                    '<th style="padding:6px 8px;text-align:right;min-width:85px;white-space:nowrap;">總售價</th>' +
                     '</tr></thead><tbody>';
 
             for (var dIdx = 0; dIdx < topDeals.length; dIdx++) {
                 var deal = topDeals[dIdx];
                 var dBg = dIdx % 2 === 0 ? '#1c1916' : '#231f1a';
                 dHtml += '<tr class="my-modal-row" data-name="' + deal.cleanName + '" style="border-bottom:1px solid #332b21;background:' + dBg + ';cursor:pointer;" onmouseover="this.style.background=\'#3a3124\'" onmouseout="this.style.background=\'' + dBg + '\'">' +
-                        '<td style="padding:8px;color:#fff;font-weight:bold;">' + deal.cleanName + '</td>' +
-                        '<td style="padding:8px;text-align:center;color:#d0b898;">' + deal.cnt.toLocaleString() + '</td>' +
-                        '<td style="padding:8px;text-align:right;color:#6ee7b7;font-weight:bold;">' + deal.unitPrice.toLocaleString() + '</td>' +
-                        '<td style="padding:8px;text-align:right;color:#93c5fd;">' + deal.price.toLocaleString() + '</td>' +
+                        '<td style="padding:6px 8px;color:#fff;font-weight:bold;white-space:nowrap;">' + deal.cleanName + '</td>' +
+                        '<td style="padding:6px 8px;text-align:center;color:#d0b898;white-space:nowrap;">' + deal.cnt.toLocaleString() + '</td>' +
+                        '<td style="padding:6px 8px;text-align:right;color:#6ee7b7;font-weight:bold;white-space:nowrap;">' + deal.unitPrice.toLocaleString() + '</td>' +
+                        '<td style="padding:6px 8px;text-align:right;color:#93c5fd;white-space:nowrap;">' + deal.price.toLocaleString() + '</td>' +
                         '</tr>';
             }
             dHtml += '</tbody></table>';
             body.innerHTML = dHtml;
 
         } else if (tab === 'categories') {
-            // 🏷️ 熱門分類過濾
-            var cats = [
-                { name: '📜 卷軸類', kw: '卷' },
-                { name: '🛡️ +7~+9 裝備', kw: '+' },
-                { name: '💊 萬能藥/藥水', kw: '藥' },
-                { name: '🧱 材料/資源', kw: '塊' },
-                { name: '💍 飾品類', kw: '飾品' }
+            var catItems = [
+                { text: '全部最低單價', val: '' },
+                { text: '卷', val: '卷' },
+                { text: '武器施法的卷軸', val: '武器施法的卷軸' },
+                { text: '武器祝福卷軸', val: '武器祝福卷軸' },
+                { text: '盔甲施法的卷軸', val: '盔甲施法的卷軸' },
+                { text: '盔甲祝福卷軸', val: '盔甲祝福卷軸' },
+                { text: '飾品', val: '飾品' },
+                { text: '飾品施法的卷軸', val: '飾品施法的卷軸' },
+                { text: '飾品祝福卷軸', val: '飾品祝福卷軸' },
+                { text: '力量魔法頭盔', val: '力量魔法頭盔' },
+                { text: '敏捷魔法頭盔', val: '敏捷魔法頭盔' },
+                { text: '搜索狀', val: '搜索狀' },
+                { text: '萬能藥', val: '萬能藥' },
+                { text: '十字', val: '十字' },
+                { text: '腕甲', val: '腕甲' },
+                { text: '艾', val: '艾' },
+                { text: '精靈鏈甲', val: '精靈鏈甲' },
+                { text: '精靈金屬盔甲', val: '精靈金屬盔甲' },
+                { text: '腰帶', val: '腰帶' },
+                { text: '泰坦', val: '泰坦' },
+                { text: '項鍊', val: '項鍊' },
+                { text: '戒指', val: '戒指' },
+                { text: '變形控制戒指', val: '變形控制戒指' },
+                { text: '傳送控制戒指', val: '傳送控制戒指' },
+                { text: '不死', val: '不死' },
+                { text: '鑰匙', val: '鑰匙' },
+                { text: '變形怪', val: '變形怪' },
+                { text: '蛇女', val: '蛇女' },
+                { text: '潘', val: '潘' },
+                { text: '樹枝', val: '樹枝' },
+                { text: '金屬塊', val: '金屬塊' },
+                { text: '鋼鐵', val: '鋼鐵' },
+                { text: '鋼鐵頭盔', val: '鋼鐵頭盔' },
+                { text: '鋼鐵長靴', val: '鋼鐵長靴' },
+                { text: '鋼鐵手套', val: '鋼鐵手套' },
+                { text: '品質', val: '品質' },
+                { text: 'STR', val: 'STR' },
+                { text: 'INT', val: 'INT' },
+                { text: 'DEX', val: 'DEX' },
+                { text: 'CHA', val: 'CHA' },
+                { text: 'CON', val: 'CON' },
+                { text: 'WIS', val: 'WIS' },
+                { text: '+9', val: '+9' },
+                { text: '+8', val: '+8' },
+                { text: '+7', val: '+7' },
+                { text: '+6', val: '+6' },
+                { text: '抗魔法', val: '抗魔法' },
+                { text: '抗魔法頭盔', val: '抗魔法頭盔' }
             ];
 
-            var cHtml = '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">';
-            for (var c = 0; c < cats.length; c++) {
-                cHtml += '<button class="my-cat-filter-btn" data-kw="' + cats[c].kw + '" style="padding:6px 12px;background:#342b20;border:1px solid #6b553b;color:#f3e8d3;border-radius:6px;cursor:pointer;font-weight:bold;font-size:13px;">' + cats[c].name + '</button>';
-            }
-            cHtml += '</div><div id="my-cat-result"></div>';
-            body.innerHTML = cHtml;
+            var catGroups = [];
+            for (var c = 0; c < catItems.length; c++) {
+                var searchVal = catItems[c].val.toLowerCase();
+                var searchTxt = catItems[c].text;
+                
+                var matched = processedData.filter(function(item) {
+                    return item.cleanName.toLowerCase().indexOf(searchVal) !== -1;
+                });
 
-            // 綁定分類按鈕點擊
-            var catBtns = body.querySelectorAll('.my-cat-filter-btn');
-            for (var cb = 0; cb < catBtns.length; cb++) {
-                catBtns[cb].addEventListener('click', function(e) {
-                    var kw = e.target.dataset.kw;
-                    var modalInput = document.getElementById('my-modal-filter-input');
-                    if (modalInput) {
-                        modalInput.value = kw;
-                    }
-                    window.renderMarketAnalyticsContent('summary');
+                matched.sort(function(a, b) {
+                    return a.unitPrice - b.unitPrice;
+                });
+
+                var minUnit = matched.length > 0 ? matched[0].unitPrice : 0;
+                var minUnitName = matched.length > 0 ? matched[0].cleanName : '';
+                var totalCnt = 0;
+
+                for (var m = 0; m < matched.length; m++) {
+                    totalCnt += matched[m].cnt;
+                }
+
+                var top20 = matched.slice(0, 20);
+                var top20Sum = 0;
+                for (var t = 0; t < top20.length; t++) {
+                    top20Sum += top20[t].unitPrice;
+                }
+                var avgTop20 = top20.length > 0 ? Math.floor(top20Sum / top20.length) : 0;
+
+                catGroups.push({
+                    name: searchTxt,
+                    val: catItems[c].val,
+                    packs: matched.length,
+                    totalCnt: totalCnt,
+                    minUnit: minUnit,
+                    minUnitName: minUnitName,
+                    avgTop20: avgTop20,
+                    top20Count: top20.length
                 });
             }
+
+            var cHtml = '<div style="margin-bottom:8px;color:#caa668;font-size:12px;">熱門分類行情摘要（橫向滑動查看全部）：</div>';
+            cHtml += '<table style="width:100%;min-width:480px;border-collapse:collapse;font-size:12px;text-align:left;">';
+            cHtml += '<thead><tr style="border-bottom:2px solid #5a4a36;color:#e8d0a0;background:#241f19;">' +
+                    '<th style="padding:6px 8px;min-width:110px;white-space:nowrap;">分類關鍵字</th>' +
+                    '<th style="padding:6px 8px;text-align:center;min-width:85px;white-space:nowrap;">掛單數</th>' +
+                    '<th style="padding:6px 8px;text-align:right;min-width:110px;white-space:nowrap;">最低單價</th>' +
+                    '<th style="padding:6px 8px;text-align:right;min-width:110px;white-space:nowrap;">前20低平均單價</th>' +
+                    '</tr></thead><tbody>';
+
+            for (var cgIdx = 0; cgIdx < catGroups.length; cgIdx++) {
+                var cg = catGroups[cgIdx];
+                var bg;
+                if (cgIdx % 2 === 0) { bg = '#1c1916'; } else { bg = '#231f1a'; }
+                var packsText, minUnitText, avgTop20Text;
+                if (cg.packs > 0) {
+                    packsText = cg.packs + ' 筆 (' + cg.totalCnt.toLocaleString() + '個)';
+                    minUnitText = cg.minUnit.toLocaleString();
+                    minUnitText += ' <span style="font-size:11px;color:#8a8070;font-weight:normal;">(' + cg.minUnitName + ')</span>';
+                    
+                    avgTop20Text = cg.avgTop20.toLocaleString();
+                    avgTop20Text += ' <span style="font-size:11px;color:#8a8070;font-weight:normal;">(前' + cg.top20Count + '筆)</span>';
+                } else {
+                    packsText = '<span style="color:#666;">無掛牌</span>';
+                    minUnitText = '<span style="color:#666;">-</span>';
+                    avgTop20Text = '<span style="color:#666;">-</span>';
+                }
+                cHtml += '<tr class="my-modal-row" data-name="' + cg.val + '"';
+                cHtml += ' style="border-bottom:1px solid #332b21;background:' + bg + ';cursor:pointer;"';
+                cHtml += ' onmouseover="this.style.background=\'#3a3124\'"';
+                cHtml += ' onmouseout="this.style.background=\'' + bg + '\'">';
+                cHtml += '<td style="padding:6px 8px;color:#fff;font-weight:bold;vertical-align:middle;white-space:nowrap;">' + cg.name + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:center;color:#d0b898;vertical-align:middle;white-space:nowrap;">' + packsText + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:right;color:#6ee7b7;font-weight:bold;vertical-align:middle;white-space:nowrap;">' + minUnitText + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:right;color:#fcd34d;font-weight:bold;vertical-align:middle;white-space:nowrap;">' + avgTop20Text + '</td>';
+                cHtml += '</tr>';
+            }
+            cHtml += '</tbody></table>';
+            body.innerHTML = cHtml;
         }
 
-        // 綁定所有點擊商品列帶入遊戲主搜尋的事件
         var rows = body.querySelectorAll('.my-modal-row');
         for (var r = 0; r < rows.length; r++) {
             rows[r].addEventListener('click', function() {
