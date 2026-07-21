@@ -266,23 +266,32 @@
             
             var items = box.querySelectorAll('.shop-item');
             for (var i = 0; i < items.length; i++) {
-                var info = items[i].querySelector('.si-info');
-                if (info && info.dataset.detail) {
-                    var itemId = parseInt(info.dataset.detail, 10);
-                    var itemData = typeof marketData !== 'undefined' && marketData.find(function(x) { return x.id === itemId; });
-                    if (itemData && itemData.price) {
-                        var cnt = itemData.cnt || 1;
-                        var unitPrice = Math.floor(itemData.price / cnt);
-                        var sip = items[i].querySelector('.si-p');
-                        if (sip && !sip.querySelector('.my-unit-price')) {
-                            var unitSpan = document.createElement('span');
-                            unitSpan.className = 'my-unit-price';
-                            unitSpan.style.color = '#d97706';
-                            unitSpan.style.marginLeft = '8px';
-                            unitSpan.style.fontSize = '12px';
-                            unitSpan.style.fontWeight = 'bold';
-                            unitSpan.textContent = '(單價: ' + unitPrice.toLocaleString() + ')';
-                            sip.appendChild(unitSpan);
+                var sip = items[i].querySelector('.si-p');
+                if (sip) {
+                    var existingUnitSpan = sip.querySelector('.my-unit-price');
+                    if (window._showUnitPriceInList === false) {
+                        if (existingUnitSpan) {
+                            existingUnitSpan.remove();
+                        }
+                    } else {
+                        var info = items[i].querySelector('.si-info');
+                        if (info && info.dataset.detail) {
+                            var itemId = parseInt(info.dataset.detail, 10);
+                            var itemData = typeof marketData !== 'undefined' && marketData.find(function(x) { return x.id === itemId; });
+                            if (itemData && itemData.price) {
+                                var cnt = itemData.cnt || 1;
+                                var unitPrice = Math.floor(itemData.price / cnt);
+                                if (!existingUnitSpan) {
+                                    var unitSpan = document.createElement('span');
+                                    unitSpan.className = 'my-unit-price';
+                                    unitSpan.style.color = '#d97706';
+                                    unitSpan.style.marginLeft = '8px';
+                                    unitSpan.style.fontSize = '12px';
+                                    unitSpan.style.fontWeight = 'bold';
+                                    unitSpan.textContent = '(單價: ' + unitPrice.toLocaleString() + ')';
+                                    sip.appendChild(unitSpan);
+                                }
+                            }
                         }
                     }
                 }
@@ -417,6 +426,40 @@
         autoInput.addEventListener('change', startAutoRefreshTimer);
         startAutoRefreshTimer();
 
+        if (typeof window._showUnitPriceInList === 'undefined') {
+            window._showUnitPriceInList = true;
+        }
+
+        var unitToggleBtn = document.createElement('button');
+        unitToggleBtn.id = 'my-unit-toggle-btn';
+        unitToggleBtn.style.padding = '4px 8px';
+        unitToggleBtn.style.borderRadius = '6px';
+        unitToggleBtn.style.border = '1px solid #5a4a36';
+        unitToggleBtn.style.fontSize = '12px';
+        unitToggleBtn.style.fontWeight = 'bold';
+        unitToggleBtn.style.cursor = 'pointer';
+
+        function updateUnitToggleBtnState() {
+            if (window._showUnitPriceInList) {
+                unitToggleBtn.textContent = '單價: 顯';
+                unitToggleBtn.style.background = '#2563eb';
+                unitToggleBtn.style.color = '#fff';
+            } else {
+                unitToggleBtn.textContent = '單價: 隱';
+                unitToggleBtn.style.background = '#374151';
+                unitToggleBtn.style.color = '#9ca3af';
+            }
+        }
+        updateUnitToggleBtnState();
+
+        unitToggleBtn.addEventListener('click', function() {
+            window._showUnitPriceInList = !window._showUnitPriceInList;
+            updateUnitToggleBtnState();
+            if (typeof window.paintTradeList === 'function') {
+                window.paintTradeList();
+            }
+        });
+
         var closeBtn = document.createElement('button');
         closeBtn.innerHTML = 'X';
         closeBtn.style.background = 'none';
@@ -438,6 +481,7 @@
         headerRight.appendChild(autoLabel);
         headerRight.appendChild(autoInput);
         headerRight.appendChild(autoStatus);
+        headerRight.appendChild(unitToggleBtn);
         headerRight.appendChild(closeBtn);
 
         header.appendChild(title);
@@ -773,6 +817,19 @@
                     }
                 }
 
+                // 倒數 30 秒安全計時器邏輯
+                window._alertTimers = window._alertTimers || {};
+                var alertRemainSec = 0;
+                if (isAlert) {
+                    var timerKey = searchTxt + '_' + minUnit;
+                    if (!window._alertTimers[timerKey]) {
+                        window._alertTimers[timerKey] = Date.now();
+                    }
+                    var elapsed = Math.floor((Date.now() - window._alertTimers[timerKey]) / 1000);
+                    alertRemainSec = 30 - elapsed;
+                    if (alertRemainSec < 0) alertRemainSec = 0;
+                }
+
                 catGroups.push({
                     name: searchTxt,
                     val: catItems[c].val,
@@ -782,7 +839,8 @@
                     minUnitName: minUnitName,
                     avgTop20: avgTop20,
                     top20Count: top20.length,
-                    isAlert: isAlert
+                    isAlert: isAlert,
+                    alertRemainSec: alertRemainSec
                 });
             }
 
@@ -818,6 +876,9 @@
                 var packsText, minUnitText, avgTop20Text, nameText;
                 if (cg.isAlert) {
                     nameText = '🔥 ' + cg.name + ' <span style="font-size:10px;background:#dc2626;color:#ffffff;padding:1px 4px;border-radius:3px;margin-left:2px;font-weight:normal;">撿漏警示</span>';
+                    if (cg.alertRemainSec > 0) {
+                        nameText += ' <span style="font-size:10px;background:#d97706;color:#ffffff;padding:1px 5px;border-radius:3px;margin-left:3px;font-weight:bold;">⏳ ' + cg.alertRemainSec + 's</span>';
+                    }
                 } else {
                     nameText = cg.name;
                 }
