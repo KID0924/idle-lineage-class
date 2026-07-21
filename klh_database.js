@@ -898,6 +898,54 @@
         console.log("[KLH] 已成功將本地存檔複製到雲端暫存區。後綴:", suffix);
     };
 
+    window.forceCopyLocalToCloud = async function(targetCloud) {
+        // 檢查本地是否全空 (直接讀原生 Storage)
+        let hasData = false;
+        if (originalGetItem.call(localStorage, 'lineage_idle_warehouse')) hasData = true;
+        for(let i=1; i<=16; i++){
+            if(originalGetItem.call(localStorage, 'lineage_idle_save_'+i)) hasData = true;
+        }
+        if(!hasData) {
+            window.showToast("本地沒有任何存檔進度，已取消複製！", "error");
+            return;
+        }
+
+        if (!confirm(`⚠️ 警告：確定要把「本機存檔」強制覆寫到 ${targetCloud.toUpperCase()} 雲端嗎？\n雲端上原有的資料將會被完全取代！`)) return;
+
+        const proxyGet = Storage.prototype.getItem;
+        const oldSyncStatus = window.__klh_cloud_sync_success;
+        
+        try {
+            // 暫時解除 Proxy，讓上傳函式讀取到真正的本機存檔
+            Storage.prototype.getItem = function(k) { return originalGetItem.call(localStorage, k); };
+            window.__klh_cloud_sync_success = true; // 強制允許上傳
+            
+            let success = false;
+            if (targetCloud === 'supabase') {
+                const key = originalGetItem.call(localStorage, 'klh_supabase_key') || originalGetItem.call(localStorage, 'klh_supabase_local_key');
+                if(!key) { window.showToast("請先設定 Supabase 金鑰！", "error"); return; }
+                if(typeof window.uploadToSupabase === 'function') success = await window.uploadToSupabase(true, true);
+            } else if (targetCloud === 'jsonblob') {
+                const url = originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url');
+                if(!url) { window.showToast("請先設定 JSONBlob 網址！", "error"); return; }
+                if(typeof window.uploadToCloud === 'function') success = await window.uploadToCloud(true, true);
+            } else if (targetCloud === 'firebase') {
+                const syncId = originalGetItem.call(localStorage, 'klh_firebase_sync_id');
+                if(!syncId) { window.showToast("請先設定 Firebase Sync ID！", "error"); return; }
+                if(typeof window.uploadToFirebase === 'function') success = await window.uploadToFirebase(true); // firebase 的 manual 參數為 true
+            }
+            
+            if(success !== false) {
+                 window.showToast(`✅ 已成功將本地存檔複製到 ${targetCloud.toUpperCase()}！`, "success");
+                 if(typeof window.cleanUnusedCloudCaches === 'function') window.cleanUnusedCloudCaches();
+            }
+        } finally {
+            // 復原
+            Storage.prototype.getItem = proxyGet;
+            window.__klh_cloud_sync_success = oldSyncStatus;
+        }
+    };
+
     window.copyCloudCacheToLocalSaves = function () {
         const mode = localStorage.getItem('klh_storage_mode') || 'local';
         if (mode !== 'supabase' && mode !== 'cloud' && mode !== 'firebase') {
@@ -1711,6 +1759,12 @@
         const readBtn = document.getElementById('btn-cloud-read');
         const quickKeysHeader = document.getElementById('klh-quick-keys-header');
         const quickKeysList = document.getElementById('klh-quick-keys-list');
+        const copyToCloudContainer = document.getElementById('btn-copy-to-cloud-container');
+        const btnCopySupabase = document.getElementById('btn-copy-local-to-supabase');
+        const btnCopyJsonBlob = document.getElementById('btn-copy-local-to-jsonblob');
+        const btnCopyFirebase = document.getElementById('btn-copy-local-to-firebase');
+
+        if (copyToCloudContainer) copyToCloudContainer.style.display = 'none';
 
         if (modeTextEl) {
             if (mode === 'cloud' && allowJsonBlob) {
@@ -1807,6 +1861,28 @@
                 if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnFirebase) btnFirebase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
+                
+                if (copyToCloudContainer) {
+                    let showAny = false;
+                    const inputVal = (inputEl ? inputEl.value : (localStorage.getItem('lineage_idle_jsonblob_url') || '')).trim().toLowerCase();
+                    const showSupabase = (mode === 'supabase') || (inputVal === 'lf2.net');
+                    
+                    if (allowSupabase && showSupabase) {
+                        const hasKey = (localStorage.getItem('klh_supabase_key') || localStorage.getItem('klh_supabase_local_key'));
+                        if(btnCopySupabase) { btnCopySupabase.style.display = hasKey ? '' : 'none'; if(hasKey) showAny = true; }
+                    } else {
+                        if(btnCopySupabase) btnCopySupabase.style.display = 'none';
+                    }
+                    if (allowJsonBlob) {
+                        const hasUrl = localStorage.getItem('lineage_idle_jsonblob_url');
+                        if(btnCopyJsonBlob) { btnCopyJsonBlob.style.display = hasUrl ? '' : 'none'; if(hasUrl) showAny = true; }
+                    }
+                    if (allowFirebase) {
+                        const hasUrl = localStorage.getItem('klh_firebase_database_url');
+                        if(btnCopyFirebase) { btnCopyFirebase.style.display = hasUrl ? '' : 'none'; if(hasUrl) showAny = true; }
+                    }
+                    copyToCloudContainer.style.display = showAny ? '' : 'none';
+                }
             }
 
             // 🔒 隱藏彩蛋：當 Supabase 啟用時，只有在 JSONBlob 輸入框輸入 "lf2.net" (不分大小寫) 或是目前已在 Supabase 模式，才會顯示 Supabase 按鈕
@@ -2030,6 +2106,13 @@
                     <div id="klh-restore-key-container" class="w-full"></div>
                     <div id="klh-quick-keys-header" class="text-[11px] text-slate-400 font-bold mt-1">快速切換公用金鑰：</div>
                     <div id="klh-quick-keys-list" class="flex flex-col gap-1.5 text-sm"></div>
+                </div>
+                <div class="w-full mt-2" id="btn-copy-to-cloud-container" style="display: none;">
+                    <div class="flex gap-1.5 w-full">
+                        <button id="btn-copy-local-to-supabase" onclick="window.forceCopyLocalToCloud('supabase')" class="btn flex-1 py-2.5 text-xs bg-emerald-950/40 hover:bg-emerald-900/60 border-emerald-800 text-emerald-300 font-bold" style="display:none;">⬆️ 複製回 Supabase</button>
+                        <button id="btn-copy-local-to-jsonblob" onclick="window.forceCopyLocalToCloud('jsonblob')" class="btn flex-1 py-2.5 text-xs bg-emerald-950/40 hover:bg-emerald-900/60 border-emerald-800 text-emerald-300 font-bold" style="display:none;">⬆️ 複製回 Jsonblob</button>
+                        <button id="btn-copy-local-to-firebase" onclick="window.forceCopyLocalToCloud('firebase')" class="btn flex-1 py-2.5 text-xs bg-emerald-950/40 hover:bg-emerald-900/60 border-emerald-800 text-emerald-300 font-bold" style="display:none;">⬆️ 複製回 Firebase</button>
+                    </div>
                 </div>
                 <button onclick="window.hideCloudSaveModal()" class="btn w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700 font-bold mt-2">關閉並返回</button>
             `;
