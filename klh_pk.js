@@ -312,19 +312,44 @@
         listContainer.innerHTML = '<div class="text-slate-400 py-4 text-center">正在搜尋實力相近的對手...</div>';
 
         let minPower = Math.floor(myPower * 0.7);
-        let maxPower = Math.floor(myPower * 1.3);
+        let maxPower = Math.floor(myPower * 1.5);
 
         try {
             let sb = await getSupabaseClient();
             if (!sb) throw new Error('Supabase Client 未初始化');
 
-            const { data, error } = await sb.rpc('get_random_opponents', {
+            // ⚔️ 1. 先呼叫 RPC 查詢雲端實力相近對手
+            const { data: matchData, error } = await sb.rpc('get_random_opponents', {
                 p_my_seed: player.enSeed,
                 p_min_power: minPower,
                 p_max_power: maxPower
             });
 
             if (error) throw error;
+
+            // ⛔ 若雲端回傳空資料 (如 SQL 設為 WHERE FALSE 關閉刷新)，則連頂尖卡片都不查詢，直接進入純本機 10 名 NPC 模式省流量
+            if (!matchData || !Array.isArray(matchData) || matchData.length === 0) {
+                console.log('雲端匹配已關閉或無資料，自動切換為純本機 10 名 NPC 模式 (0 雲端流量)');
+                if (btn) { btn.textContent = '🔄 刷新對手列表'; btn.disabled = false; }
+                let localBots = generateLocalBots(myPower, 10);
+                cachedOpponents = localBots;
+                renderOpponentList(listContainer, cachedOpponents, myPower);
+                return;
+            }
+
+            // 🏆 2. 確定雲端開啟且有對手時，才查詢全服前 5 名的頂尖代表玩家
+            let topCloudCard = null;
+            try {
+                const { data: topData } = await sb.from('arena_cards')
+                    .select('en_seed, player_name, power, card_data, class_name, level, weapon_name')
+                    .neq('en_seed', player.enSeed || '')
+                    .order('power', { ascending: false })
+                    .limit(5);
+
+                if (topData && topData.length > 0) {
+                    topCloudCard = topData[Math.floor(Math.random() * topData.length)];
+                }
+            } catch (e) { console.warn('抓取全服頂尖卡片失敗:', e); }
 
             if (btn) {
                 let cd = 3;
@@ -341,8 +366,18 @@
                 }, 1000);
             }
 
-            let cloudList = (data || []).slice(0, 4);
-            let needLocalCount = 10 - cloudList.length; // 若雲端回傳 0 筆，自動動態補滿 10 個本機 NPC！
+            let cloudList = [];
+            if (topCloudCard) cloudList.push(topCloudCard);
+
+            if (matchData && Array.isArray(matchData)) {
+                matchData.forEach(item => {
+                    if (cloudList.length < 4 && (!topCloudCard || item.en_seed !== topCloudCard.en_seed)) {
+                        cloudList.push(item);
+                    }
+                });
+            }
+
+            let needLocalCount = 10 - cloudList.length; // 補滿至 10 個名額
             let localBots = generateLocalBots(myPower, needLocalCount);
             let combined = cloudList.concat(localBots);
             cachedOpponents = combined.sort(() => 0.5 - Math.random());
@@ -379,23 +414,27 @@
     function renderOpponentList(listContainer, selected, myPower) {
         let html = '<div class="flex flex-col gap-2.5">';
 
+        // 判斷是否包含雲端對手
+        let hasCloudCards = selected.some(o => !o.is_bot);
+
         // 計算對手清單前 10% 的戰力門檻
         let powers = selected.map(o => Number(o.power) || 0).sort((a, b) => b - a);
         let top10Index = Math.max(0, Math.floor(powers.length * 0.1));
-        let top10Threshold = powers[top10Index] || 45000;
+        let top10Threshold = powers[top10Index] || 0;
 
         selected.forEach(opponent => {
             let pwr = Number(opponent.power) || 0;
             let details = getCardFullDetails(opponent.card_data, opponent);
 
             let isBoss = !!opponent.is_boss;
-            let isTop10 = (!isBoss && !opponent.is_bot && pwr >= top10Threshold);
+            // 只有開啟雲端時才顯示頂尖 10% 標籤
+            let isTop10 = (hasCloudCards && !isBoss && pwr >= top10Threshold);
 
             // 標籤樣式對齊 NPC 純淨黑底素雅風格
             let highlightBadge = '';
 
             if (isBoss) {
-                highlightBadge = '<span class="text-[10px] bg-rose-950 text-rose-300 border border-rose-800 px-1 rounded ml-0.5 font-bold shrink-0">首領</span>';
+                highlightBadge = '<span class="text-[10px] bg-rose-950 text-rose-300 border border-rose-800 px-1 rounded ml-0.5 font-bold shrink-0">NPC首領</span>';
             } else if (isTop10) {
                 highlightBadge = '<span class="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-1 rounded ml-0.5 font-bold shrink-0">頂尖 10%</span>';
             } else if (opponent.is_bot) {
