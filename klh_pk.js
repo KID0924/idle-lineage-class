@@ -390,22 +390,22 @@
 
             let btnHtml = '';
             if (count >= 3) {
-                btnHtml = '<button type="button" class="btn px-4 py-1.5 text-xs font-bold shrink-0 opacity-60 bg-rose-950/80 border border-rose-800 text-rose-300 cursor-not-allowed" disabled>🏥 住院中</button>';
+                btnHtml = '<button type="button" class="btn px-3 py-1 text-xs font-bold shrink-0 opacity-60 bg-rose-950/80 border border-rose-800 text-rose-300 cursor-not-allowed" disabled>🏥 住院</button>';
             } else if (count > 0) {
-                btnHtml = '<button type="button" class="btn px-4 py-1.5 text-xs font-bold shrink-0 bg-slate-700 hover:bg-slate-600 text-sky-200" onclick="pvpCloudChallenge(\'' + opponent.card_data + '\', \'' + _pvpEsc(seed) + '\')">🔄 再次挑戰</button>';
+                btnHtml = '<button type="button" class="btn px-3 py-1 text-xs font-bold shrink-0 bg-slate-700 hover:bg-slate-600 text-sky-200" onclick="pvpCloudChallenge(\'' + opponent.card_data + '\', \'' + _pvpEsc(seed) + '\')">🔄 挑戰</button>';
             } else {
-                btnHtml = '<button type="button" class="btn px-4 py-1.5 text-xs font-bold shrink-0" onclick="pvpCloudChallenge(\'' + opponent.card_data + '\', \'' + _pvpEsc(seed) + '\')">⚔️ 挑戰</button>';
+                btnHtml = '<button type="button" class="btn px-3 py-1 text-xs font-bold shrink-0" onclick="pvpCloudChallenge(\'' + opponent.card_data + '\', \'' + _pvpEsc(seed) + '\')">⚔️ 挑戰</button>';
             }
 
-            html += '<div class="bg-slate-900/60 border border-slate-700 rounded p-2.5 flex items-center justify-between gap-3 hover:bg-slate-800 transition-colors' + (count >= 3 ? ' opacity-50' : '') + '">' +
-                        '<div class="flex flex-col gap-1">' +
-                            '<div class="font-bold text-sm text-slate-200 flex items-center gap-2 flex-wrap">' +
-                                '<span>' + _pvpEsc(opponent.player_name) + '</span>' + botTag +
-                                '<span class="text-xs font-semibold text-amber-300 bg-amber-950/50 border border-amber-700/50 px-1.5 py-0.5 rounded ml-0.5">' + _pvpEsc(details.className) + '</span>' +
+            html += '<div class="bg-slate-900/70 border border-slate-700/80 rounded p-2 flex items-center justify-between gap-2 hover:bg-slate-800 transition-colors' + (count >= 3 ? ' opacity-50' : '') + '">' +
+                        '<div class="flex flex-col gap-0.5 min-w-0 flex-1">' +
+                            '<div class="font-bold text-xs sm:text-sm text-slate-200 flex items-center gap-1.5 flex-nowrap overflow-hidden">' +
+                                '<span class="truncate max-w-[130px] sm:max-w-none shrink">' + _pvpEsc(opponent.player_name) + '</span>' + botTag +
+                                '<span class="text-[10px] font-semibold text-amber-300 bg-amber-950/50 border border-amber-700/50 px-1 py-0.2 rounded shrink-0 ml-auto sm:ml-0">' + _pvpEsc(details.className) + '</span>' +
                             '</div>' +
-                            '<div class="text-xs text-slate-400">' + _pvpEsc(details.summaryText) + '</div>' +
+                            '<div class="text-[11px] text-slate-400 truncate">' + _pvpEsc(details.summaryText) + '</div>' +
                         '</div>' +
-                        btnHtml +
+                        '<div class="shrink-0">' + btnHtml + '</div>' +
                     '</div>';
         });
         html += '</div>';
@@ -680,21 +680,24 @@
         container.style.border = '1px solid #0369a1';
 
         let html =
-            '<div class="' + HEAD + '">' +
-                '<span>⚔️ 無界競技場 (配對實力相近玩家)</span>' +
-                '<button type="button" class="btn px-3 py-1 text-xs bg-sky-800 hover:bg-sky-700 border-sky-500" onclick="uploadCloudCard(this)">上傳我的名片至無界雲端</button>' +
+            '<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pr-7">' +
+                '<div class="font-bold text-sky-300 text-xs sm:text-sm flex items-center gap-1">' +
+                    '<span>⚔️ 無界競技場</span>' +
+                    '<span class="text-[10px] font-normal text-slate-400">(配對實力相近玩家)</span>' +
+                '</div>' +
+                '<button type="button" class="btn px-2.5 py-1 text-xs bg-sky-800 hover:bg-sky-700 border-sky-500 font-bold shrink-0 self-start sm:self-auto" onclick="uploadCloudCard(this)">📤 上傳我的名片</button>' +
             '</div>' +
-            '<div class="text-xs text-slate-400 leading-relaxed mb-3">上傳名片後，其他玩家也能挑戰你的分身。點擊下方按鈕可隨機尋找對手。</div>' +
+            '<div class="text-[11px] text-slate-400 leading-tight mb-2.5">上傳後其他玩家可挑戰你的分身。點擊下方可隨機尋找對手。</div>' +
 
             '<!-- 🔍 搜尋指定玩家列 -->' +
-            '<div class="flex items-center gap-2 mb-3">' +
-                '<input type="text" id="pvp-search-name" class="bg-slate-900 border border-slate-600 rounded px-2.5 py-1.5 text-xs text-slate-100 flex-1 placeholder-slate-500" placeholder="輸入雲端玩家名字搜尋..." onkeydown="if(event.key===\'Enter\') searchCloudPlayer();">' +
-                '<button type="button" id="pvp-btn-search" class="btn px-3 py-1.5 text-xs bg-amber-800 hover:bg-amber-700 text-amber-200 border border-amber-600 font-bold shrink-0" onclick="searchCloudPlayer(this)">🔍 尋找玩家</button>' +
+            '<div class="flex items-center gap-1.5 mb-2.5">' +
+                '<input type="text" id="pvp-search-name" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-slate-100 flex-1 min-w-0 placeholder-slate-500" placeholder="輸入雲端玩家名字搜尋..." onkeydown="if(event.key===\'Enter\') searchCloudPlayer();">' +
+                '<button type="button" id="pvp-btn-search" class="btn px-2.5 py-1 text-xs bg-amber-800 hover:bg-amber-700 text-amber-200 border border-amber-600 font-bold shrink-0" onclick="searchCloudPlayer(this)">🔍 尋找玩家</button>' +
             '</div>' +
             '<div id="pvp-search-result" class="hidden"></div>' +
 
-            '<div id="cloud-opponents-list" class="mb-3"></div>' +
-            '<button type="button" class="btn w-full py-2 font-bold bg-slate-700 hover:bg-slate-600" onclick="refreshCloudOpponents(this)">🔄 刷新對手列表</button>';
+            '<div id="cloud-opponents-list" class="mb-2.5"></div>' +
+            '<button type="button" class="btn w-full py-1.5 text-xs font-bold bg-slate-700 hover:bg-slate-600" onclick="refreshCloudOpponents(this)">🔄 刷新對手列表</button>';
 
         container.innerHTML = html;
 
