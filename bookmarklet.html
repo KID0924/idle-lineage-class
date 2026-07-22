@@ -511,6 +511,37 @@
             box-shadow: 0 0 10px rgba(157, 78, 221, 0.2);
         }
 
+        /* 輸出頁籤 */
+        .panel-tab-group {
+            display: flex;
+            gap: 6px;
+        }
+        .panel-tab {
+            flex: 1;
+            padding: 10px 12px;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-weight: 700;
+            font-size: 0.85rem;
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            text-align: center;
+        }
+        .panel-tab:hover {
+            color: var(--text-main);
+            background: rgba(30, 41, 59, 0.8);
+        }
+        .panel-tab.active {
+            background: rgba(15, 23, 42, 0.7);
+            color: var(--primary);
+            border-color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+            box-shadow: 0 -4px 15px rgba(0, 242, 254, 0.15);
+        }
+
         /* ═══════════════ 手機版優化 ═══════════════ */
         @media (max-width: 768px) {
             body {
@@ -560,8 +591,8 @@
 
     <div class="container">
         <header>
-            <h1>⚡ 放置天堂外掛書籤產生器</h1>
-            <div class="subtitle">自訂載入外掛模組，打造專屬您的輔助工具箱</div>
+            <h1>⚡ 放置天堂外掛產生器</h1>
+            <div class="subtitle">支援【瀏覽器書籤】與【竄改猴 Tampermonkey】雙重模式</div>
         </header>
 
         <div class="main-layout">
@@ -578,6 +609,7 @@
                     <button class="btn-quick" onclick="selectAll(false)">全部取消</button>
                     <button class="btn-quick btn-preset" onclick="applyPreset('mobile')">📱 手機效能優化</button>
                     <button class="btn-quick btn-preset" onclick="applyPreset('game')">🎮 遊戲優化</button>
+                    <button class="btn-quick btn-preset" onclick="applyPreset('pvp')">⚔️ 無界競技場</button>
                 </div>
 
                 <div class="files-container" id="files-list">
@@ -585,39 +617,78 @@
                 </div>
             </div>
 
-            <!-- 右側：書籤生成與複製區 -->
+            <!-- 右側：代碼生成區 -->
             <div>
                 <div class="section-title">
-                    <span>🔮 書籤生成區</span>
+                    <span>🔮 程式碼生成區</span>
+                </div>
+
+                <!-- 切換頁籤 -->
+                <div class="panel-tab-group">
+                    <button class="panel-tab active" id="tab-btn-bookmarklet" onclick="switchOutputTab('bookmarklet')">📌 瀏覽器書籤</button>
+                    <button class="panel-tab" id="tab-btn-tampermonkey" onclick="switchOutputTab('tampermonkey')">🐒 竄改猴 (Tampermonkey)</button>
                 </div>
                 
-                <div class="result-panel">
-                    <!-- 拖曳區 -->
-                    <div class="bookmarklet-btn-wrapper">
-                        <a href="#" id="bookmarklet-link" class="bookmarklet-link pulse" onclick="return false;">🐾 放置天堂啟動</a>
-                        <div class="link-hint">
-                            <b>💻 電腦使用者：</b><br>請將上方按鈕直接「拖曳」到您的瀏覽器書籤列（Bookmarks Bar）中。
+                <div class="result-panel" style="border-top-left-radius: 0;">
+                    <!-- ===== 1. 書籤面板 ===== -->
+                    <div id="panel-bookmarklet">
+                        <!-- 拖曳區 -->
+                        <div class="bookmarklet-btn-wrapper">
+                            <a href="#" id="bookmarklet-link" class="bookmarklet-link pulse" onclick="return false;">🌸放置天堂🌸</a>
+                            <div class="link-hint">
+                                <b>💻 電腦使用者：</b><br>請將上方按鈕直接「拖曳」到您的瀏覽器書籤列（Bookmarks Bar）中。
+                            </div>
+                        </div>
+
+                        <!-- 複製區 -->
+                        <div class="code-box-wrapper" style="margin-top: 1.2rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.82rem; color: var(--text-muted);">
+                                <span>📋 書籤代碼（不支援拖曳時使用）：</span>
+                                <button class="btn-copy" id="btn-copy-bookmarklet">一鍵複製</button>
+                            </div>
+                            <textarea class="code-box" id="code-box-bookmarklet" readonly></textarea>
+                        </div>
+
+                        <!-- 說明指南 -->
+                        <div class="guide-box" style="margin-top: 1.2rem;">
+                            <div class="guide-title">📱 手機/行動裝置使用教學：</div>
+                            <ul class="guide-steps">
+                                <li>複製上方「書籤代碼」。</li>
+                                <li>在當前網頁隨便建立一個書籤（例如按星號）。</li>
+                                <li>編輯該書籤：把名字改為「放置天堂啟動」，並把<b>網址/URL 欄位清空，貼上複製的代碼</b>。</li>
+                                <li>進入遊戲網頁後，點開書籤列，點擊該書籤即可執行啟動！</li>
+                            </ul>
                         </div>
                     </div>
 
-                    <!-- 複製區 -->
-                    <div class="code-box-wrapper">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.82rem; color: var(--text-muted);">
-                            <span>📋 書籤代碼（不支援拖曳時使用）：</span>
-                            <button class="btn-copy" id="btn-copy">一鍵複製</button>
+                    <!-- ===== 2. 竄改猴面板 ===== -->
+                    <div id="panel-tampermonkey" style="display: none;">
+                        <div class="guide-box" style="margin-bottom: 1rem; border-color: rgba(157, 78, 221, 0.3); background: rgba(157, 78, 221, 0.05);">
+                            <div class="guide-title" style="color: #c084fc;">🔒 網域安全限制模式：</div>
+                            <div style="color: var(--text-muted); font-size: 0.78rem; line-height: 1.4;">
+                                此腳本標頭已設定精確配對，<b>僅限在以下兩個官方/發行網域自動觸發</b>：<br>
+                                • <code style="color: #38bdf8;">https://shines871.github.io/idle-lineage-class/*</code><br>
+                                • <code style="color: #38bdf8;">https://pp771007.github.io/idle-lineage-class/*</code>
+                            </div>
                         </div>
-                        <textarea class="code-box" id="code-box" readonly></textarea>
-                    </div>
 
-                    <!-- 說明指南 -->
-                    <div class="guide-box">
-                        <div class="guide-title">📱 手機/行動裝置使用教學：</div>
-                        <ul class="guide-steps">
-                            <li>複製上方「書籤代碼」。</li>
-                            <li>在當前網頁隨便建立一個書籤（例如按星號）。</li>
-                            <li>編輯該書籤：把名字改為「放置天堂啟動」，並把<b>網址/URL 欄位清空，貼上複製的代碼</b>。</li>
-                            <li>進入遊戲網頁後，點開書籤列，點擊該書籤即可執行啟動！</li>
-                        </ul>
+                        <div class="code-box-wrapper">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.82rem; color: var(--text-muted);">
+                                <span>🐒 竄改猴 UserScript 完整原始碼：</span>
+                                <button class="btn-copy" id="btn-copy-tampermonkey">一鍵複製腳本</button>
+                            </div>
+                            <textarea class="code-box" id="code-box-tampermonkey" style="height: 220px; color: #a7f3d0;" readonly></textarea>
+                        </div>
+
+                        <div class="guide-box" style="margin-top: 1.2rem;">
+                            <div class="guide-title">⚙️ 竄改猴安裝步驟：</div>
+                            <ul class="guide-steps">
+                                <li>點擊上方「一鍵複製腳本」按鈕。</li>
+                                <li>開啟瀏覽器的竄改猴 (Tampermonkey) 圖示 ➔ 選擇<b>「新增腳本」</b>。</li>
+                                <li>將編輯器內的預設內容全部清空，<b>貼上剛剛複製的腳本</b>。</li>
+                                <li>按 <kbd style="background:#334155;padding:1px 4px;border-radius:3px;">Ctrl + S</kbd> 儲存，進入指定遊戲網頁即可<b>自動執行</b>！</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -696,6 +767,14 @@
                 checked: false 
             },
             { 
+                id: 'klh_pk.js', 
+                name: '無界競技場 PVP', 
+                desc: '上傳名片至無界雲端、搜尋玩家挑戰與 NPC 混合對手列表。', 
+                details: '連接 Supabase 雲端資料庫，支援名片上傳、雲端搜尋玩家（兩階段省流量架構）、隨機對手刷新（雲端4名 + 本機NPC6名混合）、決鬥5秒加速計時、前端3秒冷卻倒數防刷與後端雙重安全防護。<br><b style="color: #38bdf8;">ⓘ 提示：需搭配原作者的 28-pvp-arena.js 才能正常運作。</b>', 
+                isCore: false, 
+                checked: false 
+            },
+            { 
                 id: 'klh_Pandora.js', 
                 name: '潘朵拉抽獎擴充', 
                 desc: '自訂金幣抽獎與特定兌換防 SL 機制封裝。', 
@@ -768,7 +847,7 @@
                 filesListContainer.appendChild(card);
             });
 
-            generateBookmarklet();
+            generateCodes();
         }
 
         // ═══════════════ 狀態操作 ═══════════════
@@ -795,6 +874,11 @@
                     'klh_remove-banner.js',
                     'offline.js'
                 ];
+                activePlugins.forEach(p => {
+                    p.checked = targetIds.includes(p.id);
+                });
+            } else if (presetType === 'pvp') {
+                const targetIds = ['klh_mobile-perf.js', 'klh_pk.js'];
                 activePlugins.forEach(p => {
                     p.checked = targetIds.includes(p.id);
                 });
@@ -836,6 +920,26 @@
             }
         };
 
+        // ═══════════════ 頁籤切換 ═══════════════
+        window.switchOutputTab = function(type) {
+            const tabB = document.getElementById('tab-btn-bookmarklet');
+            const tabT = document.getElementById('tab-btn-tampermonkey');
+            const panelB = document.getElementById('panel-bookmarklet');
+            const panelT = document.getElementById('panel-tampermonkey');
+
+            if (type === 'bookmarklet') {
+                tabB.classList.add('active');
+                tabT.classList.remove('active');
+                panelB.style.display = 'block';
+                panelT.style.display = 'none';
+            } else {
+                tabT.classList.add('active');
+                tabB.classList.remove('active');
+                panelT.style.display = 'block';
+                panelB.style.display = 'none';
+            }
+        };
+
         // ═══════════════ 拖曳排序實作 ═══════════════
         let dragSrcEl = null;
 
@@ -870,7 +974,6 @@
                 const srcIndex = activePlugins.findIndex(p => p.id === srcId);
                 const destIndex = activePlugins.findIndex(p => p.id === destId);
                 
-                // 重新排序陣列
                 const [removed] = activePlugins.splice(srcIndex, 1);
                 activePlugins.splice(destIndex, 0, removed);
                 
@@ -879,77 +982,181 @@
             return false;
         }
 
-        // ═══════════════ 書籤代碼生成邏輯 ═══════════════
-        const bookmarkletLink = document.getElementById('bookmarklet-link');
-        const codeBox = document.getElementById('code-box');
+        // ═══════════════ 代碼生成邏輯（書籤 + 竄改猴） ═══════════════
+        function generateCodes() {
+            const bookmarkletLink = document.getElementById('bookmarklet-link');
+            const codeBoxBookmarklet = document.getElementById('code-box-bookmarklet');
+            const codeBoxTampermonkey = document.getElementById('code-box-tampermonkey');
 
-        function generateBookmarklet() {
+            if (!codeBoxBookmarklet || !codeBoxTampermonkey) return;
+
             const checkedPlugins = activePlugins.filter(p => p.checked);
             if (checkedPlugins.length === 0) {
-                bookmarkletLink.removeAttribute('href');
-                bookmarkletLink.style.opacity = '0.5';
-                bookmarkletLink.style.pointerEvents = 'none';
-                codeBox.value = '請至少勾選一個外掛元件以生成書籤代碼。';
+                if (bookmarkletLink) {
+                    bookmarkletLink.removeAttribute('href');
+                    bookmarkletLink.style.opacity = '0.5';
+                    bookmarkletLink.style.pointerEvents = 'none';
+                }
+                codeBoxBookmarklet.value = '請至少勾選一個外掛元件以生成代碼。';
+                codeBoxTampermonkey.value = '// 請至少勾選一個外掛元件以生成 UserScript。';
                 return;
             }
 
-            bookmarkletLink.style.opacity = '1';
-            bookmarkletLink.style.pointerEvents = 'auto';
+            if (bookmarkletLink) {
+                bookmarkletLink.style.opacity = '1';
+                bookmarkletLink.style.pointerEvents = 'auto';
+            }
 
             const base = BASE_URL;
             const hasOffline = checkedPlugins.some(p => p.id === 'offline.js');
             const hasRemoveBanner = checkedPlugins.some(p => p.id === 'klh_remove-banner.js');
+            
+            // ===== 1. 書籤代碼生成 =====
             let bookmarkletCode = '';
-
             if (hasOffline || hasRemoveBanner) {
-                // 有勾選離線掛機或修復補丁時：加入網域智慧判斷 (Chaos 站載入 klh_remove-banner.js / 非 Chaos 站載入 offline.js)
                 const commonIds = checkedPlugins.filter(p => p.id !== 'offline.js' && p.id !== 'klh_remove-banner.js').map(p => p.id);
                 const commonJson = JSON.stringify(commonIds);
                 const offlineSnippet = hasOffline ? '["https://pp771007.github.io/idle-lineage-class/afk-offline.js"],' : '[],';
                 const bannerSnippet = hasRemoveBanner ? '[b+"klh_remove-banner.js"],' : '[],';
-
                 const toastTextExpr = hasOffline ? '(!t?"【離線掛機 + 外掛模組】":"【外掛模組】")' : '"【外掛模組】"';
                 bookmarkletCode = `javascript:(function(){const b="${base}",t=window.location.hostname.includes("pp771007"),c=${commonJson}.map(x=>b+x),n=t?[...${bannerSnippet}...c]:[...${offlineSnippet}...c];function s(e,t){const n=document.createElement("div");n.textContent=e,n.style.cssText="position:fixed;top:20px;right:20px;background:"+(t?"#2ecc71":"#e74c3c")+";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s",document.body.appendChild(n),setTimeout(()=>{n.style.opacity="0",setTimeout(()=>n.remove(),500)},2500)}function l(e){return new Promise((t,n)=>{const o=document.createElement("script");o.src=e+"?v="+Date.now(),o.onload=(()=>{t()}),o.onerror=(()=>{n(e)}),document.body.appendChild(o)})}n.reduce((e,t)=>e.then(()=>l(t)),Promise.resolve()).then(()=>{s("🎉 "+${toastTextExpr}+"注入成功！",!0)}).catch(r=>{const f=(r&&typeof r==="string")?r.split("/").pop().split("?")[0]:"";s("❌ 載入失敗"+(f?"："+f:"！"),!1)})})();`;
             } else {
-                // 沒有勾選特殊網域條件模組時：生成最輕量直接的循序載入代碼
                 const ids = checkedPlugins.map(p => p.id);
                 const idsJson = JSON.stringify(ids);
                 bookmarkletCode = `javascript:(function(){const b="${base}",n=${idsJson}.map(x=>b+x);function s(e,t){const n=document.createElement("div");n.textContent=e,n.style.cssText="position:fixed;top:20px;right:20px;background:"+(t?"#2ecc71":"#e74c3c")+";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s",document.body.appendChild(n),setTimeout(()=>{n.style.opacity="0",setTimeout(()=>n.remove(),500)},2500)}function l(e){return new Promise((t,n)=>{const o=document.createElement("script");o.src=e+"?v="+Date.now(),o.onload=(()=>{t()}),o.onerror=(()=>{n(e)}),document.body.appendChild(o)})}n.reduce((e,t)=>e.then(()=>l(t)),Promise.resolve()).then(()=>{s("🎉 【外掛模組】注入成功！",!0)}).catch(r=>{const f=(r&&typeof r==="string")?r.split("/").pop().split("?")[0]:"";s("❌ 載入失敗"+(f?"："+f:"！"),!1)})})();`;
             }
 
             bookmarkletLink.href = bookmarkletCode;
-            codeBox.value = bookmarkletCode;
+            codeBoxBookmarklet.value = bookmarkletCode;
+
+            // ===== 2. 竄改猴 (Tampermonkey) 代碼生成 =====
+            let tamperCode = `// ==UserScript==\n` +
+                `// @name         放置天堂 🌸 書籤模組\n` +
+                `// @namespace    https://kid0924.github.io/\n` +
+                `// @version      1.0\n` +
+                `// @description  自動載入使用者所選取的放置天堂外掛模組\n` +
+                `// @author       KID0924 (https://github.com/KID0924/idle-lineage-class)\n` +
+                `// @homepageURL  https://kid0924.github.io/idle-lineage-class/bookmarklet.html\n` +
+                `// @supportURL   https://github.com/KID0924/idle-lineage-class\n` +
+                `// @match        https://shines871.github.io/idle-lineage-class/*\n` +
+                `// @match        https://pp771007.github.io/idle-lineage-class/*\n` +
+                `// @grant        none\n` +
+                `// @run-at       document-end\n` +
+                `// ==/UserScript==\n\n`;
+
+            if (hasOffline || hasRemoveBanner) {
+                const commonIds = checkedPlugins.filter(p => p.id !== 'offline.js' && p.id !== 'klh_remove-banner.js').map(p => p.id);
+                const commonJson = JSON.stringify(commonIds);
+                const offlineSnippet = hasOffline ? '["https://pp771007.github.io/idle-lineage-class/afk-offline.js"],' : '[],';
+                const bannerSnippet = hasRemoveBanner ? '[b+"klh_remove-banner.js"],' : '[],';
+                const toastTextExpr = hasOffline ? '(!t?"【離線掛機 + 外掛模組】":"【外掛模組】")' : '"【外掛模組】"';
+
+                tamperCode += `(function () {\n` +
+                    `    'use strict';\n` +
+                    `    const b = "${base}";\n` +
+                    `    const t = window.location.hostname.includes("pp771007");\n` +
+                    `    const c = ${commonJson}.map(x => b + x);\n` +
+                    `    const n = t ? [...${bannerSnippet}...c] : [...${offlineSnippet}...c];\n\n` +
+                    `    function s(e, t) {\n` +
+                    `        const n = document.createElement("div");\n` +
+                    `        n.textContent = e;\n` +
+                    `        n.style.cssText = "position:fixed;top:20px;right:20px;background:" + (t ? "#2ecc71" : "#e74c3c") + ";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s";\n` +
+                    `        document.body.appendChild(n);\n` +
+                    `        setTimeout(() => {\n` +
+                    `            n.style.opacity = "0";\n` +
+                    `            setTimeout(() => n.remove(), 500);\n` +
+                    `        }, 2500);\n` +
+                    `    }\n\n` +
+                    `    function l(e) {\n` +
+                    `        return new Promise((t, n) => {\n` +
+                    `            const o = document.createElement("script");\n` +
+                    `            o.src = e + "?v=" + Date.now();\n` +
+                    `            o.onload = (() => { t() });\n` +
+                    `            o.onerror = (() => { n(e) });\n` +
+                    `            document.body.appendChild(o);\n` +
+                    `        });\n` +
+                    `    }\n\n` +
+                    `    n.reduce((e, t) => e.then(() => l(t)), Promise.resolve())\n` +
+                    `        .then(() => { s("🎉 " + ${toastTextExpr} + "注入成功！", !0); })\n` +
+                    `        .catch(r => {\n` +
+                    `            const f = (r && typeof r === "string") ? r.split("/").pop().split("?")[0] : "";\n` +
+                    `            s("❌ 載入失敗" + (f ? "：" + f : "！"), !1);\n` +
+                    `        });\n` +
+                    `})();`;
+            } else {
+                const ids = checkedPlugins.map(p => p.id);
+                const idsJson = JSON.stringify(ids);
+                tamperCode += `(function () {\n` +
+                    `    'use strict';\n` +
+                    `    const b = "${base}";\n` +
+                    `    const n = ${idsJson}.map(x => b + x);\n\n` +
+                    `    function s(e, t) {\n` +
+                    `        const n = document.createElement("div");\n` +
+                    `        n.textContent = e;\n` +
+                    `        n.style.cssText = "position:fixed;top:20px;right:20px;background:" + (t ? "#2ecc71" : "#e74c3c") + ";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s";\n` +
+                    `        document.body.appendChild(n);\n` +
+                    `        setTimeout(() => {\n` +
+                    `            n.style.opacity = "0";\n` +
+                    `            setTimeout(() => n.remove(), 500);\n` +
+                    `        }, 2500);\n` +
+                    `    }\n\n` +
+                    `    function l(e) {\n` +
+                    `        return new Promise((t, n) => {\n` +
+                    `            const o = document.createElement("script");\n` +
+                    `            o.src = e + "?v=" + Date.now();\n` +
+                    `            o.onload = (() => { t() });\n` +
+                    `            o.onerror = (() => { n(e) });\n` +
+                    `            document.body.appendChild(o);\n` +
+                    `        });\n` +
+                    `    }\n\n` +
+                    `    n.reduce((e, t) => e.then(() => l(t)), Promise.resolve())\n` +
+                    `        .then(() => { s("🎉 【外掛模組】注入成功！", !0); })\n` +
+                    `        .catch(r => {\n` +
+                    `            const f = (r && typeof r === "string") ? r.split("/").pop().split("?")[0] : "";\n` +
+                    `            s("❌ 載入失敗" + (f ? "：" + f : "！"), !1);\n` +
+                    `        });\n` +
+                    `})();`;
+            }
+
+            codeBoxTampermonkey.value = tamperCode;
         }
 
         // ═══════════════ 複製功能 ═══════════════
-        const btnCopy = document.getElementById('btn-copy');
-        btnCopy.addEventListener('click', function() {
-            const checkedPlugins = activePlugins.filter(p => p.checked).map(p => p.id);
-            if (checkedPlugins.length === 0) return;
+        function setupCopyButton(btnId, targetBoxId) {
+            const btn = document.getElementById(btnId);
+            const box = document.getElementById(targetBoxId);
+            if (!btn || !box) return;
 
-            codeBox.select();
-            codeBox.setSelectionRange(0, 99999); // 行動裝置相容
+            btn.addEventListener('click', function() {
+                const checkedPlugins = activePlugins.filter(p => p.checked).map(p => p.id);
+                if (checkedPlugins.length === 0) return;
 
-            try {
-                navigator.clipboard.writeText(codeBox.value).then(() => {
-                    const originalText = btnCopy.textContent;
-                    btnCopy.textContent = '✔ 已複製';
-                    btnCopy.style.background = 'var(--success)';
-                    btnCopy.style.borderColor = 'var(--success)';
-                    btnCopy.style.color = '#fff';
-                    setTimeout(() => {
-                        btnCopy.textContent = originalText;
-                        btnCopy.style.background = '';
-                        btnCopy.style.borderColor = '';
-                        btnCopy.style.color = '';
-                    }, 1500);
-                });
-            } catch (err) {
-                // 退回舊式複製法
-                document.execCommand('copy');
-                alert('複製成功！');
-            }
-        });
+                box.select();
+                box.setSelectionRange(0, 99999);
+
+                try {
+                    navigator.clipboard.writeText(box.value).then(() => {
+                        const originalText = btn.textContent;
+                        btn.textContent = '✔ 已複製';
+                        btn.style.background = 'var(--success)';
+                        btn.style.borderColor = 'var(--success)';
+                        btn.style.color = '#fff';
+                        setTimeout(() => {
+                            btn.textContent = originalText;
+                            btn.style.background = '';
+                            btn.style.borderColor = '';
+                            btn.style.color = '';
+                        }, 1500);
+                    });
+                } catch (err) {
+                    document.execCommand('copy');
+                    alert('複製成功！');
+                }
+            });
+        }
+
+        setupCopyButton('btn-copy-bookmarklet', 'code-box-bookmarklet');
+        setupCopyButton('btn-copy-tampermonkey', 'code-box-tampermonkey');
 
         // ═══════════════ 頁面初始化 ═══════════════
         renderList();
