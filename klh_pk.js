@@ -377,20 +377,37 @@
     }
 
     function renderOpponentList(listContainer, selected, myPower) {
-        let html = '<div class="flex flex-col gap-2">';
+        let html = '<div class="flex flex-col gap-2.5">';
+
+        // 計算對手清單前 10% 的戰力門檻
+        let powers = selected.map(o => Number(o.power) || 0).sort((a, b) => b - a);
+        let top10Index = Math.max(0, Math.floor(powers.length * 0.1));
+        let top10Threshold = powers[top10Index] || 45000;
+
         selected.forEach(opponent => {
             let pwr = Number(opponent.power) || 0;
-            let colorClass = pwr > myPower ? 'text-rose-300' : (pwr < myPower ? 'text-emerald-300' : 'text-amber-300');
             let details = getCardFullDetails(opponent.card_data, opponent);
 
-            let botTag = opponent.is_bot ? '<span class="text-[10px] bg-slate-700 text-sky-300 px-1 rounded ml-0.5">NPC</span>' : '';
+            let isBoss = !!opponent.is_boss;
+            let isTop10 = (!isBoss && !opponent.is_bot && pwr >= top10Threshold);
+
+            // 標籤樣式對齊 NPC 純淨黑底素雅風格
+            let highlightBadge = '';
+
+            if (isBoss) {
+                highlightBadge = '<span class="text-[10px] bg-rose-950 text-rose-300 border border-rose-800 px-1 rounded ml-0.5 font-bold shrink-0">首領</span>';
+            } else if (isTop10) {
+                highlightBadge = '<span class="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-1 rounded ml-0.5 font-bold shrink-0">頂尖 10%</span>';
+            } else if (opponent.is_bot) {
+                highlightBadge = '<span class="text-[10px] bg-slate-700 text-sky-300 px-1 rounded ml-0.5 shrink-0">NPC</span>';
+            }
 
             let seed = opponent.en_seed || opponent.seed || opponent.player_name;
             let count = opponent.challengeCount || 0;
 
             let btnHtml = '';
             if (count >= 3) {
-                btnHtml = '<button type="button" class="btn px-3 py-1 text-xs font-bold shrink-0 opacity-60 bg-rose-950/80 border border-rose-800 text-rose-300 cursor-not-allowed" disabled>🏥 住院</button>';
+                btnHtml = '<button type="button" class="btn px-3 py-1 text-xs font-bold shrink-0 opacity-60 bg-rose-950/80 border border-rose-800 text-rose-300 cursor-not-allowed" disabled>🏳️ 停戰</button>';
             } else if (count > 0) {
                 btnHtml = '<button type="button" class="btn px-3 py-1 text-xs font-bold shrink-0 bg-slate-700 hover:bg-slate-600 text-sky-200" onclick="pvpCloudChallenge(\'' + opponent.card_data + '\', \'' + _pvpEsc(seed) + '\')">🔄 挑戰</button>';
             } else {
@@ -400,7 +417,7 @@
             html += '<div class="bg-slate-900/70 border border-slate-700/80 rounded p-2 flex items-center justify-between gap-2 hover:bg-slate-800 transition-colors' + (count >= 3 ? ' opacity-50' : '') + '">' +
                         '<div class="flex flex-col gap-0.5 min-w-0 flex-1">' +
                             '<div class="font-bold text-xs sm:text-sm text-slate-200 flex items-center gap-1.5 flex-nowrap overflow-hidden">' +
-                                '<span class="truncate max-w-[130px] sm:max-w-none shrink">' + _pvpEsc(opponent.player_name) + '</span>' + botTag +
+                                '<span class="truncate max-w-[130px] sm:max-w-none shrink">' + _pvpEsc(opponent.player_name) + '</span>' + highlightBadge +
                                 '<span class="text-[10px] font-semibold text-amber-300 bg-amber-950/50 border border-amber-700/50 px-1 py-0.2 rounded shrink-0 ml-auto sm:ml-0">' + _pvpEsc(details.className) + '</span>' +
                             '</div>' +
                             '<div class="text-[11px] text-slate-400 truncate">' + _pvpEsc(details.summaryText) + '</div>' +
@@ -426,7 +443,7 @@
     };
 
     const CLASS_SKILLS_MAP = {
-        mage: ['sk_eb', 'sk_sunburst', 'sk_ice_lance', 'sk_lightning', 'sk_firestorm', 'sk_meteor', 'sk_heal2', 'sk_full_heal', 'sk_summon', 'sk_cancel'],
+        mage: ['sk_disintegrate', 'sk_meteor', 'sk_sunburst', 'sk_ice_lance', 'sk_firestorm', 'sk_full_heal', 'sk_cancel'],
         knight: ['sk_solid_carriage', 'sk_reduction_armor', 'sk_bounce_attack', 'sk_shock_stun'],
         elf: ['sk_triple_arrow', 'sk_storm_shot', 'sk_elf_summon', 'sk_elf_summon2', 'sk_nature_blessing'],
         dark: ['sk_double_brake', 'sk_shadow_fang', 'sk_unbroken', 'sk_final_burn'],
@@ -522,46 +539,88 @@
 
         let myLv = (typeof player !== 'undefined' && player.lv) ? player.lv : 35;
 
+        let isCloudMode = (count <= 6);
+
         for (let i = 0; i < count; i++) {
             let isSuperBoss = (i === 0);
             let isWeakBot = (i === 1);
+            let isTopBot = (i === 2);
 
             let cls = classes[Math.floor(Math.random() * classes.length)];
             let clsName = CLASS_NAME_MAP[cls] || '騎士';
             let name = (typeof pvpRandomName === 'function') ? pvpRandomName() : ('玩家' + Math.floor(Math.random() * 99999));
 
-            let pwr, lv, enWpn, armCount, sCount;
+            let pwr, lv, enWpn, armCount, sCount, ratio;
 
-            if (isSuperBoss) {
-                pwr = Math.floor(myPower * 2.0);
-                lv = Math.floor(myLv * 1.3) + 5;
-                // 首領：低等級保底最少 +12，高等級隨等級提升至最高 +15
-                let bossBaseEn = Math.max(12, Math.floor(lv / 7));
-                enWpn = Math.min(15, bossBaseEn + Math.floor(Math.random() * 3));
-                armCount = 6;
-                sCount = 5;
-            } else if (isWeakBot) {
-                pwr = Math.max(1000, Math.floor(myPower * 0.75)); // 菜鳥 75% 戰力
-                lv = Math.max(1, Math.floor(myLv * 0.85));
-                // 菜鳥：隨等級縮放，低等級 +1~+3，高等級跟隨成長 (+4~+8)
-                let weakBaseEn = Math.floor(lv / 15);
-                enWpn = Math.min(9, Math.max(1, weakBaseEn + Math.floor(Math.random() * 3)));
-                armCount = 2;
-                sCount = 1;
+            if (isCloudMode) {
+                // ☁️ 開啟雲端模式 (本機 NPC 生成)
+                if (isSuperBoss) {
+                    ratio = 2.5; // 首領：2.5 倍
+                    lv = 100;
+                    enWpn = 15;
+                    armCount = 6;
+                    sCount = 6;
+                } else if (isWeakBot) {
+                    ratio = 0.9; // 菜鳥：0.9 倍
+                    lv = Math.min(80, Math.max(10, Math.floor(myLv * 0.8)));
+                    enWpn = Math.min(10, Math.max(5, Math.floor(lv / 9) + 2));
+                    armCount = 4;
+                    sCount = 3;
+                } else if (isTopBot) {
+                    ratio = 1.8 + (Math.random() * 0.2); // 頂尖：1.8 ~ 2.0 倍
+                    lv = Math.min(95, Math.max(15, Math.floor(myLv * 1.1)));
+                    enWpn = Math.min(14, Math.max(9, Math.floor(lv / 7) + 2));
+                    armCount = 5;
+                    sCount = 5;
+                } else {
+                    ratio = 1.1 + (Math.random() * 0.4); // 一般：1.1 ~ 1.5 倍
+                    lv = Math.min(90, Math.max(15, Math.floor(myLv * (0.85 + Math.random() * 0.3))));
+                    enWpn = Math.min(13, Math.max(7, Math.floor(lv / 7) + 1));
+                    armCount = 5;
+                    sCount = 4;
+                }
             } else {
-                let ratio = 0.9 + (Math.random() * 0.6); // 90% ~ 150% 戰力區間
-                pwr = Math.max(1000, Math.floor(myPower * ratio));
-                lv = Math.max(1, Math.floor(myLv * ratio));
-                let baseEn = Math.floor(lv / 9); // 一般對手：跟隨等級動態提升
-                enWpn = Math.min(15, Math.max(6, baseEn + Math.floor(Math.random() * 4)));
-                armCount = Math.floor(Math.random() * 3) + 3;
-                sCount = Math.floor(Math.random() * 3) + 2;
+                // 🔌 關閉雲端模式 (10 名純本機 NPC)
+                if (isSuperBoss) {
+                    ratio = 3.0; // 首領：3.0 倍
+                    lv = 100;
+                    enWpn = 15;
+                    armCount = 6;
+                    sCount = 6;
+                } else if (isWeakBot) {
+                    ratio = 1.2; // 菜鳥：1.2 倍
+                    lv = Math.min(85, Math.max(10, Math.floor(myLv * 0.9)));
+                    enWpn = Math.min(11, Math.max(6, Math.floor(lv / 8) + 2));
+                    armCount = 4;
+                    sCount = 3;
+                } else {
+                    ratio = 1.4 + (Math.random() * 0.4); // 一般：1.4 ~ 1.8 倍
+                    lv = Math.min(92, Math.max(15, Math.floor(myLv * (0.9 + Math.random() * 0.3))));
+                    enWpn = Math.min(13, Math.max(8, Math.floor(lv / 7) + 2));
+                    armCount = 5;
+                    sCount = 4;
+                }
             }
 
-            // 豐富裝備配置 (精準職業武器 + 祝福/遠古/永恆/屬性/席琳套裝)
+            pwr = Math.max(2000, Math.floor(myPower * ratio));
+
+            // 豐富裝備配置 (強大對手優先配備傳說級武器 + 祝福/遠古/永恆/屬性/席琳套裝)
             let eq = {};
             let wpnDesc = '徒手';
-            let matchedWpns = CLASS_WEAPONS_MAP[cls] || [];
+
+            // 高級傳說武器優先對照表
+            let legendWpnMap = {
+                royal: ['wpn_official_2h', 'wpn_longsword', 'wpn_katana'],
+                knight: ['wpn_dragonslayer', 'wpn_vander_sword', 'wpn_official_2h', 'wpn_2hsword'],
+                elf: ['wpn_3', 'wpn_elfbow'],
+                mage: ['wpn_alien', 'wpn_2'],
+                dark: ['wpn_scimitar', 'wpn_dagger2'],
+                dragon: ['wpn_12', 'wpn_halberd'],
+                illusion: ['wpn_11', 'wpn_9'],
+                warrior: ['wpn_23', 'wpn_battleaxe']
+            };
+
+            let matchedWpns = (isSuperBoss || lv >= 55) ? (legendWpnMap[cls] || []) : (CLASS_WEAPONS_MAP[cls] || []);
             let validWpnPool = matchedWpns.filter(w => wpnIds.includes(w));
             if (validWpnPool.length === 0) validWpnPool = wpnIds;
 
@@ -569,9 +628,9 @@
                 let wid = validWpnPool[Math.floor(Math.random() * validWpnPool.length)];
                 let wpnObj = { id: wid, en: enWpn, cnt: 1 };
 
-                if (enWpn >= 8) wpnObj.bless = true;
-                if (enWpn >= 11) wpnObj.anc = (i % 2 === 0) ? 'eternal' : true;
-                if (enWpn >= 9) wpnObj.seteff = BOT_SET_LIST[i % BOT_SET_LIST.length];
+                if (enWpn >= 8 || isSuperBoss) wpnObj.bless = true; // 強敵/高強化必定「祝福的」
+                if (enWpn >= 10 || isSuperBoss) wpnObj.anc = (isSuperBoss || i % 2 === 0) ? 'eternal' : 'mythic'; // 永恆/遠古詞綴
+                if (enWpn >= 8) wpnObj.seteff = BOT_SET_LIST[i % BOT_SET_LIST.length];
                 if (enWpn >= 7) wpnObj.attr = BOT_ATTR_LIST[i % BOT_ATTR_LIST.length];
 
                 eq['wpn'] = wpnObj;
@@ -588,22 +647,26 @@
                 }
             }
 
+            // 防具配置：強大敵人配滿全套高強化防具
             if (armIds.length > 0) {
-                for (let a = 0; a < armCount; a++) {
-                    let aid = armIds[Math.floor(Math.random() * armIds.length)];
-                    let enArm = isSuperBoss ? (Math.floor(Math.random() * 3) + 8) : (isWeakBot ? 0 : Math.floor(Math.random() * 6) + 1);
+                // 🐛 修正 1：使用真正存在於 DB 的高防護裝備，否則會被 pvpCardSanitize 清空導致 NPC 裸體！
+                let strongArmors = ['hlm_dk', 'amr_dk', 'arm_yeti_gloves', 'arm_80', 'hlm_kurt'];
+                let actualArmCount = isSuperBoss ? 5 : armCount;
+                for (let a = 0; a < actualArmCount; a++) {
+                    let aid = isSuperBoss ? strongArmors[a % strongArmors.length] : armIds[Math.floor(Math.random() * armIds.length)];
+                    let enArm = isSuperBoss ? (Math.floor(Math.random() * 4) + 9) : (isWeakBot ? 0 : Math.floor(Math.random() * 6) + 3);
                     let armObj = { id: aid, en: enArm, cnt: 1 };
-                    if (enArm >= 7) armObj.bless = true;
-                    if (enArm >= 8 && eq['wpn'] && eq['wpn'].seteff && a === 1) armObj.seteff = eq['wpn'].seteff;
+                    if (enArm >= 7 || isSuperBoss) armObj.bless = true;
+                    if ((enArm >= 8 || isSuperBoss) && eq['wpn'] && eq['wpn'].seteff && a === 1) armObj.seteff = eq['wpn'].seteff;
                     eq['arm_' + a] = armObj;
                 }
             }
 
             if (accIds.length > 0 && !isWeakBot) {
-                let accCount = isSuperBoss ? 4 : Math.floor(Math.random() * 3) + 1;
+                let accCount = isSuperBoss ? 5 : Math.floor(Math.random() * 3) + 1;
                 for (let c = 0; c < accCount; c++) {
                     let cid = accIds[Math.floor(Math.random() * accIds.length)];
-                    let enAcc = Math.floor(Math.random() * 5);
+                    let enAcc = isSuperBoss ? (Math.floor(Math.random() * 3) + 5) : Math.floor(Math.random() * 4);
                     eq['acc_' + c] = { id: cid, en: enAcc, cnt: 1 };
                 }
             }
@@ -613,20 +676,44 @@
             let shuffled = pool.slice().sort(() => 0.5 - Math.random());
             botSkills = shuffled.slice(0, Math.min(pool.length, sCount));
 
-            let allocPts = Math.floor(lv * (isSuperBoss ? 1.2 : (isWeakBot ? 0.4 : 0.8)));
-            let allocObj = { str: allocPts, dex: allocPts, con: allocPts, int: allocPts, wis: allocPts, cha: 0 };
+            let allocPts = Math.floor(lv * (isSuperBoss ? 2.5 : 1.8));
+            let allocObj = { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 };
+            
+            // 🐛 修正 2：依據職業優先分配，並限制單項最多分配 70 點（避免相加後超過 100 上限而被浪費）
+            let attrPriority = ['str', 'con', 'dex', 'wis', 'int', 'cha'];
+            if (cls === 'mage' || cls === 'illusion') attrPriority = ['int', 'wis', 'con', 'dex', 'str', 'cha'];
+            else if (cls === 'elf') attrPriority = ['dex', 'con', 'wis', 'str', 'int', 'cha'];
+            else if (cls === 'dark') attrPriority = ['str', 'dex', 'con', 'wis', 'int', 'cha'];
+            
+            for (let pts = 0; pts < allocPts; pts++) {
+                for (let attr of attrPriority) {
+                    if (allocObj[attr] < 70) { // base 30 + panacea 10 + alloc 70 = 110 (安全覆蓋 100 上限)
+                        allocObj[attr]++;
+                        break;
+                    }
+                }
+            }
 
             let options = AVATARS_BY_CLASS[cls] || ['男騎士', '女騎士'];
             let avatarSprite = options[Math.floor(Math.random() * options.length)];
 
             let alignVal = Math.floor(Math.random() * 65535) - 32768;
-            let clanPool = (typeof NPC_CLAN_NAME_CURATED !== 'undefined' && Array.isArray(NPC_CLAN_NAME_CURATED)) ? NPC_CLAN_NAME_CURATED : ['亞丁騎士團'];
-            let clanName = (Math.random() < 0.8) ? clanPool[Math.floor(Math.random() * clanPool.length)] : '';
+            
+            // 根據對手戰力與玩家差距分配不同等級血盟
+            let highClanPool = ['奇岩城主盟 [Lv.10]', '亞丁帝國 [Lv.10]', '肯特霸皇盟 [Lv.9]', '象牙塔大導師會 [Lv.9]', '黑暗帝國 [Lv.8]'];
+            let midClanPool = ['風木血盟 [Lv.6]', '海音同盟 [Lv.6]', '邊境之狼 [Lv.5]', '沉默誓約 [Lv.5]', '古魯丁榮耀 [Lv.4]'];
+            let lowClanPool = ['菜鳥新手盟 [Lv.2]', '流浪冒險團 [Lv.1]'];
+
+            let targetClanPool = (isSuperBoss || pwr > myPower) ? highClanPool : (isWeakBot ? lowClanPool : midClanPool);
+            let clanName = targetClanPool[Math.floor(Math.random() * targetClanPool.length)];
             let botMastery = CLASS_MASTERY_MAP[cls] || '';
 
             let botCard = {
+                v: 2,
                 n: name,
+                cls: cls,
                 avatar: avatarSprite,
+                lv: lv,
                 clan: clanName,
                 align: alignVal,
                 p: {
@@ -635,16 +722,25 @@
                     lv: lv,
                     mastery: botMastery,
                     alignmentValue: alignVal,
-                    base: { str: isSuperBoss ? 25 : 20, dex: isSuperBoss ? 25 : 20, con: isSuperBoss ? 25 : 20, int: isSuperBoss ? 25 : 20, wis: isSuperBoss ? 25 : 20, cha: 18 },
+                    base: { str: 30, dex: 30, con: 30, int: 30, wis: 30, cha: 18 },
                     alloc: allocObj,
-                    panacea: { str: isSuperBoss ? 10 : 2, dex: isSuperBoss ? 10 : 2, con: isSuperBoss ? 10 : 2, int: isSuperBoss ? 10 : 2, wis: isSuperBoss ? 10 : 2, cha: 0 },
+                    panacea: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 0 },
                     eq: eq,
                     skills: botSkills,
                     buffs: { haste: true },
-                    hp: Math.floor(pwr * (isSuperBoss ? 0.18 : (isWeakBot ? 0.08 : 0.12)) + (isSuperBoss ? 3000 : 1000)),
-                    mp: isSuperBoss ? 1200 : 500
+                    hp: Math.floor(pwr * (isSuperBoss ? 0.35 : 0.22) + (isSuperBoss ? 6000 : 2500)),
+                    mp: isSuperBoss ? 2000 : 1000
                 }
             };
+            botCard.stats = { mhp: botCard.p.hp, mmp: botCard.p.mp, d: {} };
+
+            // 🐛 修正 3：讓顯示戰力 pwr 真正反映 NPC 裝備與屬性衍生後的戰鬥力，避免「虛胖」
+            if (typeof pvpCardDerive === 'function' && typeof pvpCardPower === 'function') {
+                let derived = pvpCardDerive(botCard);
+                if (derived) {
+                    pwr = Math.floor(pvpCardPower(derived));
+                }
+            }
 
             let cardStr = (typeof pvpCardEncode === 'function') ? pvpCardEncode(botCard) : '';
 
@@ -769,7 +865,65 @@
         window.pvpArenaStart = function() {
             window._klhDuelStartedAt = Date.now();
             window._klhSpeedUpClicked = false;
-            return origPvpArenaStart.apply(this, arguments);
+            let result = origPvpArenaStart.apply(this, arguments);
+
+            // ⚡ 法師大招強化：pvpArenaStart 內部用閉包版 pvpCardToMob 建立 mob，
+            //   我們無法攔截閉包呼叫，但 mob 已被放到 mapState.mobs[0]，直接修改即可！
+            try {
+                if (result && typeof mapState !== 'undefined' && mapState && mapState.mobs && mapState.mobs[0]) {
+                    let mob = mapState.mobs[0];
+                    let clsKey = mob._pvpCls || (arguments[0] && arguments[0].p && arguments[0].p.cls) || (arguments[0] && arguments[0].cls) || '';
+                    let avatar = mob._pvpAvatar || (arguments[0] && arguments[0].avatar) || '';
+
+                    // 🧙‍♂️ 1. 法師 (Mage)：烈炎術 / 冰矛圍籬 / 震裂術 / 隕石風暴 / 究極光裂術
+                    if (clsKey === 'mage' || avatar.includes('法師')) {
+                        mob.mag = { skn: '烈炎術', cd: 18, dmg: [8, 15], db: 3, dbLv: 1, dbLvMult: 2, ele: 'fire', alwaysHit: true };
+                        if (mob.mag2) { mob.mag2.cd = 25; mob.mag2.chance = 0.6; }
+                        if (mob.mag3) { mob.mag3.cd = 50; mob.mag3.chance = 0.35; }
+                        if (mob.mag4) { mob.mag4.cd = 35; mob.mag4.chance = 0.7; }
+                        mob.mag5 = { skn: '隕石風暴', cd: 70, chance: 0.3, dmg: [18, 35], db: 5, dbLv: 1, dbLvMult: 4, ele: 'fire', alwaysHit: true };
+                    }
+                    // ⚔️ 2. 騎士 (Knight)：衝擊之暈 / 堅固防護 / 反擊屏障
+                    else if (clsKey === 'knight' || avatar.includes('騎士')) {
+                        mob.mag = { skn: '衝擊之暈', cd: 25, chance: 0.8, type: 'extra_attack', stunChance: 25 };
+                        mob.mag2 = { skn: '堅固防護', type: 'self_buff', buffKind: 'guard', cd: 40 };
+                        mob.mag3 = { skn: '反擊屏障', type: 'counter_barrier', cd: 75 };
+                    }
+                    // 🏹 3. 妖精 (Elf)：高頻率三重矢 / 暴風神射 / 風之枷鎖
+                    else if (clsKey === 'elf' || avatar.includes('妖精')) {
+                        mob.mag = { skn: '三重矢', cd: 18, chance: 0.85, type: 'multi_attack', times: 3 };
+                        mob.mag2 = { skn: '暴風神射', type: 'self_buff', buffKind: 'volley', cd: 45 };
+                        mob.mag3 = { skn: '風之枷鎖', cd: 35, chance: 0.6 };
+                    }
+                    // 🗡️ 4. 黑暗妖精 (Dark Elf)：破壞盔甲 / 暗影之牙 / 雙重破壞
+                    else if (clsKey === 'dark' || avatar.includes('黑暗')) {
+                        mob.mag = { skn: '破壞盔甲', type: 'armor_break', cd: 25, chance: 0.8 };
+                        mob.mag2 = { skn: '暗影之牙', cd: 35 };
+                    }
+                    // 🐉 5. 龍騎士 (Dragon Knight)：高頻率屠宰者 / 奪命之雷
+                    else if (clsKey === 'dragon' || avatar.includes('龍')) {
+                        mob.mag = { skn: '屠宰者', cd: 20, chance: 0.85, type: 'multi_attack', times: 3 };
+                        mob.mag2 = { skn: '奪命之雷', cd: 30, dmg: [15, 35], dbLv: 1, dbLvMult: 3, ele: 'wind', alwaysHit: true };
+                    }
+                    // 🪓 6. 狂戰士 (Warrior)：亡命之徒 / 咆哮 / 泰坦岩石
+                    else if (clsKey === 'warrior' || avatar.includes('戰士')) {
+                        mob.mag = { skn: '亡命之徒', cd: 22, chance: 0.8, dmg: [15, 35], alwaysHit: true };
+                        mob.mag2 = { skn: '咆哮', cd: 28, chance: 0.8, dmg: [10, 25], ele: 'none', alwaysHit: true };
+                    }
+                    // 🔮 7. 幻術士 (Illusionist)：心靈破壞 / 燃燒立方 / 骨骼破碎
+                    else if (clsKey === 'illusion' || avatar.includes('幻術')) {
+                        mob.mag = { skn: '心靈破壞', cd: 18, dmg: [12, 28], dbLv: 1, ele: 'none', alwaysHit: true };
+                        mob.mag2 = { skn: '燃燒立方', cd: 28, dmg: [15, 32], dbLv: 1, dbLvMult: 2, ele: 'fire', alwaysHit: true };
+                    }
+                    // 👑 8. 王族 (Royal)：王者光輝 / 真目標
+                    else if (clsKey === 'royal' || avatar.includes('王子') || avatar.includes('公主')) {
+                        mob.mag = { skn: '真目標', cd: 25 };
+                        mob.mag2 = { skn: '王者光輝', type: 'self_heal', cd: 40, healDice: [80, 120] };
+                    }
+                }
+            } catch (e) {}
+
+            return result;
         };
     }
 
