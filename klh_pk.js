@@ -1260,7 +1260,7 @@
         playerHud.style.display = 'block';
 
         let pCurHp = (typeof player !== 'undefined' && player && player.hp != null) ? Math.max(0, player.hp) : 0;
-        let pMaxHp = (typeof player !== 'undefined' && player && player.maxHp) ? Math.max(1, player.maxHp) : 1;
+        let pMaxHp = (typeof player !== 'undefined' && player && player.mhp) ? Math.max(1, player.mhp) : 1;
         let pHpPct = Math.min(100, Math.max(0, Math.round((pCurHp / pMaxHp) * 100)));
 
         let playerFill = document.getElementById('klh-pvp-player-hud-fill');
