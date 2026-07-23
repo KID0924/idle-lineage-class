@@ -390,7 +390,7 @@
                     return key.replace('lineage_idle_save_', 'klh_cloud_save_').replace('lineage_idle_warehouse', 'klh_cloud_warehouse') + suffix;
                 }
                 if (key.startsWith('afk_ts_') || key.startsWith('afk_map_') || key.startsWith('afk_pride_')) {
-                    return key + suffix;
+                    return 'klh_' + key + suffix;
                 }
             }
         }
@@ -506,8 +506,8 @@
             const key = localStorage.key(i);
             if (!key) continue;
             
-            // 🔒 快取安全限制：僅允許清理以 klh_ 開頭的雲端存檔/倉庫快取，絕不碰觸原版或任何插件的 afk_ 等非 klh_ 鍵值以防未來出錯
-            if (key.startsWith('klh_cloud_save_') || key.startsWith('klh_cloud_warehouse')) {
+            // 🔒 快取安全限制：僅清理特定前綴的雲端存檔與附屬檔案，避免誤刪 klh_storage_mode 等系統設定
+            if (key.startsWith('klh_cloud_') || key.startsWith('klh_afk_')) {
                 let isOrphan = true;
                 for (const actKey of activeKeys) {
                     if (key.endsWith('_' + actKey)) {
@@ -926,17 +926,19 @@
                 if(!key) { window.showToast("請先設定 Supabase 金鑰！", "error"); return; }
                 if(typeof window.uploadToSupabase === 'function') success = await window.uploadToSupabase(true, true);
             } else if (targetCloud === 'jsonblob') {
-                const url = originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url');
+                const url = (originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '').trim();
                 if(!url) { window.showToast("請先設定 JSONBlob 網址！", "error"); return; }
+                if(typeof window.saveJsonBlobConfig === 'function') window.saveJsonBlobConfig(url);
                 if(typeof window.uploadToCloud === 'function') success = await window.uploadToCloud(true, true);
             } else if (targetCloud === 'firebase') {
                 const syncId = originalGetItem.call(localStorage, 'klh_firebase_sync_id');
                 if(!syncId) { window.showToast("請先設定 Firebase Sync ID！", "error"); return; }
-                if(typeof window.uploadToFirebase === 'function') success = await window.uploadToFirebase(true); // firebase 的 manual 參數為 true
+                if(typeof window.uploadToFirebase === 'function') success = await window.uploadToFirebase(true, true); // firebase 的 forceFullOverwrite 為 true
             }
             
             if(success !== false) {
                  window.showToast(`✅ 已成功將本地存檔複製到 ${targetCloud.toUpperCase()}！`, "success");
+                 if(typeof window.copyLocalSavesToCloudCache === 'function') window.copyLocalSavesToCloudCache();
                  if(typeof window.cleanUnusedCloudCaches === 'function') window.cleanUnusedCloudCaches();
             }
         } finally {
@@ -970,10 +972,27 @@
             window.showToast(`當前${modeName}金鑰不存在，無法複製！`, 'error');
             return;
         }
-        if (!confirm(`確定要把當前${modeName}存檔複製並覆蓋到本地嗎？本地原有的進度將會被覆蓋！`)) return;
         
         const suffix = '_' + activeKey.trim();
         const maxSlots = getMaxSaveSlot();
+
+        // 🛡️ 存檔安全檢查：確認雲端快取中是否有資料，防止空快取覆蓋/洗白本地存檔
+        let cloudHasData = false;
+        if (originalGetItem.call(localStorage, 'klh_cloud_warehouse' + suffix) !== null) cloudHasData = true;
+        for (let n = 1; n <= maxSlots; n++) {
+            if (originalGetItem.call(localStorage, 'klh_cloud_save_' + n + suffix) !== null) {
+                cloudHasData = true;
+                break;
+            }
+        }
+
+        if (!cloudHasData) {
+            window.showToast(`當前 ${modeName} 快取中沒有任何存檔資料，已取消複製以防洗白本地存檔！`, 'error');
+            return;
+        }
+
+        if (!confirm(`確定要把當前${modeName}存檔複製並覆蓋到本地嗎？本地原有的進度將會被覆蓋！`)) return;
+        
         let copyCount = 0;
         for (let n = 1; n <= maxSlots; n++) {
             const cloudVal = originalGetItem.call(localStorage, 'klh_cloud_save_' + n + suffix);
@@ -1123,11 +1142,13 @@
         for (let n = 1; n <= maxSlots; n++) payload['save_' + n] = localStorage.getItem('lineage_idle_save_' + n);
         const sharedData = _collectSharedData();
         if (sharedData) payload.shared = sharedData;
-        const activeSlot = (typeof currentSlot !== 'undefined') ? parseInt(currentSlot, 10) : null;
-        if (activeSlot >= 1 && activeSlot <= maxSlots) {
-            if (!payload['save_' + activeSlot]) {
-                if (isManual) window.showToast('偵測到本地當前槽位存檔為空，已攔截雲端覆寫！', 'error');
-                return false;
+        if (!forceFullOverwrite) {
+            const activeSlot = (typeof currentSlot !== 'undefined') ? parseInt(currentSlot, 10) : null;
+            if (activeSlot >= 1 && activeSlot <= maxSlots) {
+                if (!payload['save_' + activeSlot]) {
+                    if (isManual) window.showToast('偵測到本地當前槽位存檔為空，已攔截雲端覆寫！', 'error');
+                    return false;
+                }
             }
         }
         if (isManual) window.showLoadingOverlay('正在上傳雲端存檔中...');
@@ -1230,7 +1251,7 @@
         window.__klh_storage_cache.firebaseSyncId = syncId;
     };
 
-    window.uploadToFirebase = async function (isManual = false) {
+    window.uploadToFirebase = async function (isManual = false, forceFullOverwrite = false) {
         if (!window.__klh_cloud_sync_success) {
             if (isManual && typeof window.showToast === 'function') window.showToast('同步失敗：尚未成功下載雲端最新存檔，已攔截上傳以防覆寫！', 'error');
             return false;
@@ -1271,12 +1292,14 @@
             return false;
         }
         
-        const activeSlot = (typeof currentSlot !== 'undefined') ? parseInt(currentSlot, 10) : null;
-        if (activeSlot && activeSlot >= 1 && activeSlot <= maxSlots) {
-            const currentSave = localStorage.getItem('lineage_idle_save_' + activeSlot);
-            if (!currentSave) {
-                if (isManual) window.showToast('安全性攔截：當前選擇槽位存檔為空，已終止上傳！', 'error');
-                return false;
+        if (!forceFullOverwrite) {
+            const activeSlot = (typeof currentSlot !== 'undefined') ? parseInt(currentSlot, 10) : null;
+            if (activeSlot && activeSlot >= 1 && activeSlot <= maxSlots) {
+                const currentSave = localStorage.getItem('lineage_idle_save_' + activeSlot);
+                if (!currentSave) {
+                    if (isManual) window.showToast('安全性攔截：當前選擇槽位存檔為空，已終止上傳！', 'error');
+                    return false;
+                }
             }
         }
         
@@ -1545,10 +1568,12 @@
         for (let n = 1; n <= maxSlots; n++) payload['save_' + n] = localStorage.getItem('lineage_idle_save_' + n);
         const sharedDataSB = _collectSharedData();
         if (sharedDataSB) payload.shared = sharedDataSB;
-        const activeSlot = (typeof window.currentSlot !== 'undefined') ? parseInt(window.currentSlot, 10) : null;
-        if (activeSlot >= 1 && activeSlot <= maxSlots && !payload['save_' + activeSlot]) {
-            if (isManual) window.showToast('偵測到本地當前槽位存檔為空，已攔截雲端覆寫！', 'error');
-            return false;
+        if (!forceFullOverwrite) {
+            const activeSlot = (typeof window.currentSlot !== 'undefined') ? parseInt(window.currentSlot, 10) : null;
+            if (activeSlot >= 1 && activeSlot <= maxSlots && !payload['save_' + activeSlot]) {
+                if (isManual) window.showToast('偵測到本地當前槽位存檔為空，已攔截雲端覆寫！', 'error');
+                return false;
+            }
         }
         if (isManual) window.showLoadingOverlay('正在上傳雲端存檔中...');
         try {
@@ -1861,28 +1886,28 @@
                 if (btnCloud) btnCloud.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnSupabase) btnSupabase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
                 if (btnFirebase) btnFirebase.className = 'btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap';
-                
-                if (copyToCloudContainer) {
-                    let showAny = false;
-                    const inputVal = (inputEl ? inputEl.value : (localStorage.getItem('lineage_idle_jsonblob_url') || '')).trim().toLowerCase();
-                    const showSupabase = (mode === 'supabase') || (inputVal === 'lf2.net');
-                    
-                    if (allowSupabase && showSupabase) {
-                        const hasKey = (localStorage.getItem('klh_supabase_key') || localStorage.getItem('klh_supabase_local_key'));
-                        if(btnCopySupabase) { btnCopySupabase.style.display = hasKey ? '' : 'none'; if(hasKey) showAny = true; }
-                    } else {
-                        if(btnCopySupabase) btnCopySupabase.style.display = 'none';
-                    }
-                    if (allowJsonBlob) {
-                        const hasUrl = localStorage.getItem('lineage_idle_jsonblob_url');
-                        if(btnCopyJsonBlob) { btnCopyJsonBlob.style.display = hasUrl ? '' : 'none'; if(hasUrl) showAny = true; }
-                    }
-                    if (allowFirebase) {
-                        const hasUrl = localStorage.getItem('klh_firebase_database_url');
-                        if(btnCopyFirebase) { btnCopyFirebase.style.display = hasUrl ? '' : 'none'; if(hasUrl) showAny = true; }
-                    }
-                    copyToCloudContainer.style.display = showAny ? '' : 'none';
+            }
+
+            if (copyToCloudContainer) {
+                let showAny = false;
+                const inputVal = (inputEl ? inputEl.value : (localStorage.getItem('lineage_idle_jsonblob_url') || '')).trim().toLowerCase();
+                const showSupabase = (mode === 'supabase') || (inputVal === 'lf2.net');
+
+                if (allowSupabase && showSupabase) {
+                    const hasKey = (localStorage.getItem('klh_supabase_key') || localStorage.getItem('klh_supabase_local_key'));
+                    if (btnCopySupabase) { btnCopySupabase.style.display = hasKey ? '' : 'none'; if (hasKey) showAny = true; }
+                } else {
+                    if (btnCopySupabase) btnCopySupabase.style.display = 'none';
                 }
+                if (allowJsonBlob) {
+                    const hasUrl = localStorage.getItem('lineage_idle_jsonblob_url');
+                    if (btnCopyJsonBlob) { btnCopyJsonBlob.style.display = hasUrl ? '' : 'none'; if (hasUrl) showAny = true; }
+                }
+                if (allowFirebase) {
+                    const hasUrl = localStorage.getItem('klh_firebase_database_url');
+                    if (btnCopyFirebase) { btnCopyFirebase.style.display = hasUrl ? '' : 'none'; if (hasUrl) showAny = true; }
+                }
+                copyToCloudContainer.style.display = showAny ? '' : 'none';
             }
 
             // 🔒 隱藏彩蛋：當 Supabase 啟用時，只有在 JSONBlob 輸入框輸入 "lf2.net" (不分大小寫) 或是目前已在 Supabase 模式，才會顯示 Supabase 按鈕

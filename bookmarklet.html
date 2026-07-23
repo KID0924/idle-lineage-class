@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>放置天堂外掛書籤產生器 | Fable 5 Bookmarklet Builder</title>
+    <title>放置產生器 | Fable 5 Bookmarklet Builder</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -171,6 +171,27 @@
             opacity: 0.4;
             border: 1px dashed var(--primary);
             background: rgba(0, 242, 254, 0.05);
+        }
+
+        .file-card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: rgba(30, 41, 59, 0.2);
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+        .file-card.disabled:hover {
+            transform: none;
+            box-shadow: none;
+            border-color: rgba(255, 255, 255, 0.05);
+            background: rgba(30, 41, 59, 0.2);
+        }
+        .file-card.disabled .file-name-left span,
+        .file-card.disabled .file-desc {
+            text-decoration: line-through;
+        }
+        .file-card.disabled .drag-handle,
+        .file-card.disabled .custom-checkbox {
+            cursor: not-allowed;
         }
 
         /* 拖曳手柄與排序 */
@@ -591,7 +612,7 @@
 
     <div class="container">
         <header>
-            <h1>⚡ 放置天堂外掛產生器</h1>
+            <h1>⚡ 放置產生器</h1>
             <div class="subtitle">支援【瀏覽器書籤】與【竄改猴 Tampermonkey】雙重模式</div>
         </header>
 
@@ -706,23 +727,23 @@
                 id: 'klh_initial.js', 
                 name: '核心功能初始化', 
                 desc: '創角屬性優化、多難度系統與 iOS 鍵盤修復。', 
-                details: '包含：創角各屬性點上限分配 +20、地獄/惡夢/標準/祝福/天堂五段難度調整影響怪物強度與掉寶率、遊戲內配點與萬能藥優化限制、iOS 鍵盤防錯位修復、傭兵存檔自動精簡、以及防拋錯的優雅降級保護。', 
+                details: '包含：創角各屬性點上限分配 +20、地獄/標準/天堂3個難度調整影響怪物強度與掉寶率、遊戲內配點與萬能藥優化限制、iOS 鍵盤防錯位修復、傭兵存檔自動精簡、以及防拋錯的優雅降級保護。', 
                 isCore: false, 
                 checked: false 
             },
             { 
                 id: 'klh_database.js', 
                 name: '雲端存檔引擎', 
-                desc: 'JSONBlob / Firebase 雙引擎備份與防衝突。', 
-                details: '支援 JSONBlob 與 Firebase 雙引擎雲端備份同步。提供本地與雲端雙備份引擎、防 Null 覆蓋災難攔截與防衝突機制，確保多裝置同步時存檔資料的安全與隔離。', 
+                desc: 'JSONBlob / Firebase 雙引擎備份同步。', 
+                details: '支援 JSONBlob 與 Firebase 雙引擎雲端備份同步。提供本地與雲端雙備份引擎，確保多裝置同步時存檔資料的安全與隔離。', 
                 isCore: false, 
                 checked: false 
             },
             { 
                 id: 'klh_GMShop.js', 
                 name: 'GM 商店修改面板', 
-                desc: '一鍵滿級、裝備自訂編輯與屬性數值修改。', 
-                details: '在右下角注入 GM 控制按鈕。可購買自訂強化等級/遠古詞綴/屬性/席琳套裝效果的裝備、一鍵修改角色等級/金幣/屬性點/寵物，以及一鍵完整解鎖收藏圖鑑。', 
+                desc: '一鍵滿級、遊戲加速、掉寶倍率調整與裝備屬性修改。', 
+                details: '在右下角注入 GM 控制按鈕。提供遊戲加速、掉寶倍率調整、可購買自訂強化等級/遠古詞綴/屬性/席琳套裝效果的裝備、一鍵修改角色等級/金幣/屬性點/寵物，以及一鍵完整解鎖收藏圖鑑。', 
                 isCore: false, 
                 checked: false 
             },
@@ -754,7 +775,7 @@
                 id: 'klh_Backpack.js', 
                 name: '背包功能增強', 
                 desc: '列表/格子切換、批量賣出鎖定與廢品記憶。', 
-                details: '提供 PC_Fix 列表模式切換（隱藏裝備面板以防爆版）、批量賣出/加鎖/解鎖、模糊搜尋與廢品記憶管理（下次獲得自動標記廢品，一鍵快速賣出）。', 
+                details: '提供列表模式切換（隱藏裝備面板以防爆版）、批量賣出/加鎖/解鎖、模糊搜尋與廢品記憶管理（下次獲得自動標記廢品，一鍵快速賣出）。', 
                 isCore: false, 
                 checked: false 
             },
@@ -762,22 +783,22 @@
                 id: 'klh_Addition.js', 
                 name: '時光轉生系統', 
                 desc: '時光使者 NPC 轉生與回憶蠟燭點數保護。', 
-                details: '75等以上可前往象牙塔尋找「時光使者」轉生回 1 等並重置屬性配點，每次轉生可獲得依等級計算的永久屬性點（如：75等送 6 點，90等送 66 點）。該點數永久累加且受回憶蠟燭保護。', 
+                details: '75等以上可前往象牙塔尋找「時光使者」轉生回 1 等並重置屬性配點，每次轉生可獲得依等級計算的永久屬性點（如：75等送 6 點，90等送 66 點；注意：只會給予這些轉生點數，不包含50等升級獲得的點數）。該點數永久累加且受回憶蠟燭保護。', 
                 isCore: false, 
                 checked: false 
             },
             { 
                 id: 'klh_pk.js', 
                 name: '無界競技場 PVP', 
-                desc: '上傳名片至無界雲端、搜尋玩家挑戰與 NPC 混合對手列表。', 
-                details: '連接 Supabase 雲端資料庫，支援名片上傳、雲端搜尋玩家（兩階段省流量架構）、隨機對手刷新（雲端4名 + 本機NPC6名混合）、決鬥5秒加速計時、前端3秒冷卻倒數防刷與後端雙重安全防護。<br><b style="color: #38bdf8;">ⓘ 提示：需搭配原作者的 28-pvp-arena.js 才能正常運作。</b>', 
+                desc: '上傳名片、搜尋玩家挑戰與 10 名對手列表。', 
+                details: '支援名片上傳、搜尋玩家、隨機對手刷新（10名對手）、決鬥5秒加速計時、前端3秒冷卻倒數防刷與雙重安全防護。', 
                 isCore: false, 
                 checked: false 
             },
             { 
                 id: 'klh_Pandora.js', 
                 name: '潘朵拉抽獎擴充', 
-                desc: '自訂金幣抽獎與特定兌換防 SL 機制封裝。', 
+                desc: '自訂金幣抽獎與特定兌換機制封裝。', 
                 details: '動態注入「潘朵拉的妹妹」NPC。提供自訂金幣單抽、10連抽與100連抽功能，自動依物品售價計算權重機率與傳說大獎高光特效。', 
                 isCore: false, 
                 checked: false 
@@ -796,7 +817,8 @@
                 desc: '在原版遊戲網站中，載入並結算離線時間打怪收益（⚠ 必須搭配「核心功能初始化」）。', 
                 details: '此模組專為非 Chaos 版（如官方原版）設計。啟用後，若偵測到當前為非 Chaos 版網址，會自動載入離線掛機模擬腳本，結算離線金幣與經驗收益。<br><b style="color: #ef4444;">⚠ 注意：此模組極度依賴「核心功能初始化 (klh_initial.js)」提供的資料統計掛接點，勾選時系統會自動為您強制勾選該初始化模組。</b>', 
                 isCore: false, 
-                checked: false 
+                checked: false,
+                disabled: true 
             }
         ];
 
@@ -809,26 +831,27 @@
         function renderList() {
             filesListContainer.innerHTML = '';
             activePlugins.forEach((p, index) => {
+                const isDisabled = p.disabled;
                 const card = document.createElement('div');
-                card.className = `file-card ${p.checked ? 'checked' : ''}`;
-                card.draggable = true;
+                card.className = `file-card ${p.checked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}`;
+                card.draggable = !isDisabled;
                 card.dataset.id = p.id;
                 
                 card.innerHTML = `
                     <div class="drag-handle">☰</div>
                     <label class="custom-checkbox">
-                        <input type="checkbox" ${p.checked ? 'checked' : ''} onchange="togglePlugin('${p.id}')">
+                        <input type="checkbox" ${p.checked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} onchange="togglePlugin('${p.id}')">
                         <span class="checkmark"></span>
                     </label>
                     <div class="file-info" style="width: 100%;">
                         <div class="file-name">
                             <div class="file-name-left">
-                                <span>${p.name}</span>
+                                <span style="${isDisabled ? 'text-decoration: line-through;' : ''}">${p.name}</span>
                                 <span class="badge badge-utility">模組</span>
                             </div>
                             <span class="file-name-right">${p.id}</span>
                         </div>
-                        <div class="file-desc">
+                        <div class="file-desc" style="${isDisabled ? 'text-decoration: line-through;' : ''}">
                             ${p.desc}
                             <span class="btn-toggle-details" onclick="toggleDetails(event, '${p.id}')">詳細 ▾</span>
                         </div>
@@ -839,10 +862,12 @@
                 `;
 
                 // 註冊拖曳相關事件
-                card.addEventListener('dragstart', handleDragStart);
-                card.addEventListener('dragover', handleDragOver);
-                card.addEventListener('dragend', handleDragEnd);
-                card.addEventListener('drop', handleDrop);
+                if (!isDisabled) {
+                    card.addEventListener('dragstart', handleDragStart);
+                    card.addEventListener('dragover', handleDragOver);
+                    card.addEventListener('dragend', handleDragEnd);
+                    card.addEventListener('drop', handleDrop);
+                }
 
                 filesListContainer.appendChild(card);
             });
@@ -853,7 +878,7 @@
         // ═══════════════ 狀態操作 ═══════════════
         window.selectAll = function(checked) {
             activePlugins.forEach(p => {
-                p.checked = checked;
+                if (!p.disabled) p.checked = checked;
             });
             renderList();
         };
@@ -862,7 +887,7 @@
             if (presetType === 'mobile') {
                 const targetIds = ['klh_mobile-perf.js', 'klh_perf-monitor.js'];
                 activePlugins.forEach(p => {
-                    p.checked = targetIds.includes(p.id);
+                    p.checked = !p.disabled && targetIds.includes(p.id);
                 });
             } else if (presetType === 'game') {
                 const targetIds = [
@@ -871,16 +896,15 @@
                     'klh_mobile_allies_hud.js',
                     'klh_Addition.js',
                     'klh_Pandora.js',
-                    'klh_remove-banner.js',
-                    'offline.js'
+                    'klh_remove-banner.js'
                 ];
                 activePlugins.forEach(p => {
-                    p.checked = targetIds.includes(p.id);
+                    p.checked = !p.disabled && targetIds.includes(p.id);
                 });
             } else if (presetType === 'pvp') {
                 const targetIds = ['klh_mobile-perf.js', 'klh_pk.js'];
                 activePlugins.forEach(p => {
-                    p.checked = targetIds.includes(p.id);
+                    p.checked = !p.disabled && targetIds.includes(p.id);
                 });
             }
             renderList();
@@ -888,7 +912,7 @@
 
         window.togglePlugin = function(id) {
             const plugin = activePlugins.find(p => p.id === id);
-            if (plugin) {
+            if (plugin && !plugin.disabled) {
                 plugin.checked = !plugin.checked;
                 
                 // 連動邏輯：
@@ -1030,6 +1054,10 @@
             codeBoxBookmarklet.value = bookmarkletCode;
 
             // ===== 2. 竄改猴 (Tampermonkey) 代碼生成 =====
+            const moduleComments = checkedPlugins.length > 0 
+                ? checkedPlugins.map((p, i) => `//   ${i + 1}. ${p.name} (${p.id})`).join('\n')
+                : '//   (未選擇任何模組)';
+
             let tamperCode = `// ==UserScript==\n` +
                 `// @name         放置天堂 🌸 書籤模組\n` +
                 `// @namespace    https://kid0924.github.io/\n` +
@@ -1042,7 +1070,11 @@
                 `// @match        https://pp771007.github.io/idle-lineage-class/*\n` +
                 `// @grant        none\n` +
                 `// @run-at       document-end\n` +
-                `// ==/UserScript==\n\n`;
+                `// ==/UserScript==\n\n` +
+                `/* ========================================================================\n` +
+                ` * 📦 已啟用的模組清單 (${checkedPlugins.length} 個)：\n` +
+                `${moduleComments}\n` +
+                ` * ======================================================================== */\n\n`;
 
             if (hasOffline || hasRemoveBanner) {
                 const commonIds = checkedPlugins.filter(p => p.id !== 'offline.js' && p.id !== 'klh_remove-banner.js').map(p => p.id);

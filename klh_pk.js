@@ -122,7 +122,7 @@
                     btn.disabled = false;
                 }
             }, 1000);
-            try { logSys('<span class="text-sky-300 font-bold">☁️ 雲端競技場：</span>已成功更新你的對戰名片（戰力 ' + power.toLocaleString() + '）'); } catch(e){}
+            try { logSys('<span class="text-sky-300 font-bold">☁️ 雲端競技場：</span>已成功更新你的對戰名片「' + _pvpEsc(pName) + '」（戰力 ' + power.toLocaleString() + '）'); } catch(e){}
             refreshCloudOpponents();
 
         } catch (err) {
@@ -133,6 +133,116 @@
             alert('上傳失敗：' + errMsg);
         }
     };
+
+    let _klhLastAutoUploadTime = 0;
+
+    window.copyMyPlayerName = function (btn) {
+        if (btn && btn.disabled) return;
+
+        let rawName = (typeof player !== 'undefined' && player && player.name) ? String(player.name).trim() : '';
+        if (!rawName) rawName = '未命名';
+        let pName = rawName.length > 10 ? rawName.slice(0, 10) : rawName;
+
+        let tauntCheck = document.getElementById('pvp-taunt-toggle') || _pvpField('pvp-taunt-toggle');
+        let isTaunt = !!(tauntCheck && tauntCheck.checked);
+
+        let wpnStr = '赤手空拳的';
+        let wpnNoun = '拳頭';
+        try {
+            if (typeof pvpCardBuild === 'function' && typeof getCardFullDetails === 'function') {
+                let card = pvpCardBuild();
+                let cardStr = (typeof pvpCardEncode === 'function') ? pvpCardEncode(card) : '';
+                let details = getCardFullDetails(cardStr);
+                if (details && details.wpnDesc && details.wpnDesc !== '徒手') {
+                    let w = String(details.wpnDesc).trim();
+                    wpnStr = '手持 ' + w + ' 的';
+                    wpnNoun = w;
+                }
+            }
+        } catch (e) {}
+
+        let copyText = pName;
+        if (isTaunt) {
+            let taunts = [
+                '⚔️ ' + wpnStr + '【' + pName + '】在無界競技場向你叫陣！有種就搜尋我的名字來挑戰！',
+                '🔥 ' + wpnStr + '【' + pName + '】在無界競技場等你，聽說你很猛？敢不敢來切磋！',
+                '😈 ' + wpnStr + '【' + pName + '】已在上傳名片，別只會打怪，有種來戰！',
+                '👑 全服誰敢一戰？' + wpnStr + '【' + pName + '】在無界競技場等你挑戰！',
+                '🍷 ' + wpnStr + '【' + pName + '】擺下擂台，輸的人請去奇岩城當乞丐！',
+                '🛡️ 你的防禦力夠高嗎？' + wpnStr + '【' + pName + '】在無界競技場試刀，沒裝備的別來送死！',
+                '🐉 ' + wpnStr + '【' + pName + '】戰力告急！急需一位好心人前來送戰績！',
+                '⚔️ ' + wpnStr + '【' + pName + '】發起挑戰，贏的拿走榮耀，輸的回家種田！',
+                '🥊 ' + wpnStr + '【' + pName + '】已就位，有沒有實力相當的勇士敢來一戰？',
+                '🏹 嗨！肉腳你們好啊！' + wpnStr + '【' + pName + '】在無界競技場叫陣，有種就過來！',
+                '📱 看是我的 ' + wpnNoun + ' 快，還是你的手機先發燙！【' + pName + '】在無界競技場等你！',
+                '🍳 打怪手機燙到可以煎雞蛋？' + wpnStr + '【' + pName + '】熱情叫陣，幫你手機降溫！',
+                '⚡ 掛機打怪卡到不行？' + wpnStr + '【' + pName + '】擺開陣勢，來一場真男人決鬥！',
+                '💤 ' + wpnStr + '歐皇【' + pName + '】在無界競技場休閒掛機中，誰來打破他的連勝紀錄？',
+                '☕【' + pName + '】' + (wpnNoun === '拳頭' ? '赤手空拳' : ('手持 ' + wpnNoun)) + ' 邊喝咖啡邊發起挑戰，來個能打的讓我清醒一下！',
+                '⚡【' + pName + '】' + (wpnNoun === '拳頭' ? '赤手空拳' : ('手持 ' + wpnNoun)) + ' 熱身完畢，歡迎各位高手隨時前來指教！',
+                '📦 離線掛機整晚居然零收穫？' + wpnStr + '【' + pName + '】等你，來贏點尊嚴回去！',
+                '⚰️ 離線掛機又在躺板板？' + wpnStr + '【' + pName + '】叫陣，這把絕對不讓你睡著！',
+                '💰 離線掛機沒拿到寶沒關係！' + wpnStr + '【' + pName + '】發起決鬥，贏了榮譽帶回家！',
+                '💤 離線掛機被怪暴打？' + wpnStr + '【' + pName + '】在線等對手，來展示你的真正實力！'
+            ];
+            copyText = taunts[Math.floor(Math.random() * taunts.length)];
+        }
+
+        let originalText = btn ? btn.textContent : '📋 複製名字';
+
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '✔ 已複製' + (isTaunt ? '嘲諷' : '');
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 3000);
+        }
+
+        let successAction = () => {
+            try {
+                if (typeof logSys === 'function') {
+                    logSys('<span class="text-sky-300 font-bold">' + (isTaunt ? '😈 複製嘲諷：' : '📋 複製名字：') + '</span>已複製「' + _pvpEsc(copyText) + '」至剪貼簿');
+                }
+            } catch (e) {}
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(copyText).then(successAction).catch(() => {
+                fallbackCopyName(copyText, successAction);
+            });
+        } else {
+            fallbackCopyName(copyText, successAction);
+        }
+
+        // ⚡ 自動上傳名片：背景靜默上傳（60 秒保護），完全不干擾前端 UI 或顯示任何冷卻秒數
+        let now = Date.now();
+        if (now - _klhLastAutoUploadTime >= 60000) {
+            _klhLastAutoUploadTime = now;
+            try {
+                if (typeof uploadCloudCard === 'function') {
+                    uploadCloudCard(null);
+                }
+            } catch (e) {}
+        }
+    };
+
+    function fallbackCopyName(text, successCb) {
+        let ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            if (typeof successCb === 'function') successCb();
+        } catch (err) {
+            alert('複製失敗，角色名稱為：' + text);
+        } finally {
+            ta.remove();
+        }
+    }
 
     /* ========================================================================
      *  ⚡ 3. 雲端挑戰 & 搜尋
@@ -165,10 +275,18 @@
         let resBox = _pvpField('pvp-search-result');
         if (!input || !resBox) return;
 
-        let queryName = input.value.trim();
-        if (!queryName) {
+        let rawInput = input.value.trim();
+        if (!rawInput) {
             alert('請輸入要搜尋的玩家名字');
             return;
+        }
+
+        // 💡 智慧解析：若玩家貼上包含【名字】的整句嘲諷戰書，自動解析提取出裡面的【名字】並直接更新搜尋框
+        let queryName = rawInput;
+        let match = rawInput.match(/[【\[［]([^】\]］]+)[】\]］]/);
+        if (match && match[1]) {
+            queryName = match[1].trim();
+            input.value = queryName;
         }
 
         let btn = btnParam || _pvpField('pvp-btn-search');
@@ -189,7 +307,10 @@
         }
 
         resBox.classList.remove('hidden');
-        resBox.innerHTML = '<div class="text-xs text-slate-400 py-2 text-center">正在雲端尋找「' + _pvpEsc(queryName) + '」...</div>';
+        let searchNotice = (queryName !== rawInput) 
+            ? '已自戰書解析名稱「<b class="text-amber-300">' + _pvpEsc(queryName) + '</b>」，正在雲端尋找...' 
+            : '正在雲端尋找「' + _pvpEsc(queryName) + '」...';
+        resBox.innerHTML = '<div class="text-xs text-slate-400 py-2 text-center">' + searchNotice + '</div>';
 
         try {
             let sb = await getSupabaseClient();
@@ -814,15 +935,27 @@
         container.className = CARD;
         container.style.border = '1px solid #0369a1';
 
+        let savedTaunt = false;
+        try {
+            savedTaunt = localStorage.getItem('klh_pvp_taunt') === 'true';
+        } catch (e) {}
+
         let html =
             '<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pr-7">' +
                 '<div class="font-bold text-sky-300 text-xs sm:text-sm flex items-center gap-1">' +
                     '<span>⚔️ 無界競技場</span>' +
                     '<span class="text-[10px] font-normal text-slate-400">(配對實力相近玩家)</span>' +
                 '</div>' +
-                '<button type="button" class="btn px-2.5 py-1 text-xs bg-sky-800 hover:bg-sky-700 border-sky-500 font-bold shrink-0 self-start sm:self-auto" onclick="uploadCloudCard(this)">📤 上傳我的名片</button>' +
+                '<div class="flex items-center gap-1.5 shrink-0 self-start sm:self-auto flex-wrap">' +
+                    '<button type="button" id="pvp-btn-upload" class="btn px-2.5 py-1 text-xs bg-sky-800 hover:bg-sky-700 border-sky-500 font-bold shrink-0" onclick="uploadCloudCard(this)">📤 上傳我的名片</button>' +
+                    '<button type="button" class="btn px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 border-slate-500 font-bold shrink-0" onclick="copyMyPlayerName(this)">📋 複製名字</button>' +
+                    '<label class="flex items-center gap-1 text-xs text-amber-300 cursor-pointer select-none shrink-0" title="勾選後複製名字會隨機附加叫陣嘲諷台詞">' +
+                        '<input type="checkbox" id="pvp-taunt-toggle" ' + (savedTaunt ? 'checked' : '') + ' onchange="try{localStorage.setItem(\'klh_pvp_taunt\',this.checked);}catch(e){}" class="rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-0 cursor-pointer">' +
+                        '<span>😈 嘲諷</span>' +
+                    '</label>' +
+                '</div>' +
             '</div>' +
-            '<div class="text-[11px] text-slate-400 leading-tight mb-2.5">上傳後其他玩家可挑戰你的分身。點擊下方可隨機尋找對手。</div>' +
+            '<div class="text-[11px] text-slate-400 leading-tight mb-2.5">上傳後其他玩家可挑戰你的分身。點擊「複製名字」即自動上傳名片並複製。</div>' +
 
             '<!-- 🔍 搜尋指定玩家列 -->' +
             '<div class="flex items-center gap-1.5 mb-2.5">' +
