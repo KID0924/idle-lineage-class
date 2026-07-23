@@ -877,15 +877,25 @@
 
             for (var cgIdx = 0; cgIdx < finalCatGroups.length; cgIdx++) {
                 var cg = finalCatGroups[cgIdx];
-                var bg;
-                if (cg.isAlert) {
+                var isGold = cg.isAlert && cg.minUnitCnt >= 100;
+                var bg, hoverBg, borderCol;
+                if (isGold) {
+                    bg = '#5c4813';
+                    hoverBg = '#7a621a';
+                    borderCol = '#a17d23';
+                } else if (cg.isAlert) {
                     bg = '#4e1414';
+                    hoverBg = '#6b1d1d';
+                    borderCol = '#991b1b';
                 } else {
                     bg = cgIdx % 2 === 0 ? '#1c1916' : '#231f1a';
+                    hoverBg = '#3a3124';
+                    borderCol = '#332b21';
                 }
                 var packsText, minUnitText, avgTop20Text, nameText;
                 if (cg.isAlert) {
-                    nameText = '🔥 ' + cg.name + ' <span style="font-size:10px;background:#dc2626;color:#ffffff;padding:1px 4px;border-radius:3px;margin-left:2px;font-weight:normal;">撿漏警示</span>';
+                    var badgeBg = isGold ? '#d97706' : '#dc2626';
+                    nameText = '🔥 ' + cg.name + ' <span style="font-size:10px;background:' + badgeBg + ';color:#ffffff;padding:1px 4px;border-radius:3px;margin-left:2px;font-weight:normal;">撿漏警示</span>';
                     if (cg.alertRemainSec > 0) {
                         nameText += ' <span style="font-size:10px;background:#d97706;color:#ffffff;padding:1px 5px;border-radius:3px;margin-left:3px;font-weight:bold;">⏳ ' + cg.alertRemainSec + 's</span>';
                     }
@@ -896,23 +906,25 @@
                 if (cg.packs > 0) {
                     packsText = cg.packs + ' 筆 (' + cg.totalCnt.toLocaleString() + '個)';
                     minUnitText = cg.minUnit.toLocaleString();
-                    minUnitText += ' <span style="font-size:11px;color:' + (cg.isAlert ? '#fca5a5' : '#8a8070') + ';font-weight:normal;">(' + cg.minUnitName + '(' + cg.minUnitCnt.toLocaleString() + '))</span>';
+                    var subColor = isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#8a8070');
+                    minUnitText += ' <span style="font-size:11px;color:' + subColor + ';font-weight:normal;">(' + cg.minUnitName + ')</span>';
+                    minUnitText += '<span style="font-size:11px;color:' + subColor + ';font-weight:normal;">(' + cg.minUnitCnt.toLocaleString() + ')</span>';
                     
                     avgTop20Text = cg.avgTop20.toLocaleString();
-                    avgTop20Text += ' <span style="font-size:11px;color:' + (cg.isAlert ? '#fca5a5' : '#8a8070') + ';font-weight:normal;">(前' + cg.top20Count + '筆)</span>';
+                    avgTop20Text += ' <span style="font-size:11px;color:' + (isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#8a8070')) + ';font-weight:normal;">(前' + cg.top20Count + '筆)</span>';
                 } else {
                     packsText = '<span style="color:#666;">無掛牌</span>';
                     minUnitText = '<span style="color:#666;">-</span>';
                     avgTop20Text = '<span style="color:#666;">-</span>';
                 }
                 cHtml += '<tr class="my-modal-row" data-name="' + cg.val + '"';
-                cHtml += ' style="border-bottom:1px solid ' + (cg.isAlert ? '#991b1b' : '#332b21') + ';background:' + bg + ';cursor:pointer;"';
-                cHtml += ' onmouseover="this.style.background=\'#6b1d1d\'"';
+                cHtml += ' style="border-bottom:1px solid ' + borderCol + ';background:' + bg + ';cursor:pointer;"';
+                cHtml += ' onmouseover="this.style.background=\'' + hoverBg + '\'"';
                 cHtml += ' onmouseout="this.style.background=\'' + bg + '\'">';
-                cHtml += '<td style="padding:6px 8px;color:' + (cg.isAlert ? '#f87171' : '#fff') + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + nameText + '</td>';
-                cHtml += '<td style="padding:6px 8px;text-align:center;color:' + (cg.isAlert ? '#fca5a5' : '#d0b898') + ';vertical-align:middle;white-space:nowrap;">' + packsText + '</td>';
-                cHtml += '<td style="padding:6px 8px;text-align:right;color:' + (cg.isAlert ? '#f87171' : '#6ee7b7') + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + minUnitText + '</td>';
-                cHtml += '<td style="padding:6px 8px;text-align:right;color:' + (cg.isAlert ? '#fde047' : '#fcd34d') + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + avgTop20Text + '</td>';
+                cHtml += '<td style="padding:6px 8px;color:' + (isGold ? '#fde047' : (cg.isAlert ? '#f87171' : '#fff')) + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + nameText + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:center;color:' + (isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#d0b898')) + ';vertical-align:middle;white-space:nowrap;">' + packsText + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:right;color:' + (isGold ? '#fde047' : (cg.isAlert ? '#f87171' : '#6ee7b7')) + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + minUnitText + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:right;color:' + (isGold ? '#fef08a' : (cg.isAlert ? '#fde047' : '#fcd34d')) + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + avgTop20Text + '</td>';
                 cHtml += '</tr>';
             }
             cHtml += '</tbody></table>';
