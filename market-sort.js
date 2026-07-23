@@ -69,6 +69,7 @@
                     { text: '力量魔法頭盔', val: '力量魔法頭盔' },
                     { text: '敏捷魔法頭盔', val: '敏捷魔法頭盔' },
                     { text: '搜索狀', val: '搜索狀' },
+                    { text: '天罰', val: '天罰' },
                     { text: '萬能藥', val: '萬能藥' },
                     { text: '十字', val: '十字' },
                     { text: '腕甲', val: '腕甲' },
@@ -89,10 +90,12 @@
                     { text: '樹枝', val: '樹枝' },
                     { text: '金屬塊', val: '金屬塊' },
                     { text: '鋼鐵', val: '鋼鐵' },
-                    { text: '鋼鐵頭盔', val: '鋼鐵頭盔' },
                     { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                     { text: '鋼鐵手套', val: '鋼鐵手套' },
                     { text: '品質', val: '品質' },
+                    { text: '品質紅寶石', val: '品質紅寶石' },
+                    { text: '品質藍寶石', val: '品質藍寶石' },
+                    { text: '品質綠寶石', val: '品質綠寶石' },
                     { text: 'STR', val: 'STR' },
                     { text: 'INT', val: 'INT' },
                     { text: 'DEX', val: 'DEX' },
@@ -730,6 +733,7 @@
                 { text: '力量魔法頭盔', val: '力量魔法頭盔' },
                 { text: '敏捷魔法頭盔', val: '敏捷魔法頭盔' },
                 { text: '搜索狀', val: '搜索狀' },
+                { text: '天罰', val: '天罰' },
                 { text: '萬能藥', val: '萬能藥' },
                 { text: '十字', val: '十字' },
                 { text: '腕甲', val: '腕甲' },
@@ -750,10 +754,12 @@
                 { text: '樹枝', val: '樹枝' },
                 { text: '金屬塊', val: '金屬塊' },
                 { text: '鋼鐵', val: '鋼鐵' },
-                { text: '鋼鐵頭盔', val: '鋼鐵頭盔' },
                 { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                 { text: '鋼鐵手套', val: '鋼鐵手套' },
                 { text: '品質', val: '品質' },
+                { text: '品質紅寶石', val: '品質紅寶石' },
+                { text: '品質藍寶石', val: '品質藍寶石' },
+                { text: '品質綠寶石', val: '品質綠寶石' },
                 { text: 'STR', val: 'STR' },
                 { text: 'INT', val: 'INT' },
                 { text: 'DEX', val: 'DEX' },
@@ -810,6 +816,8 @@
                                 if (u1 < 1000000) isAlert = true;
                             } else if (searchTxt === '+7') {
                                 if (u1 < 500000) isAlert = true;
+                            } else if (searchTxt === '+6') {
+                                if (u1 < 200000) isAlert = true;
                             } else {
                                 isAlert = true;
                             }
