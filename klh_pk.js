@@ -71,13 +71,15 @@
 
     window.uploadCloudCard = async function (btn) {
         if (!player || !player.cls || !player.enSeed) {
-            alert('角色尚未建立或缺乏 enSeed，無法上傳名片。');
+            if (btn) alert('角色尚未建立或缺乏 enSeed，無法上傳名片。');
             return;
         }
 
-        let originalText = btn.textContent;
-        btn.textContent = '上傳中...';
-        btn.disabled = true;
+        let originalText = btn ? btn.textContent : '';
+        if (btn) {
+            btn.textContent = '上傳中...';
+            btn.disabled = true;
+        }
 
         let card = pvpCardBuild();
         let derived = pvpCardDerive(card);
@@ -109,28 +111,32 @@
             let { error } = await sb.from('arena_cards').upsert(payload, { onConflict: 'en_seed' });
             if (error) throw error;
 
-            btn.textContent = '✅ 上傳成功！';
-            let cd = 3;
-            btn.disabled = true;
-            let timer = setInterval(() => {
-                cd--;
-                if (cd > 0) {
-                    btn.textContent = '⏳ 冷卻中 (' + cd + 's)';
-                } else {
-                    clearInterval(timer);
-                    btn.textContent = originalText;
-                    btn.disabled = false;
-                }
-            }, 1000);
+            if (btn) {
+                btn.textContent = '✅ 上傳成功！';
+                let cd = 3;
+                btn.disabled = true;
+                let timer = setInterval(() => {
+                    cd--;
+                    if (cd > 0) {
+                        btn.textContent = '⏳ 冷卻中 (' + cd + 's)';
+                    } else {
+                        clearInterval(timer);
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }
+                }, 1000);
+            }
             try { logSys('<span class="text-sky-300 font-bold">☁️ 雲端競技場：</span>已成功更新你的對戰名片「' + _pvpEsc(pName) + '」（戰力 ' + power.toLocaleString() + '）'); } catch(e){}
             refreshCloudOpponents();
 
         } catch (err) {
             console.error('上傳名片失敗:', err);
             let errMsg = (err && err.message) ? err.message : String(err);
-            btn.textContent = '❌ 上傳失敗';
-            setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1500);
-            alert('上傳失敗：' + errMsg);
+            if (btn) {
+                btn.textContent = '❌ 上傳失敗';
+                setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1500);
+                alert('上傳失敗：' + errMsg);
+            }
         }
     };
 
@@ -1176,5 +1182,94 @@
             return res;
         };
     }
+
+    /* ========================================================================
+     *  ⚡ 9. PK 雙方 HUD 血條（極簡無字細血條・左玩家綠 / 右對手紅）
+     * ======================================================================== */
+    function updatePvpFoeHud() {
+        let battleView = document.getElementById('battle-view');
+        if (!battleView) return;
+
+        let isActive = (typeof pvpArenaActive === 'function') ? pvpArenaActive() : false;
+        let mob = (typeof mapState !== 'undefined' && mapState && mapState.mobs) ? mapState.mobs[0] : null;
+
+        let foeHud = document.getElementById('klh-pvp-foe-hud');
+        let playerHud = document.getElementById('klh-pvp-player-hud');
+
+        if (!isActive || !mob || mob.curHp == null) {
+            if (foeHud) foeHud.style.display = 'none';
+            if (playerHud) playerHud.style.display = 'none';
+            return;
+        }
+
+        // --- 1. 右側：對手血條 (紅色) ---
+        if (!foeHud) {
+            foeHud = document.createElement('div');
+            foeHud.id = 'klh-pvp-foe-hud';
+            foeHud.style.cssText = `
+                position: absolute;
+                top: 2px;
+                right: 12px;
+                z-index: 35;
+                width: 33.33%;
+                height: 4px;
+                background: rgba(15, 23, 42, 0.8);
+                border: 1px solid rgba(239, 68, 68, 0.7);
+                border-radius: 2px;
+                overflow: hidden;
+                box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+                pointer-events: none;
+            `;
+            foeHud.innerHTML = `<div id="klh-pvp-foe-hud-fill" style="height:100%; background:#ef4444; width:100%; transition:width 0.15s ease;"></div>`;
+            battleView.appendChild(foeHud);
+        }
+
+        foeHud.style.display = 'block';
+
+        let foeCurHp = Math.max(0, mob.curHp);
+        let foeMaxHp = Math.max(1, mob.hp || 1);
+        let foeHpPct = Math.min(100, Math.max(0, Math.round((foeCurHp / foeMaxHp) * 100)));
+
+        let foeFill = document.getElementById('klh-pvp-foe-hud-fill');
+        if (foeFill) {
+            foeFill.style.width = foeHpPct + '%';
+        }
+
+        // --- 2. 左側：玩家血條 (綠色) ---
+        if (!playerHud) {
+            playerHud = document.createElement('div');
+            playerHud.id = 'klh-pvp-player-hud';
+            playerHud.style.cssText = `
+                position: absolute;
+                top: 2px;
+                left: 12px;
+                z-index: 35;
+                width: 33.33%;
+                height: 4px;
+                background: rgba(15, 23, 42, 0.8);
+                border: 1px solid rgba(34, 197, 94, 0.7);
+                border-radius: 2px;
+                overflow: hidden;
+                box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+                pointer-events: none;
+            `;
+            playerHud.innerHTML = `<div id="klh-pvp-player-hud-fill" style="height:100%; background:#22c55e; width:100%; transition:width 0.15s ease;"></div>`;
+            battleView.appendChild(playerHud);
+        }
+
+        playerHud.style.display = 'block';
+
+        let pCurHp = (typeof player !== 'undefined' && player && player.hp != null) ? Math.max(0, player.hp) : 0;
+        let pMaxHp = (typeof player !== 'undefined' && player && player.maxHp) ? Math.max(1, player.maxHp) : 1;
+        let pHpPct = Math.min(100, Math.max(0, Math.round((pCurHp / pMaxHp) * 100)));
+
+        let playerFill = document.getElementById('klh-pvp-player-hud-fill');
+        if (playerFill) {
+            playerFill.style.width = pHpPct + '%';
+        }
+    }
+
+    // 定時監控與重繪 Hook，確保決鬥中對手與玩家血條即時連動
+    setInterval(updatePvpFoeHud, 150);
 
 })();
