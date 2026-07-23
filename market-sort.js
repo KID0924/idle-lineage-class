@@ -789,6 +789,7 @@
 
                 var minUnit = matched.length > 0 ? matched[0].unitPrice : 0;
                 var minUnitName = matched.length > 0 ? matched[0].cleanName : '';
+                var minUnitCnt = matched.length > 0 ? matched[0].cnt : 0;
                 var totalCnt = 0;
 
                 for (var m = 0; m < matched.length; m++) {
@@ -845,6 +846,7 @@
                     totalCnt: totalCnt,
                     minUnit: minUnit,
                     minUnitName: minUnitName,
+                    minUnitCnt: minUnitCnt,
                     avgTop20: avgTop20,
                     top20Count: top20.length,
                     isAlert: isAlert,
@@ -894,7 +896,7 @@
                 if (cg.packs > 0) {
                     packsText = cg.packs + ' 筆 (' + cg.totalCnt.toLocaleString() + '個)';
                     minUnitText = cg.minUnit.toLocaleString();
-                    minUnitText += ' <span style="font-size:11px;color:' + (cg.isAlert ? '#fca5a5' : '#8a8070') + ';font-weight:normal;">(' + cg.minUnitName + ')</span>';
+                    minUnitText += ' <span style="font-size:11px;color:' + (cg.isAlert ? '#fca5a5' : '#8a8070') + ';font-weight:normal;">(' + cg.minUnitName + '(' + cg.minUnitCnt.toLocaleString() + '))</span>';
                     
                     avgTop20Text = cg.avgTop20.toLocaleString();
                     avgTop20Text += ' <span style="font-size:11px;color:' + (cg.isAlert ? '#fca5a5' : '#8a8070') + ';font-weight:normal;">(前' + cg.top20Count + '筆)</span>';
