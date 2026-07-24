@@ -75,11 +75,11 @@
       return;
     }
     if (lv == 1) {
-      hint.innerHTML = '<span class="text-emerald-400">🟢 輕度：</span>音效 250ms，特效/日誌/CSS 正常';
+      hint.innerHTML = '<span class="text-emerald-400">🟢 輕度：</span>音效 250ms，其餘正常 (適合順暢機型微幅省電)';
     } else if (lv == 2) {
-      hint.innerHTML = '<span class="text-yellow-400">🟡 中度：</span>關閉音效，特效/日誌/CSS 輕度優化';
+      hint.innerHTML = '<span class="text-yellow-400">🟡 中度：</span>關閉音效，每2 tick重繪UI (推薦日常使用，CPU負載減半)';
     } else if (lv == 3) {
-      hint.innerHTML = '<span class="text-rose-400">🔴 強力：</span>關閉音效，特效/日誌/CSS 強力優化';
+      hint.innerHTML = '<span class="text-rose-400">🔴 強力：</span>關閉特效/音效，每3 tick重繪 + 關心跳與降頻 (極致降溫省電)';
     } else {
       hint.innerHTML = '<span class="text-purple-400">🟣 進階：</span>請使用遊戲內右上角懸浮面板微調';
     }
@@ -152,7 +152,7 @@
     } else if (lv === 2) {
       aAudio = 3; aAnim = 1; aVfx = 1; aLog = 1; aCss = 1; aRender = 1; aWorker = 0;
     } else { // lv === 3
-      aAudio = 3; aAnim = 1; aVfx = 3; aLog = 3; aCss = 3; aRender = 2; aWorker = 1;
+      aAudio = 3; aAnim = 1; aVfx = 3; aLog = 3; aCss = 3; aRender = 2; aWorker = 2;
     }
 
     applyAudio(aAudio);
