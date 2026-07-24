@@ -987,11 +987,142 @@
         refreshCloudOpponents();
     }
 
-    // MutationObserver 自動監聽全域 DOM 變化，確保面板掛載即嵌入雲端 UI
     const observer = new MutationObserver(() => {
         let body = _pvpPanelBody();
         if (body && !_pvpField('cloud-arena-container')) {
             injectCloudUI();
+        }
+
+        let resultModal = document.getElementById('pvp-result-modal');
+        if (resultModal && !resultModal.dataset.rewardProcessed) {
+            resultModal.dataset.rewardProcessed = '1';
+            let titleEl = resultModal.querySelector('.text-2xl');
+            if (titleEl && titleEl.textContent === '玩家獲勝') {
+                try {
+                    if (typeof lootRng === 'function' && typeof DB !== 'undefined') {
+                        let myCard = (typeof pvpCardBuild === 'function') ? pvpCardBuild() : null;
+                        let myPower = (myCard && typeof pvpCardDerive === 'function' && typeof pvpCardPower === 'function') ? pvpCardPower(pvpCardDerive(myCard)) : 2000;
+                        
+                        let foeNameText = '';
+                        let foeEl = resultModal.querySelector('.text-sm.text-slate-200');
+                        if (foeEl) foeNameText = foeEl.textContent.replace('對手：', '').trim();
+                        
+                        let isTop10 = false;
+                        let isBoss = false;
+                        let isRealPlayer = false;
+                        let foePower = myPower;
+                        let foeLv = 99;
+                        
+                        if (typeof cachedOpponents !== 'undefined' && cachedOpponents) {
+                            let hasCloudCards = cachedOpponents.some(o => !o.is_bot);
+                            let powers = cachedOpponents.map(o => Number(o.power) || 0).sort((a, b) => b - a);
+                            let top10Threshold = powers[Math.max(0, Math.floor(powers.length * 0.1))] || 0;
+                            
+                            let opponent = cachedOpponents.find(o => o.player_name === foeNameText);
+                            if (opponent) {
+                                isBoss = !!opponent.is_boss;
+                                isRealPlayer = !opponent.is_bot && !isBoss;
+                                
+                                let opPower = Number(opponent.power);
+                                let opLv = 99; // 預設為高等等級以免誤判
+                                if (opponent.card_data && typeof pvpCardDecode === 'function') {
+                                    try {
+                                        let dec = pvpCardDecode(opponent.card_data);
+                                        if (dec && dec.card) {
+                                            if (!opPower) opPower = pvpCardPower(pvpCardDerive(dec.card));
+                                            if (dec.card.lv) opLv = Number(dec.card.lv);
+                                        }
+                                    } catch(e) {}
+                                }
+                                foePower = opPower || myPower;
+                                foeLv = opLv;
+                                isTop10 = hasCloudCards && !isBoss && (foePower >= top10Threshold);
+                            }
+                        }
+
+                        let doubleNormal = foePower < myPower;
+                        let doubleRare = isBoss || (!isRealPlayer && isTop10);
+                        let sub50Penalty = foeLv <= 50;
+
+                        let totalWeight = 0;
+                        let pool = [];
+                        for (let id in DB.items) {
+                            let item = DB.items[id];
+                            if (item.eff === 'card') continue; 
+                            let baseWeight = item.gachaWeight !== undefined ? item.gachaWeight : 0;
+                            if (baseWeight > 0) {
+                                let weight = baseWeight;
+                                if (doubleRare && (baseWeight === 1 || baseWeight === 10)) weight *= 2;
+                                if (doubleNormal && (baseWeight >= 50)) weight *= 2;
+                                if (sub50Penalty && (baseWeight >= 50)) weight *= 5;
+                                totalWeight += weight;
+                                pool.push({ id: id, weight: weight });
+                            }
+                        }
+
+                        let rewardId = pool.length > 0 ? pool[pool.length - 1].id : 'wpn_dagger';
+                        let rand = lootRng('gacha') * totalWeight;
+                        let currentWeight = 0;
+                        for (let item of pool) {
+                            currentWeight += item.weight;
+                            if (rand <= currentWeight) {
+                                rewardId = item.id;
+                                break;
+                            }
+                        }
+                        let d = (typeof DB !== 'undefined' && DB.items && DB.items[rewardId]) ? DB.items[rewardId] : { n: rewardId };
+                        let isBlessed = (typeof pandoraStockBless === 'function') ? pandoraStockBless(rewardId) : false;
+                        let inst = { id: rewardId, cnt: 1, bless: isBlessed };
+                        
+                        let rewardColor = (typeof getItemColor === 'function') ? getItemColor(inst) : 'text-amber-300';
+                        let rewardName = (typeof getItemFullName === 'function') ? getItemFullName(inst) : (d.n || rewardId);
+                        let rewardIcon = (typeof getIconUrl === 'function') ? getIconUrl(d) : '';
+                        let glow = (typeof getGlowClass === 'function') ? getGlowClass(inst, d) : '';
+                        
+                        let rewardDiv = document.createElement('div');
+                        rewardDiv.className = 'mt-4 mb-4 p-3 bg-slate-900/80 border border-amber-500/50 rounded-lg flex flex-col items-center justify-center gap-2';
+                        rewardDiv.innerHTML = '<div class="text-sm font-bold text-amber-400 drop-shadow-md">🎁 勝場獎勵：</div>' +
+                            '<div class="flex items-center justify-center gap-3">' +
+                                '<img src="' + rewardIcon + '" class="w-10 h-10 object-contain drop-shadow ' + glow + '">' +
+                                '<div class="font-bold text-lg drop-shadow-md ' + rewardColor + '">' + rewardName + '</div>' +
+                            '</div>';
+                            
+                        let recordDiv = resultModal.querySelector('.text-xs.text-slate-400.mb-4');
+                        if (recordDiv && recordDiv.parentNode) {
+                            recordDiv.parentNode.insertBefore(rewardDiv, recordDiv.nextSibling);
+                        } else {
+                            titleEl.parentNode.appendChild(rewardDiv);
+                        }
+                        
+                        if (typeof gainItem === 'function') {
+                            gainItem(rewardId, 1, false, false, false, false, { bless: isBlessed, attr: false, anc: false });
+                        } else if (typeof player !== 'undefined' && player && player.inv) {
+                            let _probe = { id: rewardId, en: 0, bless: isBlessed, anc: false, attr: false, seteff: false };
+                            let ex = player.inv.find(i => (i.en || 0) === 0 && (typeof sameItemSig === 'function' ? sameItemSig(i, _probe) : (i.id === rewardId && i.bless === isBlessed)));
+                            if (ex) {
+                                ex.cnt = (ex.cnt || 1) + 1;
+                            } else {
+                                player.inv.push({
+                                    id: rewardId,
+                                    uid: (typeof uid === 'function') ? uid() : ('pvp_' + Date.now() + '_' + Math.random()),
+                                    cnt: 1,
+                                    en: 0,
+                                    bless: isBlessed,
+                                    anc: false,
+                                    attr: false,
+                                    seteff: false,
+                                    lock: false
+                                });
+                            }
+                        }
+                        try { if (typeof renderTabs === 'function') renderTabs(); } catch(e){}
+                        try { if (typeof updateUI === 'function') updateUI(); } catch(e){}
+                        try { if (typeof saveGame === 'function') saveGame(); } catch(e){}
+                    }
+                } catch(err) {
+                    console.error('PvP 勝場獎勵發放失敗', err);
+                }
+            }
         }
     });
 
@@ -1253,7 +1384,7 @@
                 box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
                 pointer-events: none;
             `;
-            playerHud.innerHTML = `<div id="klh-pvp-player-hud-fill" style="height:100%; background:#22c55e; width:100%; transition:width 0.15s ease;"></div>`;
+            playerHud.innerHTML = `<div id="klh-pvp-player-hud-fill" style="float: right; height:100%; background:#22c55e; width:100%; transition:width 0.15s ease;"></div>`;
             battleView.appendChild(playerHud);
         }
 

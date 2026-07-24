@@ -13,7 +13,7 @@
  * 功能一覽:
  *   1. 創角數值優化       —— 創角上限各屬性 +20，長按按鈕連續分配點數。
  *   2. 空存檔預填         —— 新存檔自動填入女騎士初始存檔，防止進入空白畫面。
- *   3. 多難度系統         —— 地獄/惡夢/標準/祝福/天堂五段難度，影響怪物強度、掉寶率、金幣量、藥水效力、出怪延遲。
+ *   3. 多難度系統         —— 地獄/標準/天堂三段難度，影響怪物強度、掉寶率、金幣量、治癒藥水恢復量。
  *   4. 數值 Patch 對接    —— 透過字串替換 patch 原生函式 (tick/killMob/recomputeStats/spawnMob等)，嵌入難度乘數運算。
  *   5. 遊戲內配點優化     —— 遊戲內配點上限 +20，萬能藥上限 +20，加入長按連續配點功能。
  *   6. 存檔槽整合         —— Hook 劫持 openSlotSelect/chooseSlot/slotSummary，在原版渲染基礎上整合難度顯示，防止特權金鑰覆蓋存檔。
@@ -37,9 +37,9 @@
     window.CLEAN_ALLY_DATA_ON_SAVE = true;
 
     window.DIFFICULTY_SETTINGS = {
-        hell: { name: "地獄", mobPower: 3.0, dropRate: 3.0, goldRate: 3.0, potionRate: 0.8, healRate: 1.25, noSunDelay: 5, sunDelay: 5 },
-        standard: { name: "標準", mobPower: 1.0, dropRate: 1.0, goldRate: 1.0, potionRate: 1.0, healRate: 1.0, noSunDelay: 50, sunDelay: 10 },
-        heaven: { name: "天堂", mobPower: 0.9, dropRate: 2.0, goldRate: 2.0, potionRate: 1.3, healRate: 1.75, noSunDelay: 25, sunDelay: 5 }
+        hell: { name: "地獄", mobPower: 3.0, dropRate: 3.0, goldRate: 3.0, healRate: 1.25 },
+        standard: { name: "標準", mobPower: 1.0, dropRate: 1.0, goldRate: 1.0, healRate: 1.0 },
+        heaven: { name: "天堂", mobPower: 0.9, dropRate: 2.0, goldRate: 2.0, healRate: 1.75 }
     };
 
     function checkIsPrivileged() {
@@ -825,9 +825,9 @@
         const descEl = document.getElementById('diff-desc');
         if (descEl) {
             const descs = {
-                hell: "【地獄】怪物強度 3.0x，掉寶率 3.0x，金幣量 3.0x，<br>增益藥水效力 0.8x，治癒藥水恢復 1.25x。<br>出怪延遲 0.5秒。<br><span style=\"color:#f87171;font-weight:600;\">「無盡的絕望深淵，唯有強者能在冥界烈火中存活。」</span>",
-                standard: "【標準】怪物強度 1.0x，掉寶率 1.0x，金幣量 1.0x，<br>增益藥水與治癒恢復 1.0x。<br>出怪延遲 5.0秒 / 日光 1.0秒。<br><span style=\"color:#94a3b8;font-weight:600;\">「命運之輪平穩運轉，適合所有尋求經典冒險的旅者。」</span>",
-                heaven: "【天堂】怪物強度 0.9x，掉寶率 2.0x，金幣量 2.0x，<br>增益藥水效力 1.3x，治癒藥水恢復 1.75x。<br>出怪延遲 2.5秒 / 日光 0.5秒。<br><span style=\"color:#38bdf8;font-weight:600;\">「諸神眷顧的極樂之地，怪孱弱而寶藏無窮的夢幻旅途。」</span>"
+                hell: "【地獄】怪物強度 3.0x，掉寶率 3.0x，金幣量 3.0x，<br>治癒藥水恢復 1.25x。<br><span style=\"color:#f87171;font-weight:600;\">「無盡的絕望深淵，唯有強者能在冥界烈火中存活。」</span>",
+                standard: "【標準】怪物強度 1.0x，掉寶率 1.0x，金幣量 1.0x，<br>治癒藥水恢復 1.0x。<br><span style=\"color:#94a3b8;font-weight:600;\">「命運之輪平穩運轉，適合所有尋求經典冒險的旅者。」</span>",
+                heaven: "【天堂】怪物強度 0.9x，掉寶率 2.0x，金幣量 2.0x，<br>治癒藥水恢復 1.75x。<br><span style=\"color:#38bdf8;font-weight:600;\">「諸神眷顧的極樂之地，怪孱弱而寶藏無窮的夢幻旅途。」</span>"
             };
             descEl.innerHTML = descs[activeDiff] || "";
         }
@@ -1291,69 +1291,77 @@
         }
     }
 
-    // A. 出怪延遲 (tick)
-    patchGlobalFunctionMultiple('tick', [
-        {
-            find: /delay\s*=\s*Math\.round\(\s*50\s*\*\s*\(\s*_pfW\s*\/\s*16\s*\)\s*\*\s*_mv\s*\);/,
-            replace: `let _ds = DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard;
-                      delay = Math.round(_ds.noSunDelay * (_pfW / 16) * _mv);`
-        },
-        {
-            find: /if\s*\(player\.buffs\.sk_sunlight\s*>\s*0\s*\)\s*delay\s*-=\s*10;/,
-            replace: `if (player.buffs.sk_sunlight > 0) delay -= (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).sunDelay;`
-        }
-    ]);
+    // A. 出怪延遲 — 已移除（改用原版出怪延遲，避免 Regex Patch 脆弱性風險）
 
-    // B. 怪物物理傷害 (enemyPhysicalAttack)
-    patchGlobalFunctionMultiple('enemyPhysicalAttack', [
-        {
-            find: /totalDmg\s*=\s*Math\.max\(\s*1\s*,\s*totalDmg\s*\);/,
-            replace: `totalDmg = Math.floor(totalDmg * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).mobPower);
-                      totalDmg = Math.max(1, totalDmg);`
-        }
-    ]);
+    // B. 怪物物理傷害 (enemyPhysicalAttack) — 安全 Monkey Patch：HP 差值法
+    //    讓原版函式先計算並扣血，事後依據 player.hp 差值乘上難度倍率補扣額外傷害。
+    //    這樣即使原作者改動傷害公式，我們的倍率邏輯永遠不會壞。
+    if (typeof window.enemyPhysicalAttack === 'function' && !window.enemyPhysicalAttack.__klhDiffPatched) {
+        const _origEPA = window.enemyPhysicalAttack;
+        window.enemyPhysicalAttack = function (mob, idx, stunChance, atkDmg, atkDb) {
+            const ds = window.DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || window.DIFFICULTY_SETTINGS.standard;
+            if (!ds || ds.mobPower === 1.0) return _origEPA.apply(this, arguments);
+            const hpBefore = player.hp;
+            const deadBefore = player.dead;
+            let ret;
+            try { ret = _origEPA.apply(this, arguments); } catch (e) { console.error('[KLH] enemyPhysicalAttack hook error:', e); return; }
+            // 只在「原版確實造成了傷害」且「玩家還沒死」的情況下補扣
+            if (!deadBefore && hpBefore > player.hp && player.hp > 0) {
+                const dmgTaken = hpBefore - player.hp;
+                const extraDmg = Math.floor(dmgTaken * (ds.mobPower - 1));
+                if (extraDmg > 0) {
+                    player.hp -= extraDmg;
+                    if (player.hp <= 0 && typeof killPlayer === 'function') killPlayer();
+                }
+            }
+            return ret;
+        };
+        window.enemyPhysicalAttack.__klhDiffPatched = true;
+    }
 
-    // C. 怪物魔法傷害與 DoTs (applyMobMagic)
-    patchGlobalFunctionMultiple('applyMobMagic', [
-        {
-            find: /dmg\s*=\s*Math\.max\(\s*1\s*,\s*dmg\s*\);/,
-            replace: `dmg = Math.floor(dmg * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).mobPower);
-                      dmg = Math.max(1, dmg);`
-        }
-    ]);
-
-    // 包裹 applyMobMagic 以攔截 DoTs 的傷害設定
-    if (typeof window.applyMobMagic === 'function') {
-        const originalApplyMobMagic = window.applyMobMagic;
+    // C. 怪物魔法傷害與 DoTs (applyMobMagic) — 安全 Monkey Patch：HP 差值法 + DoT 差值法
+    //    合併原本的 Regex 直擊 patch 和 DoT 補正為單一 Monkey Patch，徹底消除 Regex 依賴。
+    if (typeof window.applyMobMagic === 'function' && !window.applyMobMagic.__klhDiffPatched) {
+        const _origAMM = window.applyMobMagic;
         window.applyMobMagic = function (mob, sk) {
+            const ds = window.DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || window.DIFFICULTY_SETTINGS.standard;
+            const mp = ds ? ds.mobPower : 1.0;
+
             const prevPoisonDmg = player.statuses.poisonDmg;
             const prevBurnDmg = player.statuses.burnDmg;
             const prevScaldDmg = player.statuses.scaldDmg;
+            const hpBefore = player.hp;
+            const deadBefore = player.dead;
 
-            try {
-                originalApplyMobMagic(mob, sk);
-            } catch (e) {
-                console.error("[KLH] originalApplyMobMagic error:", e);
-                return;
-            }
+            try { _origAMM.apply(this, arguments); } catch (e) { console.error('[KLH] applyMobMagic hook error:', e); return; }
 
-            const ds = window.DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || window.DIFFICULTY_SETTINGS.standard;
-            const mp = ds.mobPower;
-
-            if (player.statuses.poisonDmg !== prevPoisonDmg && player.statuses.poisonDmg > 0) {
-                player.statuses.poisonDmg = Math.floor(player.statuses.poisonDmg * mp);
-            }
-            if (player.statuses.burnDmg !== prevBurnDmg && player.statuses.burnDmg > 0) {
-                player.statuses.burnDmg = Math.floor(player.statuses.burnDmg * mp);
-            }
-            if (player.statuses.scaldDmg !== prevScaldDmg && player.statuses.scaldDmg > 0) {
-                player.statuses.scaldDmg = Math.floor(player.statuses.scaldDmg * mp);
+            if (mp !== 1.0) {
+                // 直擊傷害：用 HP 差值法補扣
+                if (!deadBefore && hpBefore > player.hp && player.hp > 0) {
+                    const dmgTaken = hpBefore - player.hp;
+                    const extraDmg = Math.floor(dmgTaken * (mp - 1));
+                    if (extraDmg > 0) {
+                        player.hp -= extraDmg;
+                        if (player.hp <= 0 && typeof killPlayer === 'function') killPlayer();
+                    }
+                }
+                // DoT 傷害：偵測 DoT 數值變化並乘上難度倍率
+                if (player.statuses.poisonDmg !== prevPoisonDmg && player.statuses.poisonDmg > 0) {
+                    player.statuses.poisonDmg = Math.floor(player.statuses.poisonDmg * mp);
+                }
+                if (player.statuses.burnDmg !== prevBurnDmg && player.statuses.burnDmg > 0) {
+                    player.statuses.burnDmg = Math.floor(player.statuses.burnDmg * mp);
+                }
+                if (player.statuses.scaldDmg !== prevScaldDmg && player.statuses.scaldDmg > 0) {
+                    player.statuses.scaldDmg = Math.floor(player.statuses.scaldDmg * mp);
+                }
             }
         };
+        window.applyMobMagic.__klhDiffPatched = true;
     }
 
-    // D. 怪物生命值隨難度縮放 (spawnMob)
-    if (typeof window.spawnMob === 'function') {
+    // D. 怪物生命值隨難度縮放 (spawnMob) — 已是安全的 Monkey Patch，維持不動
+    if (typeof window.spawnMob === 'function' && !window.spawnMob.__klhDiffPatched) {
         const originalSpawnMob = window.spawnMob;
         window.spawnMob = function (idx) {
             try {
@@ -1369,55 +1377,54 @@
                 mob.curHp = mob.hp;
             }
         };
+        window.spawnMob.__klhDiffPatched = true;
     }
 
-    // E. 掉率與金幣隨難度縮放 (killMob)
-    patchGlobalFunctionMultiple('killMob', [
-        {
-            find: /let\s*_dropBase\s*=\s*\(mob\._grace\s*\?\s*10\s*:\s*\(mob\._sherine\s*\?\s*\(mob\._sherineMad\s*\?\s*5\s*:\s*3\s*\)\s*:\s*1\s*\)\);/,
-            replace: `let _dropBase = (mob._grace ? 10 : (mob._sherine ? (mob._sherineMad ? 5 : 3) : 1)) * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).dropRate;`
-        },
-        {
-            find: /let\s*_cdm\s*=\s*classicDropMult\(\);/,
-            replace: `let _cdm = classicDropMult() * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).dropRate;`
-        },
-        {
-            find: /gMin\s*\+\s*Math\.floor\(\s*Math\.random\(\)\s*\*\s*\(\s*gMax\s*-\s*gMin\s*\+\s*1\s*\)\s*\)/,
-            replace: `Math.floor((gMin + Math.floor(Math.random() * (gMax - gMin + 1))) * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).goldRate)`
-        },
-        {
-            find: /_or\s*&&\s*Math\.random\(\)\s*<\s*_or\s*\/\s*100\s*\*\s*classicDropMult\(\)/,
-            replace: `_or && Math.random() < (_or / 100 * classicDropMult()) * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).dropRate`
-        },
-        {
-            find: /Math\.random\(\)\s*<\s*0\.001\s*\*\s*classicDropMult\(\)/,
-            replace: `Math.random() < 0.001 * classicDropMult() * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).dropRate`
-        }
-    ]);
+    // E. 掉率與金幣隨難度縮放 — 安全 Monkey Patch
+    //    掉率：Hook classicDropMult 與 trialItemDropMult（它們是 killMob 內部所有掉落判定的公因子）
+    //    金幣：Hook killMob 用 player.gold 差值法（與 klh_GMShop.js 的金幣倍率 Hook 完美鏈接）
+    if (typeof window.classicDropMult === 'function' && !window.classicDropMult.__klhDiffPatched) {
+        const _origCDM = window.classicDropMult;
+        window.classicDropMult = function () {
+            let base = _origCDM.apply(this, arguments);
+            const ds = window.DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || window.DIFFICULTY_SETTINGS.standard;
+            return base * (ds ? ds.dropRate : 1.0);
+        };
+        window.classicDropMult.__klhDiffPatched = true;
+    }
+    if (typeof window.trialItemDropMult === 'function' && !window.trialItemDropMult.__klhDiffPatched) {
+        const _origTIDM = window.trialItemDropMult;
+        window.trialItemDropMult = function (id) {
+            let base = _origTIDM.apply(this, arguments);
+            const ds = window.DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || window.DIFFICULTY_SETTINGS.standard;
+            return base * (ds ? ds.dropRate : 1.0);
+        };
+        window.trialItemDropMult.__klhDiffPatched = true;
+    }
+    // 金幣差值法：讓原版 killMob 先加好金幣，事後依據差值乘上難度金幣倍率
+    if (typeof window.killMob === 'function' && !window.killMob.__klhDiffGoldPatched) {
+        const _origKM_gold = window.killMob;
+        window.killMob = function (idx) {
+            const ds = window.DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || window.DIFFICULTY_SETTINGS.standard;
+            const goldRate = ds ? ds.goldRate : 1.0;
+            if (goldRate === 1.0) return _origKM_gold.apply(this, arguments);
+            const goldBefore = (typeof player !== 'undefined' && player) ? player.gold : 0;
+            let ret;
+            try { ret = _origKM_gold.apply(this, arguments); } catch (e) { console.error('[KLH] killMob gold diff error:', e); return; }
+            if (typeof player !== 'undefined' && player) {
+                const goldGain = player.gold - goldBefore;
+                if (goldGain > 0) {
+                    const extraGold = Math.floor(goldGain * (goldRate - 1));
+                    player.gold += extraGold;
+                }
+            }
+            return ret;
+        };
+        window.killMob.__klhDiffGoldPatched = true;
+    }
 
-    // F. 藥水效果與屬性隨難度縮放 (recomputeStats)
-    patchGlobalFunctionMultiple('recomputeStats', [
-        {
-            find: /if\(p\.buffs\.haste\s*>\s*0\s*\|\|\s*p\._equipHaste\s*\|\|\s*_mercPots\)\s*spdMult\s*\*=\s*0\.67;/,
-            replace: `if(p.buffs.haste > 0 || p._equipHaste || _mercPots) spdMult *= Math.max(0.01, 1.0 - 0.33 * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).potionRate);`
-        },
-        {
-            find: /if\(p\.buffs\.brave\s*>\s*0\s*\|\|\s*\(_mercPots\s*&&\s*\['knight','dragon','warrior','royal'\]\.includes\(p\.cls\)\)\)\s*spdMult\s*\*=\s*0\.67;/,
-            replace: `if(p.buffs.brave > 0 || (_mercPots && ['knight','dragon','warrior','royal'].includes(p.cls))) spdMult *= Math.max(0.01, 1.0 - 0.33 * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).potionRate);`
-        },
-        {
-            find: /if\(p\.buffs\.elfcookie\s*>\s*0\s*\|\|\s*\(_mercPots\s*&&\s*p\.cls\s*===\s*'elf'\)\)\s*spdMult\s*\*=\s*0\.85;/,
-            replace: `if(p.buffs.elfcookie > 0 || (_mercPots && p.cls === 'elf')) spdMult *= Math.max(0.01, 1.0 - 0.15 * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).potionRate);`
-        },
-        {
-            find: /d\.mpR\s*\+=\s*getWisBlueBonus\(\s*d\.wis\s*\)/,
-            replace: `d.mpR += getWisBlueBonus(d.wis) * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).potionRate`
-        },
-        {
-            find: /d\.magicDmg\s*\+=\s*2;\s*d\.mpR\s*\+=\s*2;/,
-            replace: `d.magicDmg += 2 * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).potionRate; d.mpR += 2 * (DIFFICULTY_SETTINGS[window.gameDifficulty || 'standard'] || DIFFICULTY_SETTINGS.standard).potionRate;`
-        }
-    ]);
+    // F. 藥水攻速與屬性縮放 — 已移除（改用原版攻速計算，避免 Regex Patch 脆弱性風險）
+    //    治癒藥水恢復量 (healRate) 保留於上方 Section 7 的 potionHealBase Monkey Patch Hook 中。
 
 
 

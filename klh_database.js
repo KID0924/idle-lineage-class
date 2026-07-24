@@ -1100,25 +1100,48 @@
 
     window.addEventListener('beforeunload', () => { window.__klh_is_unloading = true; });
 
-    // 🔧 共用遊戲資料收集與還原（明確列舉需要雲端同步的 localStorage 鍵值）
-    //    目前包含：寵物名冊、龍之鑽石/黑市。日後有新增再手動加入。
-    const _SHARED_KEYS = [
-        'fb5_pet_roster',                // 寵物名冊（一般模式）
-        'fb5_pet_roster_classic',         // 寵物名冊（經典模式）
-        'fb5_pandora_relic_market_v1'     // 龍之鑽石、流浪收購商、遺物布告欄
-    ];
-    function _collectSharedData() {
-        const shared = {};
-        for (const key of _SHARED_KEYS) {
-            const val = localStorage.getItem(key);
-            if (val !== null) shared[key] = val;
-        }
-        return Object.keys(shared).length ? shared : null;
+    // 🔧 雙前綴動態掃描：自動收集所有 lineage_idle_ 與 fb5_ 開頭的 localStorage 鍵值
+    //    不再手動列舉白名單，未來作者新增任何資料桶都會被自動覆蓋。
+    //    排除清單：klh_ 開頭的外掛設定鍵值不上傳（避免覆蓋其他裝置的外掛配置）。
+    const _GAME_PREFIXES = ['lineage_idle_', 'fb5_'];
+    const _EXCLUDE_PREFIXES = ['klh_'];  // 外掛自身設定不同步
+
+    function _isGameKey(key) {
+        if (_EXCLUDE_PREFIXES.some(p => key.startsWith(p))) return false;
+        return _GAME_PREFIXES.some(p => key.startsWith(p));
     }
+
+    // 收集所有遊戲相關鍵值（save_1~8 和 warehouse 之外的額外桶）
+    function _collectExtraKeys() {
+        const extras = {};
+        const maxSlots = getMaxSaveSlot();
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!_isGameKey(key)) continue;
+            // 跳過已由主流程處理的 save_N 和 warehouse
+            if (/^lineage_idle_save_\d+/.test(key)) continue;
+            if (key === 'lineage_idle_warehouse') continue;
+            const val = localStorage.getItem(key);
+            if (val !== null) extras[key] = val;
+        }
+        return Object.keys(extras).length ? extras : null;
+    }
+
+    // 還原額外桶：遍歷 payload 中所有符合遊戲前綴的鍵值寫回 localStorage
+    function _restoreExtraKeys(extras) {
+        if (!extras || typeof extras !== 'object') return;
+        for (const [key, val] of Object.entries(extras)) {
+            if (!_isGameKey(key)) continue;  // 安全守衛：只寫入遊戲相關鍵
+            if (val !== undefined && val !== null) {
+                localStorage.setItem(key, (typeof val === 'object') ? JSON.stringify(val) : val);
+            }
+        }
+    }
+
+    // 向後相容：舊版 payload 使用 shared 欄位（_SHARED_KEYS 白名單），新版使用 extras 欄位
     function _restoreSharedData(shared) {
         if (!shared || typeof shared !== 'object') return;
-        for (const key of _SHARED_KEYS) {
-            const val = shared[key];
+        for (const [key, val] of Object.entries(shared)) {
             if (val !== undefined && val !== null) {
                 localStorage.setItem(key, (typeof val === 'object') ? JSON.stringify(val) : val);
             }
@@ -1140,8 +1163,8 @@
         const maxSlots = getMaxSaveSlot();
         const payload = { warehouse: localStorage.getItem('lineage_idle_warehouse') };
         for (let n = 1; n <= maxSlots; n++) payload['save_' + n] = localStorage.getItem('lineage_idle_save_' + n);
-        const sharedData = _collectSharedData();
-        if (sharedData) payload.shared = sharedData;
+        const extraKeys = _collectExtraKeys();
+        if (extraKeys) payload.extras = extraKeys;
         if (!forceFullOverwrite) {
             const activeSlot = (typeof currentSlot !== 'undefined') ? parseInt(currentSlot, 10) : null;
             if (activeSlot >= 1 && activeSlot <= maxSlots) {
@@ -1194,7 +1217,8 @@
                     const warehouseVal = payload.warehouse || payload.lineage_idle_warehouse;
                     if (warehouseVal !== undefined && warehouseVal !== null) localStorage.setItem('lineage_idle_warehouse', (typeof warehouseVal === 'object') ? JSON.stringify(warehouseVal) : warehouseVal);
                     else localStorage.removeItem('lineage_idle_warehouse');
-                    if (payload.shared) _restoreSharedData(payload.shared);
+                    if (payload.extras) _restoreExtraKeys(payload.extras);  // 新版：動態前綴掃描
+                    if (payload.shared) _restoreSharedData(payload.shared); // 向後相容舊版 payload
                     if (isManual) {
                         const isPublic = PUBLIC_KEYS.includes(activeKeyLower);
                         window.showToast(isPublic ? '進入諸神共用殿堂成功！(管道：' + (res.connectionMethod || '未知') + ')' : '雲端存檔讀取成功！(管道：' + (res.connectionMethod || '未知') + ')', isPublic ? 'danger' : 'success');
@@ -1264,13 +1288,13 @@
         
         const databaseURL = getFirebaseDatabaseURL();
         const maxSlots = getMaxSaveSlot();
-        const sharedDataFB = _collectSharedData();
+        const extraKeysFB = _collectExtraKeys();
         const payload = {
             saves: {},
             warehouse: localStorage.getItem('lineage_idle_warehouse'),
-            shared: sharedDataFB || {},
+            extras: extraKeysFB || {},
             updatedAt: Date.now(),
-            clientInfo: 'Firebase-Sync-Module-v1'
+            clientInfo: 'Firebase-Sync-Module-v2'
         };
         
         let hasAnyLocalData = false;
@@ -1364,7 +1388,8 @@
                     } else {
                         localStorage.removeItem('lineage_idle_warehouse');
                     }
-                    if (payload.shared) _restoreSharedData(payload.shared);
+                    if (payload.extras) _restoreExtraKeys(payload.extras);  // 新版：動態前綴掃描
+                    if (payload.shared) _restoreSharedData(payload.shared); // 向後相容舊版 payload
                     if (isManual) window.showToast('Firebase 存檔讀取成功！', 'success');
                     window.__klh_cloud_sync_success = true;
                 } else {
@@ -1566,8 +1591,8 @@
         const maxSlots = getMaxSaveSlot();
         const payload = { warehouse: localStorage.getItem('lineage_idle_warehouse') };
         for (let n = 1; n <= maxSlots; n++) payload['save_' + n] = localStorage.getItem('lineage_idle_save_' + n);
-        const sharedDataSB = _collectSharedData();
-        if (sharedDataSB) payload.shared = sharedDataSB;
+        const extraKeysSB = _collectExtraKeys();
+        if (extraKeysSB) payload.extras = extraKeysSB;
         if (!forceFullOverwrite) {
             const activeSlot = (typeof window.currentSlot !== 'undefined') ? parseInt(window.currentSlot, 10) : null;
             if (activeSlot >= 1 && activeSlot <= maxSlots && !payload['save_' + activeSlot]) {
@@ -1639,7 +1664,8 @@
             const warehouseVal = payload.warehouse;
             if (warehouseVal !== undefined && warehouseVal !== null) localStorage.setItem('lineage_idle_warehouse', (typeof warehouseVal === 'object') ? JSON.stringify(warehouseVal) : warehouseVal);
             else localStorage.removeItem('lineage_idle_warehouse');
-            if (payload.shared) _restoreSharedData(payload.shared);
+            if (payload.extras) _restoreExtraKeys(payload.extras);  // 新版：動態前綴掃描
+            if (payload.shared) _restoreSharedData(payload.shared); // 向後相容舊版 payload
             window.__klh_cloud_sync_success = true;
             if (isManual) window.showToast('雲端存檔同步成功！', 'success');
             refreshLoadBtnVisibility();
@@ -1890,22 +1916,24 @@
 
             if (copyToCloudContainer) {
                 let showAny = false;
-                const inputVal = (inputEl ? inputEl.value : (localStorage.getItem('lineage_idle_jsonblob_url') || '')).trim().toLowerCase();
-                const showSupabase = (mode === 'supabase') || (inputVal === 'lf2.net');
+                if (mode === 'local') {
+                    const inputVal = (inputEl ? inputEl.value : (localStorage.getItem('lineage_idle_jsonblob_url') || '')).trim().toLowerCase();
+                    const showSupabase = (mode === 'supabase') || (inputVal === 'lf2.net');
 
-                if (allowSupabase && showSupabase) {
-                    const hasKey = (localStorage.getItem('klh_supabase_key') || localStorage.getItem('klh_supabase_local_key'));
-                    if (btnCopySupabase) { btnCopySupabase.style.display = hasKey ? '' : 'none'; if (hasKey) showAny = true; }
-                } else {
-                    if (btnCopySupabase) btnCopySupabase.style.display = 'none';
-                }
-                if (allowJsonBlob) {
-                    const hasUrl = localStorage.getItem('lineage_idle_jsonblob_url');
-                    if (btnCopyJsonBlob) { btnCopyJsonBlob.style.display = hasUrl ? '' : 'none'; if (hasUrl) showAny = true; }
-                }
-                if (allowFirebase) {
-                    const hasUrl = localStorage.getItem('klh_firebase_database_url');
-                    if (btnCopyFirebase) { btnCopyFirebase.style.display = hasUrl ? '' : 'none'; if (hasUrl) showAny = true; }
+                    if (allowSupabase && showSupabase) {
+                        const hasKey = (localStorage.getItem('klh_supabase_key') || localStorage.getItem('klh_supabase_local_key'));
+                        if (btnCopySupabase) { btnCopySupabase.style.display = hasKey ? '' : 'none'; if (hasKey) showAny = true; }
+                    } else {
+                        if (btnCopySupabase) btnCopySupabase.style.display = 'none';
+                    }
+                    if (allowJsonBlob) {
+                        const hasUrl = localStorage.getItem('lineage_idle_jsonblob_url');
+                        if (btnCopyJsonBlob) { btnCopyJsonBlob.style.display = hasUrl ? '' : 'none'; if (hasUrl) showAny = true; }
+                    }
+                    if (allowFirebase) {
+                        const hasUrl = localStorage.getItem('klh_firebase_database_url');
+                        if (btnCopyFirebase) { btnCopyFirebase.style.display = hasUrl ? '' : 'none'; if (hasUrl) showAny = true; }
+                    }
                 }
                 copyToCloudContainer.style.display = showAny ? '' : 'none';
             }
@@ -2258,7 +2286,11 @@
                 }
             }
 
-            try { await originalSaveGame(manual); } catch (e) { console.error("[KLH] originalSaveGame error:", e); }
+            // 🛡️ 檢查原版 saveGame 回傳值：false 代表延後存檔（deferCatchupSave）或死亡/空殼拒寫
+            //    只有真正寫入 localStorage 後才觸發雲端上傳，避免把舊資料洗白雲端
+            let saveResult;
+            try { saveResult = await originalSaveGame(manual); } catch (e) { console.error("[KLH] originalSaveGame error:", e); saveResult = false; }
+            if (saveResult === false) return false;  // 原版拒絕存檔，不觸發雲端上傳
             try {
                 const storageMode = localStorage.getItem('klh_storage_mode') || 'local';
                 if (storageMode === 'supabase' && allowSupabase) { if (typeof window.uploadToSupabase === 'function') return await window.uploadToSupabase(manual); }

@@ -218,7 +218,11 @@
         if (typeof window.switchTab !== 'function' || window.switchTab.__klh_hooked) return;
         var _orig = window.switchTab;
         window.switchTab = function (t, btn) {
-            _orig(t, btn);
+            try {
+                _orig(t, btn);
+            } catch (e) {
+                console.error('[KLH] switchTab hook error:', e);
+            }
             if (typeof window.renderTabs === 'function') window.renderTabs(true);
         };
         window.switchTab.__klh_hooked = true;
@@ -990,42 +994,19 @@
             }
         });
 
-        // 3. 掛接動態標記攔截器
-        let lastCreatedDiv = null;
-        const originalCreateElement = document.createElement;
-        const originalGetItemFullName = window.getItemFullName;
-
-        document.createElement = function(tagName) {
-            const el = originalCreateElement.apply(this, arguments);
-            if (tagName === 'div') {
-                lastCreatedDiv = el;
-            }
-            return el;
-        };
-
-        window.getItemFullName = function(i) {
-            if (lastCreatedDiv) {
-                lastCreatedDiv.__klh_item = i;
-                lastCreatedDiv = null;
-            }
-            return originalGetItemFullName.apply(this, arguments);
-        };
-
-        // 4. 呼叫官方原版 renderTabs
+        // 3. 呼叫官方原版 renderTabs
         try {
             if (typeof originalRenderTabs === 'function') {
                 originalRenderTabs(needForce);
             }
-        } finally {
-            // 還原系統函式，避免對後續操作產生副作用
-            document.createElement = originalCreateElement;
-            window.getItemFullName = originalGetItemFullName;
+        } catch (e) {
+            console.error('[KLH] Error in originalRenderTabs:', e);
         }
 
-        // 5. 進行 DOM 注入後處理
+        // 4. 進行 DOM 注入後處理
         patchRenderedTabs();
 
-        // 6. 還原捲動位置與模糊搜尋框狀態
+        // 5. 還原捲動位置與模糊搜尋框狀態
         ['tab-items', 'tab-weapons', 'tab-armors', 'tab-equip', 'tab-skill'].forEach(id => {
             let el = document.getElementById(id);
             if (el && _scroll[id] !== undefined) el.scrollTop = _scroll[id];
@@ -1052,6 +1033,21 @@
         }
     };
 
+    function getItemFromNode(child) {
+        if (child.__klh_item) return child.__klh_item;
+        const uid = child.getAttribute('data-tip-uid');
+        if (!uid || !window.player) return null;
+        if (window.player.inv) {
+            const item = window.player.inv.find(x => x.uid === uid);
+            if (item) return item;
+        }
+        if (window.player.eq) {
+            const item = Object.values(window.player.eq).find(x => x && x.uid === uid);
+            if (item) return item;
+        }
+        return null;
+    }
+
     function patchRenderedTabs() {
         const divs = [
             { type: 'wpn', el: document.getElementById('tab-weapons') },
@@ -1070,7 +1066,7 @@
             let targetContainer = el.querySelector('.classic-inventory-viewport') || el;
             const children = Array.from(targetContainer.children);
             children.forEach(child => {
-                const i = child.__klh_item;
+                const i = getItemFromNode(child);
                 if (!i) return;
 
                 // 批量賣出模式
@@ -1124,7 +1120,7 @@
                 const emptyNodes = [];
 
                 currentChildren.forEach(child => {
-                    const i = child.__klh_item;
+                    const i = getItemFromNode(child);
                     if (i) {
                         if (topUids.has(i.uid)) {
                             selectedNodes.push(child);
