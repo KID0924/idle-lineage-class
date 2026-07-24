@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// 📱 klh_mobile-perf.js — 手機效能優化外掛 v1.0
+// 📱 klh_mobile-perf.js — 手機效能優化外掛 v2.0
 // ═══════════════════════════════════════════════════════════════════════════
 // 掛載於所有遊戲 JS 之後（</body> 前），透過猴子補丁（monkey-patch）
 // 攔截高成本函式，依使用者選擇的優化等級套用降級策略。
@@ -9,7 +9,7 @@
 //   1 = 輕度：音效節流 250ms、動畫幀率正常、VFX/日誌/CSS 皆為「正常」(不進行任何降級)
 //   2 = 中度：關閉音效 (BGM不更動)、動畫幀率正常、VFX/日誌/CSS 皆為「1 (輕度)」
 //   3 = 強力：關閉音效 (BGM不更動)、動畫幀率正常、VFX/日誌/CSS 皆為「3 (強力)」
-//   4 = 進階：自訂各系統細項參數（音效 250ms/500ms/關、動畫正常/減半/1/3、特效、日誌、CSS）
+//   4 = 進階：自訂各系統細項參數（音效/動畫/特效/日誌/CSS/渲染節流/背景心跳）
 // ═══════════════════════════════════════════════════════════════════════════
 
 (function () {
@@ -17,7 +17,7 @@
 
   /* ═══════════════ 常數與狀態 ═══════════════ */
   var PERF_KEY = 'fb5_mobilePerf';
-  var _cfg = { enabled: false, level: 2, adv: { audio: 3, anim: 1, vfx: 1, log: 1, css: 1 } };
+  var _cfg = { enabled: false, level: 2, adv: { audio: 3, anim: 1, vfx: 1, log: 1, css: 1, render: 0, worker: 0 } };
   var _orig = {};        // 被替換的原始函式 / 原始值備份
   var _st = {            // 執行時狀態
     applied: false,
@@ -51,11 +51,13 @@
         _cfg.level = [1, 2, 3, 4].indexOf(o.level) >= 0 ? o.level : 2; 
         if (o.adv) {
           _cfg.adv = {
-            audio: o.adv.audio !== undefined ? o.adv.audio : 3,
-            anim:  o.adv.anim  !== undefined ? o.adv.anim  : 1,
-            vfx:   o.adv.vfx   !== undefined ? o.adv.vfx   : 1,
-            log:   o.adv.log   !== undefined ? o.adv.log   : 1,
-            css:   o.adv.css   !== undefined ? o.adv.css   : 1
+            audio:  o.adv.audio  !== undefined ? o.adv.audio  : 3,
+            anim:   o.adv.anim   !== undefined ? o.adv.anim   : 1,
+            vfx:    o.adv.vfx    !== undefined ? o.adv.vfx    : 1,
+            log:    o.adv.log    !== undefined ? o.adv.log    : 1,
+            css:    o.adv.css    !== undefined ? o.adv.css    : 1,
+            render: o.adv.render !== undefined ? o.adv.render : 0,
+            worker: o.adv.worker !== undefined ? o.adv.worker : 0
           };
         }
       }
@@ -110,7 +112,7 @@
         var chk = document.getElementById('klh-perf-chk'); if(chk) chk.checked = _cfg.enabled;
         var sl = document.getElementById('klh-perf-sel'); if(sl) sl.value = _cfg.level;
         var adv = document.getElementById('klh-perf-adv'); if(adv) adv.style.display = (_cfg.level == 4) ? 'block' : 'none';
-        ['audio','anim','vfx','log','css'].forEach(function(k){
+        ['audio','anim','vfx','log','css','render','worker'].forEach(function(k){
             var el = document.getElementById('klh-perf-adv-' + k);
             if(el) el.value = _cfg.adv[k];
         });
@@ -135,32 +137,22 @@
 
   function applyAll() {
     var lv = _cfg.level;
-    var aAudio, aAnim, aVfx, aLog, aCss;
+    var aAudio, aAnim, aVfx, aLog, aCss, aRender, aWorker;
 
     if (lv === 4) {
-      aAudio = _cfg.adv.audio;
-      aAnim  = _cfg.adv.anim;
-      aVfx   = _cfg.adv.vfx;
-      aLog   = _cfg.adv.log;
-      aCss   = _cfg.adv.css;
+      aAudio  = _cfg.adv.audio;
+      aAnim   = _cfg.adv.anim;
+      aVfx    = _cfg.adv.vfx;
+      aLog    = _cfg.adv.log;
+      aCss    = _cfg.adv.css;
+      aRender = _cfg.adv.render;
+      aWorker = _cfg.adv.worker;
     } else if (lv === 1) {
-      aAudio = 1; // 250ms
-      aAnim  = 1; // 正常
-      aVfx   = 0; // 正常
-      aLog   = 0; // 正常
-      aCss   = 0; // 正常
+      aAudio = 1; aAnim = 1; aVfx = 0; aLog = 0; aCss = 0; aRender = 0; aWorker = 0;
     } else if (lv === 2) {
-      aAudio = 3; // 關閉
-      aAnim  = 1; // 正常
-      aVfx   = 1; // 輕度
-      aLog   = 1; // 輕度
-      aCss   = 1; // 輕度
+      aAudio = 3; aAnim = 1; aVfx = 1; aLog = 1; aCss = 1; aRender = 1; aWorker = 0;
     } else { // lv === 3
-      aAudio = 3; // 關閉
-      aAnim  = 1; // 正常
-      aVfx   = 3; // 強力
-      aLog   = 3; // 強力
-      aCss   = 3; // 強力
+      aAudio = 3; aAnim = 1; aVfx = 3; aLog = 3; aCss = 3; aRender = 2; aWorker = 1;
     }
 
     applyAudio(aAudio);
@@ -168,6 +160,8 @@
     applyVfx(aVfx);
     applyLogTrim(aLog);
     applyCss(aCss);
+    applyRenderThrottle(aRender);
+    applyWorkerControl(aWorker);
     _st.applied = true;
     try { console.log('[📱 手機優化] 已啟用 — 等級 ' + lv + ' (' + _LABELS[lv] + ')'); } catch (e) {}
   }
@@ -176,6 +170,8 @@
     revertAudio();
     revertAnim();
     revertVfx();
+    revertRenderThrottle();
+    revertWorkerControl();
     if (_st.trimTimer) { clearInterval(_st.trimTimer); _st.trimTimer = null; }
     if (_st.styleEl && _st.styleEl.parentNode) { _st.styleEl.remove(); _st.styleEl = null; }
     _st.applied = false;
@@ -451,6 +447,115 @@
     document.head.appendChild(_st.styleEl);
   }
 
+  /* ──────────────────────────────────────────────
+     6. 渲染節流（flushTickRender / updateUI / renderMobs 降頻）
+     ────────────────────────────────────────────── */
+  function applyRenderThrottle(lv) {
+    revertRenderThrottle();
+    if (lv === 0) return;
+    // lv1 = 每 2 tick 才重繪, lv2 = 每 3 tick, lv3 = 每 5 tick
+    var skipN = lv === 1 ? 2 : (lv === 2 ? 3 : 5);
+    var _renderCount = 0;
+
+    // 攔截 flushTickRender
+    if (typeof flushTickRender === 'function' && !_orig.flushTickRender) {
+      _orig.flushTickRender = flushTickRender;
+      window.flushTickRender = function () {
+        _renderCount++;
+        if (_renderCount % skipN !== 0) return;
+        _orig.flushTickRender();
+      };
+    }
+
+    // 攔截 _updateUIImpl
+    if (typeof _updateUIImpl === 'function' && !_orig._updateUIImpl) {
+      _orig._updateUIImpl = _updateUIImpl;
+      var _uiCount = 0;
+      window._updateUIImpl = function () {
+        _uiCount++;
+        if (_uiCount % skipN !== 0) return;
+        _orig._updateUIImpl();
+      };
+    }
+
+    // 攔截 _renderMobsImpl
+    if (typeof _renderMobsImpl === 'function' && !_orig._renderMobsImpl) {
+      _orig._renderMobsImpl = _renderMobsImpl;
+      var _mobCount = 0;
+      window._renderMobsImpl = function () {
+        _mobCount++;
+        if (_mobCount % skipN !== 0) return;
+        _orig._renderMobsImpl();
+      };
+    }
+
+    try { console.log('[📱 手機優化] 渲染節流已啟用 — 每 ' + skipN + ' tick 重繪一次'); } catch (e) {}
+  }
+
+  function revertRenderThrottle() {
+    if (_orig.flushTickRender) { window.flushTickRender = _orig.flushTickRender; delete _orig.flushTickRender; }
+    if (_orig._updateUIImpl)   { window._updateUIImpl   = _orig._updateUIImpl;   delete _orig._updateUIImpl; }
+    if (_orig._renderMobsImpl) { window._renderMobsImpl = _orig._renderMobsImpl; delete _orig._renderMobsImpl; }
+  }
+
+  /* ──────────────────────────────────────────────
+     7. 背景 Worker 心跳控制
+     ────────────────────────────────────────────── */
+  function applyWorkerControl(lv) {
+    revertWorkerControl();
+    if (lv === 0) return;
+
+    // lv1 = 終止 Worker 心跳（背景分頁不再持續跑戰鬥，回前景時統一補跑）
+    // lv2 = 終止 Worker 心跳 + 降低主迴圈頻率（200ms → 5 tick/秒）
+    if (typeof _bgHeartbeatWorker !== 'undefined' && _bgHeartbeatWorker) {
+      try {
+        _orig._bgHeartbeatWorker = _bgHeartbeatWorker;
+        _bgHeartbeatWorker.terminate();
+        window._bgHeartbeatWorker = null;
+        console.log('[📱 手機優化] 背景 Worker 心跳已終止');
+      } catch (e) {}
+    }
+
+    if (lv >= 2) {
+      // 降低主迴圈頻率：100ms → 200ms
+      if (typeof _gameLoopId !== 'undefined' && _gameLoopId !== null) {
+        try {
+          _orig._gameLoopId = _gameLoopId;
+          clearInterval(_gameLoopId);
+          window._gameLoopId = setInterval(gameLoop, 200);
+          console.log('[📱 手機優化] 主迴圈頻率降至 200ms (5 tick/秒)');
+        } catch (e) {}
+      }
+    }
+  }
+
+  function revertWorkerControl() {
+    // 還原主迴圈頻率
+    if (_orig._gameLoopId !== undefined) {
+      try {
+        if (typeof _gameLoopId !== 'undefined' && _gameLoopId !== null) clearInterval(_gameLoopId);
+        window._gameLoopId = setInterval(gameLoop, 100);
+        delete _orig._gameLoopId;
+      } catch (e) {}
+    }
+    // 重建 Worker 心跳
+    if (_orig._bgHeartbeatWorker !== undefined) {
+      try {
+        if (typeof Worker !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
+          var _u = URL.createObjectURL(new Blob(['setInterval(function(){postMessage(1);},1000);'], { type: 'text/javascript' }));
+          window._bgHeartbeatWorker = new Worker(_u);
+          URL.revokeObjectURL(_u);
+          window._bgHeartbeatWorker.onmessage = function () {
+            if (typeof document === 'undefined' || !document.hidden) return;
+            if (typeof gameLoop !== 'function' || !state.running) return;
+            gameLoop();
+          };
+        }
+        delete _orig._bgHeartbeatWorker;
+      } catch (e) {}
+    }
+  }
+
   /* ═══════════════ 動態注入 UI ═══════════════ */
   function injectUI() {
     // 1. 首頁選單按鈕
@@ -517,11 +622,11 @@
     html += '<div id="klh-perf-adv" style="border:1px solid #334155;border-radius:4px;padding:8px;background:rgba(0,0,0,0.2);margin-top:8px">';
     html += '<div style="color:#94a3b8;font-size:11px;margin-bottom:6px">進階微調選項</div>';
     var advItems = [
-        {id: 'audio', label: '音效頻率'},
-        {id: 'anim', label: '動畫降幀'},
-        {id: 'vfx', label: '特效粒子'},
-        {id: 'log', label: '日誌數量'},
-        {id: 'css', label: '介面渲染'}
+        {id: 'audio', label: '🔊 音效頻率'},
+        {id: 'anim', label: '🎞️ 動畫降幀'},
+        {id: 'vfx', label: '✨ 特效粒子'},
+        {id: 'log', label: '📜 日誌數量'},
+        {id: 'css', label: '🎨 介面渲染'}
     ];
     advItems.forEach(function(item) {
         html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;align-items:center"><span>'+item.label+'</span>';
@@ -535,6 +640,15 @@
         }
         html += '</select></div>';
     });
+    html += '<div style="border-top:1px solid #334155;margin:8px 0 6px;padding-top:6px"><div style="color:#f59e0b;font-size:11px;margin-bottom:6px">⚡ 核心效能補丁 (FPS/發熱)</div></div>';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;align-items:center"><span>🔄 渲染節流</span>';
+    html += '<select id="klh-perf-adv-render" style="background:#1e293b;color:#f8fafc;border:1px solid #475569;border-radius:4px;padding:0 2px">';
+    html += '<option value="0">正常</option><option value="1">每2 tick</option><option value="2">每3 tick</option><option value="3">每5 tick</option>';
+    html += '</select></div>';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;align-items:center"><span>🧵 背景心跳</span>';
+    html += '<select id="klh-perf-adv-worker" style="background:#1e293b;color:#f8fafc;border:1px solid #475569;border-radius:4px;padding:0 2px">';
+    html += '<option value="0">正常</option><option value="1">關閉心跳</option><option value="2">關+降頻</option>';
+    html += '</select></div>';
     html += '</div>';
 
     modal.innerHTML = html;
@@ -543,7 +657,7 @@
     document.getElementById('klh-perf-chk').onchange = function(e) { _cfg.enabled = e.target.checked; saveCfg(); syncUI(); if(_cfg.enabled) { revertAll(); applyAll(); } else revertAll(); };
     document.getElementById('klh-perf-sel').onchange = function(e) { _cfg.level = parseInt(e.target.value, 10); saveCfg(); syncUI(); if(_cfg.enabled){ revertAll(); applyAll(); } };
     
-    ['audio','anim','vfx','log','css'].forEach(function(k){
+    ['audio','anim','vfx','log','css','render','worker'].forEach(function(k){
         document.getElementById('klh-perf-adv-' + k).onchange = function(e) { 
             _cfg.adv[k] = parseInt(e.target.value, 10); 
             saveCfg(); 
