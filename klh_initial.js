@@ -1799,6 +1799,26 @@
             `);
             document.body.appendChild(monitor);
 
+            let dataRow = document.createElement('div');
+            monitor.appendChild(dataRow);
+            
+            let toggleRow = document.createElement('div');
+            toggleRow.style.cssText = 'border-top: 1px solid #444; padding-top: 4px; margin-top: 2px; font-size: 11px; color: #aaa; text-align: left;';
+            let chk = document.createElement('input');
+            chk.type = 'checkbox';
+            chk.id = 'klh-headless-chk';
+            chk.checked = localStorage.getItem('klh_headless_enabled') !== '0';
+            chk.onchange = function(e) {
+                localStorage.setItem('klh_headless_enabled', e.target.checked ? '1' : '0');
+            };
+            let lbl = document.createElement('label');
+            lbl.htmlFor = 'klh-headless-chk';
+            lbl.innerText = ' 🚀 啟用無頭極速離線結算';
+            lbl.style.cursor = 'pointer';
+            toggleRow.appendChild(chk);
+            toggleRow.appendChild(lbl);
+            monitor.appendChild(toggleRow);
+
             let fps = 0;
             let lastFrameTime = performance.now();
             let frameCount = 0;
@@ -1822,7 +1842,7 @@
                 if (lastTickTimeMs > 16) tickColor = '#eab308';
                 if (lastTickTimeMs > 50) tickColor = '#ef4444';
 
-                monitor.innerHTML = `
+                dataRow.innerHTML = `
                     <span style="color: ${fpsColor}; font-weight: bold;">FPS: ${fps}</span> | 
                     <span style="color: ${tickColor};">Tick: ${lastTickTimeMs.toFixed(1)}ms</span>
                 `;
@@ -1848,6 +1868,132 @@
             };
         })();
     }
+
+    /* ============================================================================
+     *  🚀 極速全真無頭模擬器 (Hyper-Optimized Headless Simulator)
+     * ============================================================================ */
+    (function initHeadlessOffline() {
+        const _origFuncs = {};
+        let _isHeadlessActive = false;
+        const NOP = function() {};
+
+        // 讀取獨立設定 (預設開啟)
+        function isHeadlessEnabled() {
+            return localStorage.getItem('klh_headless_enabled') !== '0';
+        }
+
+        window.applyHeadlessMonkeyPatches = function(active) {
+            if (active && !_isHeadlessActive) {
+                if (!isHeadlessEnabled()) return; // 玩家手動關閉
+                
+                console.warn('[KLH-Headless] 🚀 啟動極速無頭模式：全面靜音引擎');
+                _isHeadlessActive = true;
+                
+                // 開啟引擎內建的原生靜音旗標
+                window.__vfxOff = true;
+                if (typeof window.state !== 'undefined' && window.state) window.state.ff = true;
+                
+                // 備份並替換 UI/VFX 與吃資源的重繪函式
+                const targets = [
+                    'logCombat', 'logSys', 'logWorld', 'spawnParticle', 'spawnDamageText', 'spawnHealText', 'playSound', 'playHitEffect',
+                    'renderTabs', 'renderStatusIconBar', 'renderStatusEffects', 'renderClassicSkillBook', 'renderSkillSelects', 
+                    'renderPvpTab', 'renderSquadPanel', 'renderStats', 'renderSlots'
+                ];
+                targets.forEach(fn => {
+                    if (typeof window[fn] === 'function') {
+                        _origFuncs[fn] = window[fn];
+                        window[fn] = NOP;
+                    }
+                });
+
+                // 攔截高頻 DOM 操作 (tick 迴圈內直接操作)
+                const _dummyDiv = document.createElement('div');
+                const _dummyInput = document.createElement('input'); _dummyInput.type = 'checkbox';
+                _origFuncs['getElementById'] = document.getElementById;
+                document.getElementById = function(id) {
+                    if (id === 'status-alerts') return _dummyDiv;
+                    if (id === 'set-auto-buy-arrow') return _dummyInput;
+                    return _origFuncs['getElementById'].call(document, id);
+                };
+
+                // 節流 performance.now() 以加速 offline.js 緊密迴圈
+                let _nowCalls = 0;
+                let _cachedNow = window.performance.now();
+                const _realNow = window.performance.now.bind(window.performance);
+                _origFuncs['performanceNow'] = window.performance.now;
+                window.performance.now = function() {
+                    if ((++_nowCalls) % 100 === 0) _cachedNow = _realNow();
+                    return _cachedNow;
+                };
+
+                // 攔截 updateUI 等渲染函式與引擎內部繪圖
+                const renderTargets = ['updateUI', 'renderMobs', 'flushTickRender', '_updateUIImpl', '_renderMobsImpl'];
+                renderTargets.forEach(fn => {
+                    if (typeof window[fn] === 'function') {
+                        _origFuncs[fn] = window[fn];
+                        window[fn] = NOP;
+                    }
+                });
+                
+                // 隱藏整個遊戲主畫面 DOM，徹底斷絕瀏覽器的 CSS 動畫與版面重繪 (Occlusion Culling)
+                const stage = document.getElementById('app-stage');
+                if (stage) stage.style.display = 'none';
+
+            } else if (!active && _isHeadlessActive) {
+                console.warn('[KLH-Headless] 🛑 關閉極速無頭模式：恢復原生引擎');
+                _isHeadlessActive = false;
+                
+                window.__vfxOff = false;
+                if (typeof window.state !== 'undefined' && window.state) window.state.ff = false;
+                
+                // 恢復備份
+                for (let fn in _origFuncs) {
+                    if (fn === 'getElementById') {
+                        document.getElementById = _origFuncs[fn];
+                    } else if (fn === 'performanceNow') {
+                        window.performance.now = _origFuncs[fn];
+                    } else if (_origFuncs[fn]) {
+                        window[fn] = _origFuncs[fn];
+                    }
+                }
+                
+                // 恢復顯示遊戲主畫面
+                const stage = document.getElementById('app-stage');
+                if (stage) stage.style.display = '';
+                
+                // 強制重繪一次畫面
+                if (typeof window._updateUIImpl === 'function') window._updateUIImpl();
+                if (typeof window._renderMobsImpl === 'function') window._renderMobsImpl();
+                if (typeof updateUI === 'function') updateUI();
+                if (typeof renderMobs === 'function') renderMobs();
+                if (typeof flushTickRender === 'function') flushTickRender();
+                
+                // 恢復重繪所有背包、裝備、狀態面板 (把 12 小時的戰利品一次印出來)
+                if (typeof renderTabs === 'function') renderTabs();
+                if (typeof renderSlots === 'function') renderSlots();
+                if (typeof renderStats === 'function') renderStats();
+            }
+        };
+
+        // 🎯 核心攔截器：監聽 offline.js 的啟動與關閉
+        // offline.js 在離線結算開始時會設定 window.__afkKillTally = killTally; 結束時設回 null
+        let _afkKillTally = null;
+        Object.defineProperty(window, '__afkKillTally', {
+            get: () => _afkKillTally,
+            set: (val) => {
+                _afkKillTally = val;
+                if (val && !_isHeadlessActive && isHeadlessEnabled()) {
+                    console.info('[KLH-Headless] 偵測到 offline.js 離線結算啟動，自動開啟極速無頭模式！');
+                    window.applyHeadlessMonkeyPatches(true);
+                } else if (!val && _isHeadlessActive) {
+                    console.info('[KLH-Headless] 偵測到 offline.js 離線結算結束，恢復正常模式。');
+                    window.applyHeadlessMonkeyPatches(false);
+                }
+            },
+            configurable: true
+        });
+
+    })();
 
     document.addEventListener('DOMContentLoaded', startupInitial);
     if (document.readyState === 'interactive' || document.readyState === 'complete') {
