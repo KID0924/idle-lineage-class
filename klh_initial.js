@@ -1978,16 +1978,34 @@
         // 🎯 核心攔截器：監聽 offline.js 的啟動與關閉
         // offline.js 在離線結算開始時會設定 window.__afkKillTally = killTally; 結束時設回 null
         let _afkKillTally = null;
+        let _afkStartTime = 0;
         Object.defineProperty(window, '__afkKillTally', {
             get: () => _afkKillTally,
             set: (val) => {
                 _afkKillTally = val;
-                if (val && !_isHeadlessActive && isHeadlessEnabled()) {
-                    console.info('[KLH-Headless] 偵測到 offline.js 離線結算啟動，自動開啟極速無頭模式！');
-                    window.applyHeadlessMonkeyPatches(true);
-                } else if (!val && _isHeadlessActive) {
-                    console.info('[KLH-Headless] 偵測到 offline.js 離線結算結束，恢復正常模式。');
-                    window.applyHeadlessMonkeyPatches(false);
+                
+                if (val) {
+                    if (_afkStartTime === 0) _afkStartTime = performance.now();
+                    
+                    if (!_isHeadlessActive && isHeadlessEnabled()) {
+                        console.info('[KLH-Headless] 偵測到 offline.js 離線結算啟動，自動開啟極速無頭模式！');
+                        window.applyHeadlessMonkeyPatches(true);
+                    }
+                } else {
+                    let wasHeadless = _isHeadlessActive;
+                    if (_isHeadlessActive) {
+                        console.info('[KLH-Headless] 偵測到 offline.js 離線結算結束，恢復正常模式。');
+                        window.applyHeadlessMonkeyPatches(false);
+                    }
+                    
+                    if (_afkStartTime > 0) {
+                        let cost = ((performance.now() - _afkStartTime) / 1000).toFixed(2);
+                        let mode = wasHeadless ? "🚀 無頭極速模式" : "🐢 原版慢速模式";
+                        let msg = `[系統] 離線結算完畢 (${mode})，總耗時：${cost} 秒`;
+                        console.info(msg);
+                        if (typeof window.logSys === 'function') window.logSys(msg, '#2ecc71');
+                        _afkStartTime = 0;
+                    }
                 }
             },
             configurable: true
