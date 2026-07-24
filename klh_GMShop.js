@@ -1268,13 +1268,14 @@
             attrMagicStar: attrMagicStar
         };
 
-        // 背包疊加與塞入邏輯
-        let ex = (enVal === 0) ? player.inv.find(i => (i.en || 0) === 0 && sameItemSig(i, _probe)) : null;
+        // 背包疊加與塞入邏輯（巨靈願望戒指每隻獨立，不疊加）
+        let isWishRing = (id === 'relic_genie_wishes') || (d && d.wishRing);
+        let ex = (!isWishRing && enVal === 0) ? player.inv.find(i => (i.en || 0) === 0 && !i.gw && sameItemSig(i, _probe)) : null;
 
         if (ex) {
             ex.cnt += buyQty;
         } else {
-            player.inv.push({
+            let _newItem = {
                 id: id,
                 uid: uid(),
                 cnt: buyQty,
@@ -1287,7 +1288,49 @@
                 attrMagicStar: attrMagicStar,
                 lock: false,
                 junk: !!(player.junkPrefs && player.junkPrefs[itemSig(_probe)])
-            });
+            };
+
+            if (isWishRing) {
+                const WISH_MAP = [
+                    { id: 'hp60', name: '1. HP +60' },
+                    { id: 'mp30', name: '2. MP +30' },
+                    { id: 'md3', name: '3. 近距離傷害 +3' },
+                    { id: 'rd3', name: '4. 遠距離傷害 +3' },
+                    { id: 'mdmg2', name: '5. 魔法傷害 +2' },
+                    { id: 'sp6', name: '6. 額外魔法點數 (SP) +6' },
+                    { id: 'hpr10', name: '7. HP 自然恢復 +10' },
+                    { id: 'mpr5', name: '8. MP 自然恢復 +5' },
+                    { id: 'dr3', name: '9. 傷害減免 +3' },
+                    { id: 'ac3', name: '10. 防禦力 (AC) -3' },
+                    { id: 'mr6', name: '11. 抗魔 (MR) +6' },
+                    { id: 'str1', name: '12. 力量 +1' },
+                    { id: 'dex1', name: '13. 敏捷 +1' },
+                    { id: 'int1', name: '14. 智力 +1' },
+                    { id: 'wis1', name: '15. 精神 +1' },
+                    { id: 'con1', name: '16. 體質 +1' },
+                    { id: 'cha1', name: '17. 魅力 +1' }
+                ];
+                let promptMsg = '【🧞 巨靈的三個願望】請選擇您想要的 3 個願望：\n'
+                    + WISH_MAP.map(w => w.name).join('\n')
+                    + '\n\n請輸入 3 個編號（用逗號或空格隔開，例如: 3, 5, 9）：\n(若留空或取消，則自動隨機抽取願望)';
+                let input = prompt(promptMsg, "");
+                let selectedGw = [];
+                if (input) {
+                    let nums = input.replace(/，/g, ',').split(/[, \s]+/).map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n >= 1 && n <= 17);
+                    let uniqueNums = Array.from(new Set(nums)).slice(0, 3);
+                    uniqueNums.forEach(idx => {
+                        selectedGw.push(WISH_MAP[idx - 1].id);
+                    });
+                }
+                let _pool = WISH_MAP.map(w => w.id).filter(id => !selectedGw.includes(id));
+                while (selectedGw.length < 3) {
+                    let _ri = Math.floor(Math.random() * _pool.length);
+                    selectedGw.push(_pool.splice(_ri, 1)[0]);
+                }
+                _newItem.gw = selectedGw;
+            }
+
+            player.inv.push(_newItem);
         }
 
         // 發送系統訊息
