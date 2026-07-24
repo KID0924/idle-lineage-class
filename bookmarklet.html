@@ -727,10 +727,9 @@
                 id: 'klh_initial.js', 
                 name: '核心功能初始化', 
                 desc: '創角屬性優化、多難度系統與 iOS 鍵盤修復。', 
-                details: '包含：創角各屬性點上限分配 +20、地獄/標準/天堂3個難度調整影響怪物強度與掉寶率、遊戲內配點與萬能藥優化限制、iOS 鍵盤防錯位修復、傭兵存檔自動精簡、以及防拋錯的優雅降級保護。', 
+                details: '包含：創角各屬性點上限分配 +20、地獄/標準/天堂3個難度調整影響怪物強度與掉寶率、遊戲內配點與萬能藥優化限制、iOS 鍵盤防錯位修復、以及防拋錯的優雅降級保護。', 
                 isCore: false, 
-                checked: false,
-                disabled: true
+                checked: false
             },
             { 
                 id: 'klh_database.js', 
@@ -764,14 +763,6 @@
                 details: '在畫面右上角建立小型的效能監控器。可即時測量顯示 FPS、遊戲 tick 執行的毫秒數，並偵測顯示 VFX 降載優化的啟動狀態。', 
                 isCore: false, 
                 checked: true 
-            },
-            { 
-                id: 'klh_mobile_allies_hud.js', 
-                name: '傭兵狀態快捷欄', 
-                desc: '觸控版傭兵狀態監控、快速復活與餵藥水。', 
-                details: '專為觸控裝置設計。可在畫面上任意拖曳定位，即時顯示前三個上場傭兵的 HP/MP 條，並在傭兵死亡時提供快速施放復活卷軸或手動餵藥水的便捷鍵。', 
-                isCore: false, 
-                checked: false 
             },
             { 
                 id: 'klh_Backpack.js', 
@@ -817,11 +808,10 @@
             { 
                 id: 'offline.js', 
                 name: '離線掛機補丁', 
-                desc: '在原版遊戲網站中，載入並結算離線時間打怪收益（⚠ 必須搭配「核心功能初始化」）。', 
-                details: '此模組專為非 Chaos 版（如官方原版）設計。啟用後，若偵測到當前為非 Chaos 版網址，會自動載入離線掛機模擬腳本，結算離線金幣與經驗收益。<br><b style="color: #ef4444;">⚠ 注意：此模組極度依賴「核心功能初始化 (klh_initial.js)」提供的資料統計掛接點，勾選時系統會自動為您強制勾選該初始化模組。</b>', 
+                desc: '在原版遊戲網站中，載入並結算離線時間打怪收益（作者：Chaos）。', 
+                details: '此模組由作者 Chaos 開發，專為非 Chaos 版（如官方原版）設計。啟用後，若偵測到當前為非 Chaos 版網址，會自動載入離線掛機模擬腳本，結算離線金幣與經驗收益。', 
                 isCore: false, 
-                checked: false,
-                disabled: true 
+                checked: false 
             }
         ];
 
@@ -896,7 +886,6 @@
                 const targetIds = [
                     'klh_initial.js',
                     'klh_mobile-perf.js',
-                    'klh_mobile_allies_hud.js',
                     'klh_Addition.js',
                     'klh_Pandora.js',
                     'klh_remove-banner.js'
@@ -918,16 +907,7 @@
             if (plugin && !plugin.disabled) {
                 plugin.checked = !plugin.checked;
                 
-                // 連動邏輯：
-                if (id === 'offline.js' && plugin.checked) {
-                    // 勾選離線掛機時，自動強制勾選核心功能初始化
-                    const initPlugin = activePlugins.find(p => p.id === 'klh_initial.js');
-                    if (initPlugin) initPlugin.checked = true;
-                } else if (id === 'klh_initial.js' && !plugin.checked) {
-                    // 取消勾選核心功能初始化時，自動取消勾選離線掛機（因為沒有初始化離線無法運作）
-                    const offlinePlugin = activePlugins.find(p => p.id === 'offline.js');
-                    if (offlinePlugin) offlinePlugin.checked = false;
-                }
+                // 連動邏輯已移除，開放讓使用者自由勾選
 
                 renderList();
             }
