@@ -973,13 +973,22 @@
             attrVal = attrSel.value;
         }
 
+        let attrMagicVal = false;
+        let attrMagicStar = 0;
+        let attrMagicSel = document.getElementById('gm-attrmagic-select');
+        if (attrMagicSel && attrMagicSel.value !== 'none') {
+            let parts = attrMagicSel.value.split('|');
+            attrMagicVal = parts[0];
+            attrMagicStar = parts.length > 1 ? parseInt(parts[1], 10) : 3;
+        }
+
         let seteffVal = false;
         let seteffSel = document.getElementById('gm-seteff-select');
         if (seteffSel && seteffSel.value !== 'none') {
             seteffVal = seteffSel.value;
         }
 
-        return { isFree, isLegendOnly, enhanceVal, blessVal, ancVal, attrVal, seteffVal };
+        return { isFree, isLegendOnly, enhanceVal, blessVal, ancVal, attrVal, attrMagicVal, attrMagicStar, seteffVal };
     }
 
     // 3. 渲染裝備網格
@@ -1109,9 +1118,13 @@
                 en: isEquip ? opts.enhanceVal : 0,
                 bless: isEquip ? ((opts.blessVal === 'random') ? true : opts.blessVal) : false,
                 anc: isEquip ? ((opts.ancVal === 'random') ? true : opts.ancVal) : false,
-                attr: isEquip ? ((opts.attrVal === 'random') ? 'fire5' : opts.attrVal) : false,
+                attr: isEquip ? ((opts.attrVal === 'random') ? 'fr5' : opts.attrVal) : false,
                 seteff: isEquip ? ((opts.seteffVal === 'random') ? '紅獅的誓言' : opts.seteffVal) : false
             };
+            if (isEquip && opts.attrMagicVal) {
+                mockItem.attrMagic = opts.attrMagicVal;
+                mockItem.attrMagicStar = opts.attrMagicStar || 3;
+            }
 
             let iconUrl = getIconUrl(d);
             let glowClass = getGlowClass(mockItem, d) || '';
@@ -1228,7 +1241,7 @@
             }
 
             if (attrVal === 'random') {
-                attrVal = (typeof rollAttrAffix === 'function') ? rollAttrAffix() : 'fire1';
+                attrVal = (typeof rollAttrAffix === 'function') ? rollAttrAffix() : 'fr5';
             }
 
             if (seteffVal === 'random') {
@@ -1240,6 +1253,9 @@
             }
         }
 
+        let attrMagicVal = isEquip ? opts.attrMagicVal : false;
+        let attrMagicStar = (isEquip && attrMagicVal) ? (opts.attrMagicStar || 3) : 0;
+
         // 構建物品探針
         let _probe = {
             id: id,
@@ -1247,7 +1263,9 @@
             bless: blessVal,
             anc: ancVal,
             attr: attrVal,
-            seteff: seteffVal
+            seteff: seteffVal,
+            attrMagic: attrMagicVal,
+            attrMagicStar: attrMagicStar
         };
 
         // 背包疊加與塞入邏輯
@@ -1265,13 +1283,15 @@
                 anc: ancVal,
                 attr: attrVal,
                 seteff: seteffVal,
+                attrMagic: attrMagicVal,
+                attrMagicStar: attrMagicStar,
                 lock: false,
                 junk: !!(player.junkPrefs && player.junkPrefs[itemSig(_probe)])
             });
         }
 
         // 發送系統訊息
-        let displayItem = { id: id, cnt: buyQty, en: enVal, bless: blessVal, anc: ancVal, attr: attrVal, seteff: seteffVal };
+        let displayItem = { id: id, cnt: buyQty, en: enVal, bless: blessVal, anc: ancVal, attr: attrVal, seteff: seteffVal, attrMagic: attrMagicVal, attrMagicStar: attrMagicStar };
         logSys(`在 GM 商店購買了 <span class="font-bold">${getItemFullName(displayItem)}</span> x${buyQty}${opts.isFree ? ' (免費)' : ` (花費 ${totalPrice.toLocaleString()} 金幣)`}`);
 
         // 特殊頭盔之類的技能更新
@@ -1889,6 +1909,39 @@
             });
         }
 
+        // 屬性詞綴與附加魔法列表生成 (支援五階與星級魔法)
+        let attrOptions = `<option value="none">無</option><option value="random">隨機</option>`;
+        let attrMagicOptions = `<option value="none">無</option>`;
+        if (typeof ATTR_AFFIX !== 'undefined') {
+            const eleNames = { fire: '火屬性', water: '水屬性', wind: '風屬性', earth: '地屬性' };
+            const groups = {};
+            Object.keys(ATTR_AFFIX).forEach(key => {
+                let def = ATTR_AFFIX[key];
+                if (!groups[def.ele]) groups[def.ele] = [];
+                groups[def.ele].push({ key: key, def: def });
+            });
+            for (let ele in groups) {
+                attrOptions += `<optgroup label="${eleNames[ele] || ele}">`;
+                groups[ele].sort((a, b) => a.def.tier - b.def.tier).forEach(item => {
+                    attrOptions += `<option value="${item.key}" data-ele="${ele}" data-tier="${item.def.tier}">${item.def.n} (+${item.def.dmg})</option>`;
+                });
+                attrOptions += `</optgroup>`;
+            }
+        }
+        if (typeof ATTR_MAGIC_SKILLS !== 'undefined' && typeof DB !== 'undefined' && DB.skills) {
+            const eleNames = { fire: '火系魔法', water: '水系魔法', wind: '風系魔法', earth: '地系魔法' };
+            for (let ele in ATTR_MAGIC_SKILLS) {
+                attrMagicOptions += `<optgroup label="${eleNames[ele] || ele}" data-ele="${ele}">`;
+                ATTR_MAGIC_SKILLS[ele].forEach(proc => {
+                    let skName = DB.skills[proc.skId] ? DB.skills[proc.skId].n : proc.skId;
+                    attrMagicOptions += `<option value="${proc.skId}|1">★ ${skName}</option>`;
+                    attrMagicOptions += `<option value="${proc.skId}|2">★★ ${skName}</option>`;
+                    attrMagicOptions += `<option value="${proc.skId}|3">★★★ ${skName}</option>`;
+                });
+                attrMagicOptions += `</optgroup>`;
+            }
+        }
+
         // 席琳套裝列表生成
         let seteffOptions = `<option value="none">無</option><option value="random">隨機</option>`;
         if (typeof SHERINE_EFFECTS !== 'undefined') {
@@ -1979,28 +2032,14 @@
                             <div class="gm-shop-control-group" id="gm-ctrl-attr">
                                 <span class="gm-shop-control-label">屬性詞綴</span>
                                 <select id="gm-attr-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
-                                    <option value="none">無</option>
-                                    <option value="random">隨機</option>
-                                    <optgroup label="地屬性">
-                                        <option value="earth1">地之 (+1)</option>
-                                        <option value="earth3">崩裂 (+3)</option>
-                                        <option value="earth5">地靈 (+5)</option>
-                                    </optgroup>
-                                    <optgroup label="火屬性">
-                                        <option value="fire1">火之 (+1)</option>
-                                        <option value="fire3">爆炎 (+3)</option>
-                                        <option value="fire5">火靈 (+5)</option>
-                                    </optgroup>
-                                    <optgroup label="水屬性">
-                                        <option value="water1">水之 (+1)</option>
-                                        <option value="water3">海嘯 (+3)</option>
-                                        <option value="water5">水靈 (+5)</option>
-                                    </optgroup>
-                                    <optgroup label="風屬性">
-                                        <option value="wind1">風之 (+1)</option>
-                                        <option value="wind3">暴風 (+3)</option>
-                                        <option value="wind5">風靈 (+5)</option>
-                                    </optgroup>
+                                    ${attrOptions}
+                                </select>
+                            </div>
+                            
+                            <div class="gm-shop-control-group" id="gm-ctrl-attrmagic">
+                                <span class="gm-shop-control-label">屬性附加魔法</span>
+                                <select id="gm-attrmagic-select" class="gm-shop-select" onchange="onGMShopOptionChange()">
+                                    ${attrMagicOptions}
                                 </select>
                             </div>
                             
@@ -3729,6 +3768,35 @@
 
     window.onGMShopOptionChange = function () {
         window.gmShopCurrentPage = 1;
+        
+        let attrSel = document.getElementById('gm-attr-select');
+        let attrMagicSel = document.getElementById('gm-attrmagic-select');
+        if (attrSel && attrMagicSel) {
+            let selectedAttrOpt = attrSel.options[attrSel.selectedIndex];
+            let ele = selectedAttrOpt ? selectedAttrOpt.getAttribute('data-ele') : null;
+            let tier = selectedAttrOpt ? parseInt(selectedAttrOpt.getAttribute('data-tier') || 0, 10) : 0;
+            let isValidForMagic = (ele && tier === 5);
+            
+            let groups = attrMagicSel.querySelectorAll('optgroup');
+            groups.forEach(g => {
+                if (isValidForMagic && g.getAttribute('data-ele') === ele) {
+                    g.style.display = '';
+                    g.disabled = false;
+                } else {
+                    g.style.display = 'none';
+                    g.disabled = true;
+                }
+            });
+            
+            if (attrMagicSel.value !== 'none') {
+                let selectedMagicOpt = attrMagicSel.options[attrMagicSel.selectedIndex];
+                let magicGroup = selectedMagicOpt ? selectedMagicOpt.parentElement : null;
+                if (!isValidForMagic || !magicGroup || magicGroup.getAttribute('data-ele') !== ele) {
+                    attrMagicSel.value = 'none';
+                }
+            }
+        }
+        
         renderGMShopGrid();
     };
 
@@ -3919,11 +3987,14 @@
         if (typeof window.spawnMob === 'function' && !window.spawnMob.isHookedByGMShopRate) {
             const originalSpawnMob = window.spawnMob;
             window.spawnMob = function(idx) {
-                originalSpawnMob.apply(this, arguments);
-                let m = mapState.mobs[idx];
-                if (m) {
-                    scaleMobStats(m);
-                }
+                let ret = originalSpawnMob.apply(this, arguments);
+                try {
+                    let m = mapState.mobs[idx];
+                    if (m) {
+                        scaleMobStats(m);
+                    }
+                } catch (e) { console.error("[klh_GMShop] spawnMob hook error:", e); }
+                return ret;
             };
             window.spawnMob.isHookedByGMShopRate = true;
         }
@@ -3931,11 +4002,14 @@
         if (typeof window.spawnRiftMob === 'function' && !window.spawnRiftMob.isHookedByGMShopRate) {
             const originalSpawnRiftMob = window.spawnRiftMob;
             window.spawnRiftMob = function(idx) {
-                originalSpawnRiftMob.apply(this, arguments);
-                let m = mapState.mobs[idx];
-                if (m) {
-                    scaleMobStats(m);
-                }
+                let ret = originalSpawnRiftMob.apply(this, arguments);
+                try {
+                    let m = mapState.mobs[idx];
+                    if (m) {
+                        scaleMobStats(m);
+                    }
+                } catch (e) { console.error("[klh_GMShop] spawnRiftMob hook error:", e); }
+                return ret;
             };
             window.spawnRiftMob.isHookedByGMShopRate = true;
         }
@@ -3944,8 +4018,13 @@
             const originalClassicDropMult = window.classicDropMult;
             window.classicDropMult = function() {
                 let base = originalClassicDropMult.apply(this, arguments);
-                let mult = window.__gmDropRateRate || 1.0;
-                return base * mult;
+                try {
+                    let mult = window.__gmDropRateRate || 1.0;
+                    return base * mult;
+                } catch (e) {
+                    console.error("[klh_GMShop] classicDropMult hook error:", e);
+                    return base;
+                }
             };
             window.classicDropMult.isHookedByGMShop = true;
         }
@@ -3953,16 +4032,26 @@
             const originalTrialItemDropMult = window.trialItemDropMult;
             window.trialItemDropMult = function(id) {
                 let base = originalTrialItemDropMult.apply(this, arguments);
-                let mult = window.__gmDropRateRate || 1.0;
-                return base * mult;
+                try {
+                    let mult = window.__gmDropRateRate || 1.0;
+                    return base * mult;
+                } catch (e) {
+                    console.error("[klh_GMShop] trialItemDropMult hook error:", e);
+                    return base;
+                }
             };
             window.trialItemDropMult.isHookedByGMShop = true;
         }
         if (typeof window._cardDropRoll === 'function' && !window._cardDropRoll.isHookedByGMShop) {
             const originalCardDropRoll = window._cardDropRoll;
             window._cardDropRoll = function(name, tier, rate) {
-                let mult = window.__gmDropRateRate || 1.0;
-                originalCardDropRoll.call(this, name, tier, rate * mult);
+                try {
+                    let mult = window.__gmDropRateRate || 1.0;
+                    originalCardDropRoll.call(this, name, tier, rate * mult);
+                } catch (e) {
+                    console.error("[klh_GMShop] _cardDropRoll hook error:", e);
+                    originalCardDropRoll.apply(this, arguments);
+                }
             };
             window._cardDropRoll.isHookedByGMShop = true;
         }
@@ -3970,16 +4059,23 @@
         if (typeof window.killMob === 'function' && !window.killMob.isHookedByGMShopGold) {
             const originalKillMob = window.killMob;
             window.killMob = function(idx) {
-                let goldBefore = player.gold;
-                originalKillMob.apply(this, arguments);
-                let goldGain = player.gold - goldBefore;
-                if (goldGain > 0) {
-                    let rate = window.__gmGoldRate || 1.0;
-                    if (rate !== 1.0) {
-                        let extraGold = Math.round(goldGain * (rate - 1));
-                        player.gold += extraGold;
+                let goldBefore = (typeof player !== 'undefined' && player) ? player.gold : 0;
+                let ret = originalKillMob.apply(this, arguments);
+                try {
+                    if (typeof player !== 'undefined' && player) {
+                        let goldGain = player.gold - goldBefore;
+                        if (goldGain > 0) {
+                            let rate = window.__gmGoldRate || 1.0;
+                            if (rate !== 1.0) {
+                                let extraGold = Math.round(goldGain * (rate - 1));
+                                player.gold += extraGold;
+                            }
+                        }
                     }
+                } catch (e) {
+                    console.error("[klh_GMShop] killMob gold hook error:", e);
                 }
+                return ret;
             };
             window.killMob.isHookedByGMShopGold = true;
         }
@@ -3988,8 +4084,13 @@
             const originalPotionHealBase = window.potionHealBase;
             window.potionHealBase = function(d) {
                 let base = originalPotionHealBase.apply(this, arguments);
-                let rate = window.__gmPotionRate || 1.0;
-                return base * rate;
+                try {
+                    let rate = window.__gmPotionRate || 1.0;
+                    return base * rate;
+                } catch (e) {
+                    console.error("[klh_GMShop] potionHealBase hook error:", e);
+                    return base;
+                }
             };
             window.potionHealBase.isHookedByGMShop = true;
         }
@@ -4029,11 +4130,13 @@
         if (typeof window.atkSpdBaseItv === 'function' && !window.atkSpdBaseItv.isHookedByGMShop) {
             const originalAtkSpdBaseItv = window.atkSpdBaseItv;
             window.atkSpdBaseItv = function (p) {
-                if (p && p.eq && p.eq.wpn) {
-                    if (p.eq.wpn.id === 'wpn_shortsword') return 0.2;
-                    if (p.eq.wpn.id === 'wpn_10') return 0.1;
-                }
-                return originalAtkSpdBaseItv(p);
+                try {
+                    if (p && p.eq && p.eq.wpn) {
+                        if (p.eq.wpn.id === 'wpn_shortsword') return 0.2;
+                        if (p.eq.wpn.id === 'wpn_10') return 0.1;
+                    }
+                } catch (e) { console.error("[klh_GMShop] atkSpdBaseItv hook error:", e); }
+                return originalAtkSpdBaseItv.apply(this, arguments);
             };
             window.atkSpdBaseItv.isHookedByGMShop = true;
         }
