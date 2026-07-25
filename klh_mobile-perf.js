@@ -17,7 +17,11 @@
 
   /* ═══════════════ 常數與狀態 ═══════════════ */
   var PERF_KEY = 'fb5_mobilePerf';
-  var _cfg = { enabled: false, level: 2, adv: { audio: 3, anim: 1, vfx: 1, log: 1, css: 1, render: 0, worker: 0 } };
+  var _cfg = { 
+      enabled: true, 
+      level: 2, 
+      adv: { audio: 0, anim: 0, vfx: 0, log: 0, css: 0, render: 0, worker: 0 } 
+  };
   var _orig = {};        // 被替換的原始函式 / 原始值備份
   var _st = {            // 執行時狀態
     applied: false,

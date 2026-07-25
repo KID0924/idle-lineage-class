@@ -34,7 +34,7 @@
     window.difficultyManuallySelected = false;
 
     // 🚀 存檔時是否自動清理協力傭兵背包與設定以減少存檔體積 (true: 預設開啟; false: 關閉)
-    window.CLEAN_ALLY_DATA_ON_SAVE = true;
+    window.CLEAN_ALLY_DATA_ON_SAVE = false;
 
     window.DIFFICULTY_SETTINGS = {
         hell: { name: "地獄", mobPower: 3.0, dropRate: 3.0, goldRate: 3.0, healRate: 1.25 },

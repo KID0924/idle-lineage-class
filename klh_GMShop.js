@@ -113,8 +113,8 @@
             // 只有在進入遊戲後，且遊戲正在執行、角色未死亡，且 gameLoop 存在時才跑加速
             // 注意：_tickDebt 是 let 全域變數，用 typeof 檢查（不加 window. 前綴）
             let canRun = typeof state !== 'undefined' && state && state.running &&
-                         typeof player !== 'undefined' && player && !player.dead &&
-                         typeof window.gameLoop === 'function' && typeof _tickDebt !== 'undefined';
+                typeof player !== 'undefined' && player && !player.dead &&
+                typeof window.gameLoop === 'function' && typeof _tickDebt !== 'undefined';
 
             let rate = (window.__gmGameSpeed !== undefined) ? window.__gmGameSpeed : 1.0;
 
@@ -1310,9 +1310,9 @@
                     { id: 'con1', name: '16. 體質 +1' },
                     { id: 'cha1', name: '17. 魅力 +1' }
                 ];
-                let promptMsg = '【🧞 巨靈的三個願望】請選擇您想要的 3 個願望：\n'
+                let promptMsg = '【🧞 巨靈的三個願望】請選擇您想要的 3 個不重複願望：\n'
                     + WISH_MAP.map(w => w.name).join('\n')
-                    + '\n\n請輸入 3 個編號（用逗號或空格隔開，例如: 3, 5, 9）：\n(若留空或取消，則自動隨機抽取願望)';
+                    + '\n\n請輸入 3 個編號（用逗號或空格隔開，例如: 3, 5, 12）：\n(若留空或取消，則自動隨機抽取不重複願望)';
                 let input = prompt(promptMsg, "");
                 let selectedGw = [];
                 if (input) {
@@ -1332,6 +1332,11 @@
 
             player.inv.push(_newItem);
         }
+
+        // 登錄圖鑑收集冊（確保 GM 商店獲得物品也能點亮圖鑑）
+        if (typeof registerEquipObtained === 'function') registerEquipObtained(id);
+        if (typeof registerMiscObtained === 'function') registerMiscObtained(id);
+        if (typeof registerRelicObtained === 'function') registerRelicObtained(id);
 
         // 發送系統訊息
         let displayItem = { id: id, cnt: buyQty, en: enVal, bless: blessVal, anc: ancVal, attr: attrVal, seteff: seteffVal, attrMagic: attrMagicVal, attrMagicStar: attrMagicStar };
@@ -3318,7 +3323,7 @@
         if (raw) {
             let unwrapped = _saveUnwrap(raw);
             if (unwrapped.ok) {
-                try { st = JSON.parse(unwrapped.payload); } catch (e) {}
+                try { st = JSON.parse(unwrapped.payload); } catch (e) { }
             }
         }
 
@@ -3342,25 +3347,25 @@
         let html = '<div style="font-size: 12px; font-weight: bold; color: #818cf8; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px;">' +
             '<span>🏴 叫賣收購商 (' + st.wanderers.length + ' 位)</span>' +
             '<div style="display: flex; gap: 4px;">' +
-                '<button onclick="tauntAllGMWanderers()" style="font-size: 11px; background: rgba(217, 119, 6, 0.2); border: 1px solid rgba(217, 119, 6, 0.5); color: #fcd34d; padding: 2px 6px; border-radius: 4px; cursor: pointer;">🗣️ 嘲諷</button>' +
-                '<button onclick="clearAllGMWanderers()" style="font-size: 11px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 2px 6px; border-radius: 4px; cursor: pointer;">🚫 驅離</button>' +
+            '<button onclick="tauntAllGMWanderers()" style="font-size: 11px; background: rgba(217, 119, 6, 0.2); border: 1px solid rgba(217, 119, 6, 0.5); color: #fcd34d; padding: 2px 6px; border-radius: 4px; cursor: pointer;">🗣️ 嘲諷</button>' +
+            '<button onclick="clearAllGMWanderers()" style="font-size: 11px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 2px 6px; border-radius: 4px; cursor: pointer;">🚫 驅離</button>' +
             '</div>' +
-        '</div>';
+            '</div>';
 
         // 頁籤 Tab 列
         html += '<div style="display: flex; gap: 4px; margin-bottom: 6px;">' +
             `<button onclick="setGMWandererTab('all')" style="font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; ${tabAllStyle}">全部 (${st.wanderers.length})</button>` +
             `<button onclick="setGMWandererTab('diamond')" style="font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; ${tabDiamondStyle}">💎 龍鑽 (${diamondList.length})</button>` +
             `<button onclick="setGMWandererTab('gold')" style="font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; ${tabGoldStyle}">💰 金幣 (${goldList.length})</button>` +
-        '</div>';
+            '</div>';
 
-        let renderCard = function(w) {
+        let renderCard = function (w) {
             let townName = (typeof DB !== 'undefined' && DB.towns && DB.towns[w.townId]) ? DB.towns[w.townId].n : w.townId;
             let itemDef = (typeof DB !== 'undefined' && DB.items && DB.items[w.itemId]) ? DB.items[w.itemId] : null;
             let itemName = itemDef ? itemDef.n : w.itemId;
             let enhanceTxt = (w.en != null && w.en > 0) ? (`+${w.en} `) : '';
             let fullItemName = enhanceTxt + itemName;
-            
+
             let now = Date.now();
             let remainMs = Math.max(0, (w.expiresAt || 0) - now);
             let remainMins = Math.floor(remainMs / 60000);
@@ -3413,7 +3418,7 @@
         if (raw) {
             let unwrapped = _saveUnwrap(raw);
             if (unwrapped.ok) {
-                try { st = JSON.parse(unwrapped.payload); } catch (e) {}
+                try { st = JSON.parse(unwrapped.payload); } catch (e) { }
             }
         }
 
@@ -3449,7 +3454,7 @@
         if (raw) {
             let unwrapped = _saveUnwrap(raw);
             if (unwrapped.ok) {
-                try { st = JSON.parse(unwrapped.payload); } catch (e) {}
+                try { st = JSON.parse(unwrapped.payload); } catch (e) { }
             }
         }
 
@@ -3510,8 +3515,8 @@
             }
         });
 
-        try { if (typeof saveGame === 'function') saveGame(); } catch (e) {}
-        try { if (typeof renderGMWanderersList === 'function') renderGMWanderersList(); } catch (e) {}
+        try { if (typeof saveGame === 'function') saveGame(); } catch (e) { }
+        try { if (typeof renderGMWanderersList === 'function') renderGMWanderersList(); } catch (e) { }
 
         if (typeof showToast === 'function') {
             showToast(`已同時嘲諷 ${tauntedCount} 位收購商！全員惡狠狠記住你並進入野外追殺名單！`, 'success');
@@ -3526,7 +3531,7 @@
         if (raw) {
             let unwrapped = _saveUnwrap(raw);
             if (unwrapped.ok) {
-                try { st = JSON.parse(unwrapped.payload); } catch (e) {}
+                try { st = JSON.parse(unwrapped.payload); } catch (e) { }
             }
         }
 
@@ -3575,8 +3580,8 @@
             }
         }
 
-        try { if (typeof saveGame === 'function') saveGame(); } catch (e) {}
-        try { if (typeof renderGMWanderersList === 'function') renderGMWanderersList(); } catch (e) {}
+        try { if (typeof saveGame === 'function') saveGame(); } catch (e) { }
+        try { if (typeof renderGMWanderersList === 'function') renderGMWanderersList(); } catch (e) { }
 
         if (typeof showToast === 'function') {
             showToast(`已成功嘲諷 [${w.name}]！對方惡狠狠記住你並加入野外追殺名單！`, 'success');
@@ -3591,7 +3596,7 @@
         if (raw) {
             let unwrapped = _saveUnwrap(raw);
             if (unwrapped.ok) {
-                try { st = JSON.parse(unwrapped.payload); } catch (e) {}
+                try { st = JSON.parse(unwrapped.payload); } catch (e) { }
             }
         }
 
@@ -3702,7 +3707,7 @@
                     st.diamonds = diamondVal;
                     st.updatedAt = Date.now();
                     _lzSet('fb5_pandora_relic_market_v1', _saveWrap(JSON.stringify(st)));
-                    
+
                     // 同步更新頁面中所有顯示龍之鑽石數量的 DOM 元素
                     let diamondDisplays = document.querySelectorAll('.pandora-diamond-count');
                     diamondDisplays.forEach(el => {
@@ -3811,7 +3816,7 @@
 
     window.onGMShopOptionChange = function () {
         window.gmShopCurrentPage = 1;
-        
+
         let attrSel = document.getElementById('gm-attr-select');
         let attrMagicSel = document.getElementById('gm-attrmagic-select');
         if (attrSel && attrMagicSel) {
@@ -3819,7 +3824,7 @@
             let ele = selectedAttrOpt ? selectedAttrOpt.getAttribute('data-ele') : null;
             let tier = selectedAttrOpt ? parseInt(selectedAttrOpt.getAttribute('data-tier') || 0, 10) : 0;
             let isValidForMagic = (ele && tier === 5);
-            
+
             let groups = attrMagicSel.querySelectorAll('optgroup');
             groups.forEach(g => {
                 if (isValidForMagic && g.getAttribute('data-ele') === ele) {
@@ -3830,7 +3835,7 @@
                     g.disabled = true;
                 }
             });
-            
+
             if (attrMagicSel.value !== 'none') {
                 let selectedMagicOpt = attrMagicSel.options[attrMagicSel.selectedIndex];
                 let magicGroup = selectedMagicOpt ? selectedMagicOpt.parentElement : null;
@@ -3839,7 +3844,7 @@
                 }
             }
         }
-        
+
         renderGMShopGrid();
     };
 
@@ -3999,7 +4004,7 @@
         }
     }
 
-    window.__gmApplyMonsterStrength = function() {
+    window.__gmApplyMonsterStrength = function () {
         if (typeof mapState !== 'undefined' && mapState.mobs) {
             mapState.mobs.forEach(m => {
                 if (m) scaleMobStats(m);
@@ -4012,7 +4017,7 @@
         // Hook _petMergeFromBucket to bypass safety checks (like tier comparison checks) when changing pet form via GM panel
         if (typeof window._petMergeFromBucket === 'function' && !window._petMergeFromBucket.isHookedByGM) {
             const originalMerge = window._petMergeFromBucket;
-            window._petMergeFromBucket = function(cur, key) {
+            window._petMergeFromBucket = function (cur, key) {
                 if (window.__gmBypassPetTierMerge && cur && Array.isArray(cur)) {
                     cur.forEach(f => {
                         let p = petRoster().find(x => x.uid === f.uid);
@@ -4029,7 +4034,7 @@
         // Hook spawnMob for monster strength rate
         if (typeof window.spawnMob === 'function' && !window.spawnMob.isHookedByGMShopRate) {
             const originalSpawnMob = window.spawnMob;
-            window.spawnMob = function(idx) {
+            window.spawnMob = function (idx) {
                 let ret = originalSpawnMob.apply(this, arguments);
                 try {
                     let m = mapState.mobs[idx];
@@ -4044,7 +4049,7 @@
         // Hook spawnRiftMob for monster strength rate
         if (typeof window.spawnRiftMob === 'function' && !window.spawnRiftMob.isHookedByGMShopRate) {
             const originalSpawnRiftMob = window.spawnRiftMob;
-            window.spawnRiftMob = function(idx) {
+            window.spawnRiftMob = function (idx) {
                 let ret = originalSpawnRiftMob.apply(this, arguments);
                 try {
                     let m = mapState.mobs[idx];
@@ -4059,7 +4064,7 @@
         // Hook classicDropMult and trialItemDropMult for drop rate
         if (typeof window.classicDropMult === 'function' && !window.classicDropMult.isHookedByGMShop) {
             const originalClassicDropMult = window.classicDropMult;
-            window.classicDropMult = function() {
+            window.classicDropMult = function () {
                 let base = originalClassicDropMult.apply(this, arguments);
                 try {
                     let mult = window.__gmDropRateRate || 1.0;
@@ -4073,7 +4078,7 @@
         }
         if (typeof window.trialItemDropMult === 'function' && !window.trialItemDropMult.isHookedByGMShop) {
             const originalTrialItemDropMult = window.trialItemDropMult;
-            window.trialItemDropMult = function(id) {
+            window.trialItemDropMult = function (id) {
                 let base = originalTrialItemDropMult.apply(this, arguments);
                 try {
                     let mult = window.__gmDropRateRate || 1.0;
@@ -4087,7 +4092,7 @@
         }
         if (typeof window._cardDropRoll === 'function' && !window._cardDropRoll.isHookedByGMShop) {
             const originalCardDropRoll = window._cardDropRoll;
-            window._cardDropRoll = function(name, tier, rate) {
+            window._cardDropRoll = function (name, tier, rate) {
                 try {
                     let mult = window.__gmDropRateRate || 1.0;
                     originalCardDropRoll.call(this, name, tier, rate * mult);
@@ -4101,7 +4106,7 @@
         // Hook killMob for gold rate
         if (typeof window.killMob === 'function' && !window.killMob.isHookedByGMShopGold) {
             const originalKillMob = window.killMob;
-            window.killMob = function(idx) {
+            window.killMob = function (idx) {
                 let goldBefore = (typeof player !== 'undefined' && player) ? player.gold : 0;
                 let ret = originalKillMob.apply(this, arguments);
                 try {
@@ -4125,7 +4130,7 @@
         // Hook potionHealBase for potion rate
         if (typeof window.potionHealBase === 'function' && !window.potionHealBase.isHookedByGMShop) {
             const originalPotionHealBase = window.potionHealBase;
-            window.potionHealBase = function(d) {
+            window.potionHealBase = function (d) {
                 let base = originalPotionHealBase.apply(this, arguments);
                 try {
                     let rate = window.__gmPotionRate || 1.0;
