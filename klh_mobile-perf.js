@@ -20,7 +20,7 @@
   var _cfg = { 
       enabled: true, 
       level: 2, 
-      adv: { audio: 0, anim: 0, vfx: 0, log: 0, css: 0, render: 0, worker: 0 } 
+      adv: { audio: 3, anim: 1, vfx: 1, log: 1, css: 1, render: 1, worker: 0 } 
   };
   var _orig = {};        // 被替換的原始函式 / 原始值備份
   var _st = {            // 執行時狀態
@@ -60,7 +60,7 @@
             vfx:    o.adv.vfx    !== undefined ? o.adv.vfx    : 1,
             log:    o.adv.log    !== undefined ? o.adv.log    : 1,
             css:    o.adv.css    !== undefined ? o.adv.css    : 1,
-            render: o.adv.render !== undefined ? o.adv.render : 0,
+            render: o.adv.render !== undefined ? o.adv.render : 1,
             worker: o.adv.worker !== undefined ? o.adv.worker : 0
           };
         }
@@ -608,12 +608,22 @@
     var fBtn = document.createElement('div');
     fBtn.id = 'klh-perf-float-btn';
     fBtn.innerHTML = '⚙️<div style="font-size:10px;margin-top:-2px">優化</div>';
-    fBtn.style.cssText = 'position:fixed;top:80px;right:10px;width:36px;height:36px;background:rgba(15,23,42,0.85);border:1px solid #475569;border-radius:8px;color:#94a3b8;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;z-index:99999;box-shadow:0 0 10px rgba(0,0,0,0.5);user-select:none;line-height:1;';
+    fBtn.style.cssText = 'position:fixed;top:80px;right:10px;width:36px;height:36px;background:rgba(15,23,42,0.85);border:1px solid #475569;border-radius:8px;color:#94a3b8;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;z-index:99999;box-shadow:0 0 10px rgba(0,0,0,0.5);user-select:none;line-height:1;transition:opacity 0.5s ease;opacity:1;';
+    var _fBtnTimer = null;
+    function _resetFBtnFade() {
+        fBtn.style.opacity = '1';
+        clearTimeout(_fBtnTimer);
+        _fBtnTimer = setTimeout(function() { fBtn.style.opacity = '0.3'; }, 3000);
+    }
+    fBtn.onmouseenter = _resetFBtnFade;
+    fBtn.onmouseleave = _resetFBtnFade;
     fBtn.onclick = function() {
+        _resetFBtnFade();
         var m = document.getElementById('klh-perf-modal');
         if (m) m.style.display = m.style.display === 'none' ? 'block' : 'none';
     };
     document.body.appendChild(fBtn);
+    _resetFBtnFade();
 
     var modal = document.createElement('div');
     modal.id = 'klh-perf-modal';
@@ -624,7 +634,7 @@
     html += '<div style="margin-bottom:8px">等級: <select id="klh-perf-sel" style="background:#1e293b;color:#f8fafc;border:1px solid #475569;border-radius:4px;padding:2px;margin-left:4px;width:120px"><option value="1">🟢 輕度</option><option value="2">🟡 中度</option><option value="3">🔴 強力</option><option value="4">🟣 進階</option></select></div>';
     
     html += '<div id="klh-perf-adv" style="border:1px solid #334155;border-radius:4px;padding:8px;background:rgba(0,0,0,0.2);margin-top:8px">';
-    html += '<div style="color:#94a3b8;font-size:11px;margin-bottom:6px">進階微調選項</div>';
+    html += '<div style="color:#94a3b8;font-size:11px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;"><span>進階微調選項</span><span id="klh-perf-reset-adv" style="cursor:pointer;font-size:14px;color:#94a3b8;" title="恢復中度預設">↺</span></div>';
     var advItems = [
         {id: 'audio', label: '🔊 音效頻率'},
         {id: 'anim', label: '🎞️ 動畫降幀'},
@@ -644,7 +654,6 @@
         }
         html += '</select></div>';
     });
-    html += '<div style="border-top:1px solid #334155;margin:8px 0 6px;padding-top:6px"><div style="color:#f59e0b;font-size:11px;margin-bottom:6px">⚡ 核心效能補丁 (FPS/發熱)</div></div>';
     html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;align-items:center"><span>🔄 渲染節流</span>';
     html += '<select id="klh-perf-adv-render" style="background:#1e293b;color:#f8fafc;border:1px solid #475569;border-radius:4px;padding:0 2px">';
     html += '<option value="0">正常</option><option value="1">每2 tick</option><option value="2">每3 tick</option><option value="3">每5 tick</option>';
@@ -668,6 +677,16 @@
             if(_cfg.enabled && _cfg.level == 4){ revertAll(); applyAll(); }
         };
     });
+
+    var rstBtn = document.getElementById('klh-perf-reset-adv');
+    if (rstBtn) {
+        rstBtn.onclick = function() {
+            _cfg.adv = { audio: 3, anim: 1, vfx: 1, log: 1, css: 1, render: 1, worker: 0 };
+            saveCfg();
+            syncUI();
+            if (_cfg.enabled && _cfg.level == 4) { revertAll(); applyAll(); }
+        };
+    }
   }
 
   /* ═══════════════ 背包分頁延遲渲染優化 (外掛層 Monkey-patch) ═══════════════ */

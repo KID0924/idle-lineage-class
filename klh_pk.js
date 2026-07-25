@@ -32,6 +32,10 @@
      *  ⚡ 1. Supabase 連線初始化
      * ======================================================================== */
 
+    // 🔒 控制開關：設為 true 時，點擊「刷新對手列表」100% 走本機 NPC 模式，不向 Supabase 發出任何請求 (0 流量損耗)
+    // 🔓 未來若想開啟雲端刷新對手，只需改為 false 即可：
+    const DISABLE_CLOUD_REFRESH = true;
+
     const SUPABASE_URL = 'https://onsqosmlmkfgjevryxek.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc3Fvc21sbWtmZ2pldnJ5eGVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3MTI4NjIsImV4cCI6MjEwMDI4ODg2Mn0.WMZnonxgqkE67AUZAg9-RCPBmC9Cu2-_xqYBkfvpOpo';
 
@@ -441,6 +445,31 @@
         let minPower = Math.floor(myPower * 0.7);
         let maxPower = Math.floor(myPower * 1.5);
 
+        function startBtnCooldown(b) {
+            if (!b) return;
+            b.disabled = true;
+            let cd = 3;
+            b.textContent = '⏳ 冷卻中 (' + cd + 's)';
+            let timer = setInterval(() => {
+                cd--;
+                if (cd > 0) {
+                    b.textContent = '⏳ 冷卻中 (' + cd + 's)';
+                } else {
+                    clearInterval(timer);
+                    b.textContent = '🔄 刷新對手列表';
+                    b.disabled = false;
+                }
+            }, 1000);
+        }
+
+        if (typeof DISABLE_CLOUD_REFRESH !== 'undefined' && DISABLE_CLOUD_REFRESH) {
+            startBtnCooldown(btn);
+            let localBots = generateLocalBots(myPower, 10);
+            cachedOpponents = localBots;
+            renderOpponentList(listContainer, cachedOpponents, myPower);
+            return;
+        }
+
         try {
             let sb = await getSupabaseClient();
             if (!sb) throw new Error('Supabase Client 未初始化');
@@ -457,7 +486,7 @@
             // ⛔ 若雲端回傳空資料 (如 SQL 設為 WHERE FALSE 關閉刷新)，則連頂尖卡片都不查詢，直接進入純本機 10 名 NPC 模式省流量
             if (!matchData || !Array.isArray(matchData) || matchData.length === 0) {
                 console.log('雲端匹配已關閉或無資料，自動切換為純本機 10 名 NPC 模式 (0 雲端流量)');
-                if (btn) { btn.textContent = '🔄 刷新對手列表'; btn.disabled = false; }
+                startBtnCooldown(btn);
                 let localBots = generateLocalBots(myPower, 10);
                 cachedOpponents = localBots;
                 renderOpponentList(listContainer, cachedOpponents, myPower);
@@ -478,20 +507,7 @@
                 }
             } catch (e) { console.warn('抓取全服頂尖卡片失敗:', e); }
 
-            if (btn) {
-                let cd = 3;
-                btn.textContent = '⏳ 冷卻中 (' + cd + 's)';
-                let timer = setInterval(() => {
-                    cd--;
-                    if (cd > 0) {
-                        btn.textContent = '⏳ 冷卻中 (' + cd + 's)';
-                    } else {
-                        clearInterval(timer);
-                        btn.textContent = '🔄 刷新對手列表';
-                        btn.disabled = false;
-                    }
-                }, 1000);
-            }
+            startBtnCooldown(btn);
 
             let cloudList = [];
             if (topCloudCard) cloudList.push(topCloudCard);
@@ -513,7 +529,7 @@
 
         } catch (err) {
             console.warn('拉取雲端對手失敗，自動無縫切換至純本機離線 NPC 模式:', err);
-            if (btn) { btn.textContent = '🔄 刷新對手列表'; btn.disabled = false; }
+            startBtnCooldown(btn);
 
             let localBots = generateLocalBots(myPower, 10);
             cachedOpponents = localBots;
@@ -1079,10 +1095,22 @@
                         let rewardIcon = (typeof getIconUrl === 'function') ? getIconUrl(d) : '';
                         let glow = (typeof getGlowClass === 'function') ? getGlowClass(inst, d) : '';
                         
+                        let winQuotes = [
+                            '卓越的戰術！這是屬於勝者的戰利品！',
+                            '實力碾壓！你展現了絕對的強者風範！',
+                            '精彩的對決！這份榮耀獎勵非你莫屬！',
+                            '刀光劍影間分出勝負，收下你的戰利品吧！',
+                            '無界競技場的新星！這座獎盃屬於你！',
+                            '橫掃千軍！這項寶物正配得上你的勇猛！',
+                            '無懈可擊的勝利！帶著戰利品繼續征戰吧！'
+                        ];
+                        let winQuote = winQuotes[Math.floor(Math.random() * winQuotes.length)];
+                        
                         let rewardDiv = document.createElement('div');
-                        rewardDiv.className = 'mt-4 mb-4 p-3 bg-slate-900/80 border border-amber-500/50 rounded-lg flex flex-col items-center justify-center gap-2';
-                        rewardDiv.innerHTML = '<div class="text-sm font-bold text-amber-400 drop-shadow-md">🎁 勝場獎勵：</div>' +
-                            '<div class="flex items-center justify-center gap-3">' +
+                        rewardDiv.className = 'mt-4 mb-4 p-3 bg-slate-900/80 border border-amber-500/50 rounded-lg flex flex-col items-center justify-center gap-1.5';
+                        rewardDiv.innerHTML = '<div class="text-sm font-bold text-amber-400 drop-shadow-md">🎁 勝場獎勵</div>' +
+                            '<div class="text-xs text-amber-200/90 italic font-semibold">「' + winQuote + '」</div>' +
+                            '<div class="flex items-center justify-center gap-3 mt-1">' +
                                 '<img src="' + rewardIcon + '" class="w-10 h-10 object-contain drop-shadow ' + glow + '">' +
                                 '<div class="font-bold text-lg drop-shadow-md ' + rewardColor + '">' + rewardName + '</div>' +
                             '</div>';
@@ -1121,6 +1149,64 @@
                     }
                 } catch(err) {
                     console.error('PvP 勝場獎勵發放失敗', err);
+                }
+            } else if (titleEl && (titleEl.textContent === '挑戰者獲勝' || titleEl.textContent === '玩家戰敗')) {
+                try {
+                    let potions = ['potion_heal', 'potion_strong', 'potion_ult'];
+                    let rewardId = potions[Math.floor(Math.random() * potions.length)];
+                    let d = (typeof DB !== 'undefined' && DB.items && DB.items[rewardId]) ? DB.items[rewardId] : { n: rewardId };
+                    
+                    let rewardColor = (typeof getItemColor === 'function') ? getItemColor({id: rewardId}) : 'text-amber-300';
+                    let rewardName = (typeof getItemFullName === 'function') ? getItemFullName({id: rewardId}) : (d.n || rewardId);
+                    let rewardIcon = (typeof getIconUrl === 'function') ? getIconUrl(d) : '';
+                    
+                    let comfortQuotes = [
+                        '勝敗乃兵家常事，喝完這瓶再接再厲！',
+                        '雖然輸了，但經驗是你的！補血再出發！',
+                        '留得青山在，不怕沒柴燒，喝了再戰！',
+                        '對方只是運氣好，喝瓶藥水拍拍灰塵吧！',
+                        '勝負只是一時的，補滿體力下次討回來！',
+                        '勝敗難免，先喝口水壓壓驚！',
+                        '失敗乃成功之母，這瓶藥水先拿去擦傷口！'
+                    ];
+                    let quote = comfortQuotes[Math.floor(Math.random() * comfortQuotes.length)];
+
+                    let rewardDiv = document.createElement('div');
+                    rewardDiv.className = 'mt-4 mb-4 p-3 bg-slate-900/80 border border-slate-500/50 rounded-lg flex flex-col items-center justify-center gap-1.5';
+                    rewardDiv.innerHTML = '<div class="text-sm font-bold text-slate-400 drop-shadow-md">🩹 安慰獎</div>' +
+                        '<div class="text-xs text-amber-200/90 italic font-semibold">「' + quote + '」</div>' +
+                        '<div class="flex items-center justify-center gap-3 mt-1">' +
+                            '<img src="' + rewardIcon + '" class="w-10 h-10 object-contain drop-shadow grayscale-[30%]">' +
+                            '<div class="font-bold text-lg drop-shadow-md ' + rewardColor + '">' + rewardName + '</div>' +
+                        '</div>';
+                        
+                    let recordDiv = resultModal.querySelector('.text-xs.text-slate-400.mb-4');
+                    if (recordDiv && recordDiv.parentNode) {
+                        recordDiv.parentNode.insertBefore(rewardDiv, recordDiv.nextSibling);
+                    } else {
+                        titleEl.parentNode.appendChild(rewardDiv);
+                    }
+                    
+                    if (typeof gainItem === 'function') {
+                        gainItem(rewardId, 1, false, false, false, false, { bless: false, attr: false, anc: false });
+                    } else if (typeof player !== 'undefined' && player && player.inv) {
+                        let _probe = { id: rewardId, en: 0, bless: false, anc: false, attr: false, seteff: false };
+                        let ex = player.inv.find(i => (i.en || 0) === 0 && (typeof sameItemSig === 'function' ? sameItemSig(i, _probe) : (i.id === rewardId && i.bless === false)));
+                        if (ex) {
+                            ex.cnt = (ex.cnt || 1) + 1;
+                        } else {
+                            player.inv.push({
+                                id: rewardId,
+                                uid: (typeof uid === 'function') ? uid() : ('pvp_' + Date.now() + '_' + Math.random()),
+                                cnt: 1, en: 0, bless: false, anc: false, attr: false, seteff: false, lock: false
+                            });
+                        }
+                    }
+                    try { if (typeof renderTabs === 'function') renderTabs(); } catch(e){}
+                    try { if (typeof updateUI === 'function') updateUI(); } catch(e){}
+                    try { if (typeof saveGame === 'function') saveGame(); } catch(e){}
+                } catch(err) {
+                    console.error('PvP 安慰獎發放失敗', err);
                 }
             }
         }
