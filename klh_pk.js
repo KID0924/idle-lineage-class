@@ -153,8 +153,19 @@
         if (!rawName) rawName = '未命名';
         let pName = rawName.length > 10 ? rawName.slice(0, 10) : rawName;
 
-        let tauntCheck = document.getElementById('pvp-taunt-toggle') || _pvpField('pvp-taunt-toggle');
-        let isTaunt = !!(tauntCheck && tauntCheck.checked);
+        let isTaunt = false;
+        try {
+            isTaunt = localStorage.getItem('klh_pvp_taunt') === 'true';
+        } catch (e) {}
+
+        let localCheck = (btn && btn.closest) ? btn.closest('#cloud-arena-container') : null;
+        if (localCheck) {
+            let tc = localCheck.querySelector('#pvp-taunt-toggle');
+            if (tc) isTaunt = tc.checked;
+        } else {
+            let tauntCheck = document.getElementById('pvp-taunt-toggle') || _pvpField('pvp-taunt-toggle');
+            if (tauntCheck) isTaunt = tauntCheck.checked;
+        }
 
         let wpnStr = '赤手空拳的';
         let wpnNoun = '拳頭';
@@ -972,7 +983,7 @@
                     '<button type="button" id="pvp-btn-upload" class="btn px-2.5 py-1 text-xs bg-sky-800 hover:bg-sky-700 border-sky-500 font-bold shrink-0" onclick="uploadCloudCard(this)">📤 上傳我的名片</button>' +
                     '<button type="button" class="btn px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 border-slate-500 font-bold shrink-0" onclick="copyMyPlayerName(this)">📋 複製名字</button>' +
                     '<label class="flex items-center gap-1 text-xs text-amber-300 cursor-pointer select-none shrink-0" title="勾選後複製名字會隨機附加叫陣嘲諷台詞">' +
-                        '<input type="checkbox" id="pvp-taunt-toggle" ' + (savedTaunt ? 'checked' : '') + ' onchange="try{localStorage.setItem(\'klh_pvp_taunt\',this.checked);}catch(e){}" class="rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-0 cursor-pointer">' +
+                        '<input type="checkbox" id="pvp-taunt-toggle" ' + (savedTaunt ? 'checked' : '') + ' onchange="try{localStorage.setItem(\'klh_pvp_taunt\',this.checked);document.querySelectorAll(\'#pvp-taunt-toggle\').forEach(c=>c.checked=this.checked);}catch(e){}" class="rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-0 cursor-pointer">' +
                         '<span>😈 嘲諷</span>' +
                     '</label>' +
                 '</div>' +
