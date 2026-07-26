@@ -96,6 +96,7 @@
                     { text: '品質紅寶石', val: '品質紅寶石' },
                     { text: '品質藍寶石', val: '品質藍寶石' },
                     { text: '品質綠寶石', val: '品質綠寶石' },
+                    { text: '烈焰之魂', val: '烈焰之魂' },
                     { text: 'STR', val: 'STR' },
                     { text: 'INT', val: 'INT' },
                     { text: 'DEX', val: 'DEX' },
@@ -760,6 +761,7 @@
                 { text: '品質紅寶石', val: '品質紅寶石' },
                 { text: '品質藍寶石', val: '品質藍寶石' },
                 { text: '品質綠寶石', val: '品質綠寶石' },
+                { text: '烈焰之魂', val: '烈焰之魂' },
                 { text: 'STR', val: 'STR' },
                 { text: 'INT', val: 'INT' },
                 { text: 'DEX', val: 'DEX' },
@@ -805,7 +807,11 @@
 
                 // 價差警示與偷甩/拋售判定 (最低與次低價差 >= 50%)
                 var isAlert = false;
-                if (matched.length >= 2) {
+                if (searchTxt === '烈焰之魂') {
+                    if (minUnit > 0 && minUnit < 100000000) {
+                        isAlert = true;
+                    }
+                } else if (matched.length >= 2) {
                     var u1 = matched[0].unitPrice;
                     var u2 = matched[1].unitPrice;
                     if (u2 > 0) {
@@ -877,7 +883,7 @@
 
             for (var cgIdx = 0; cgIdx < finalCatGroups.length; cgIdx++) {
                 var cg = finalCatGroups[cgIdx];
-                var isGold = cg.isAlert && cg.minUnitCnt >= 100;
+                var isGold = cg.isAlert && (cg.minUnitCnt >= 100 || cg.name === '烈焰之魂');
                 var bg, hoverBg, borderCol;
                 if (isGold) {
                     bg = '#5c4813';
