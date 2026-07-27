@@ -1282,7 +1282,7 @@
         }
         const syncId = (localStorage.getItem('klh_firebase_sync_id') || "").trim();
         if (!syncId) {
-            if (isManual) window.showToast('請先輸入並登入 Firebase 存檔名稱！', 'error');
+            if (isManual) window.showToast('請先輸入並登入 Firebase 雲端帳號！', 'error');
             return false;
         }
         
@@ -1352,7 +1352,7 @@
     window.syncFromFirebase = async function (isManual) {
         const syncId = (localStorage.getItem('klh_firebase_sync_id') || "").trim();
         if (!syncId) {
-            window.showToast('請先輸入 Firebase 存檔金鑰！', 'error');
+            window.showToast('請先輸入 Firebase 雲端帳號！', 'error');
             return;
         }
         window.isCloudSyncing = true;
@@ -1425,7 +1425,7 @@
         const syncId = syncInput ? syncInput.value.trim() : '';
         
         if (!serverUrl || !syncId) {
-            window.showToast('請先輸入伺服器網址與存檔名稱！', 'error');
+            window.showToast('請先輸入伺服器網址與雲端帳號！', 'error');
             return;
         }
         
@@ -1456,21 +1456,21 @@
             return;
         }
 
-        const syncId = prompt("請輸入要建立的 Firebase 存檔名稱 (Sync ID)：");
+        const syncId = prompt("請輸入要建立的 Firebase 雲端帳號：");
         if (syncId === null) return;
         const cleanId = syncId.trim();
         if (!cleanId) {
-            window.showToast('存檔名稱不能為空！', 'error');
+            window.showToast('帳號不能為空！', 'error');
             return;
         }
 
         // Firebase 鍵名不允許包含特殊字元
         if (/[\.\$\#\[\]\/]/.test(cleanId)) {
-            window.showToast('存檔名稱不能包含特殊字元 (. $ # [ ] /)！', 'error');
+            window.showToast('帳號不能包含特殊字元 (. $ # [ ] /)！', 'error');
             return;
         }
 
-        window.showLoadingOverlay('正在建立 Firebase 存檔中...');
+        window.showLoadingOverlay('正在建立 Firebase 帳號中...');
         try {
             let cleanServerUrl = serverUrl;
             if (cleanServerUrl.endsWith('/')) cleanServerUrl = cleanServerUrl.slice(0, -1);
@@ -1487,13 +1487,13 @@
                 if (syncInput) syncInput.value = cleanId;
                 window.saveFirebaseConfig(serverUrl, cleanId);
                 window.__klh_cloud_sync_success = true;
-                window.showToast(`成功建立存檔【${cleanId}】！已自動登入。`, 'success');
+                window.showToast(`成功建立帳號【${cleanId}】！已自動登入。`, 'success');
                 window.updateStorageModeUI();
             } else {
-                window.showToast('建立存檔失敗，伺服器錯誤碼：' + response.status, 'error');
+                window.showToast('建立帳號失敗，伺服器錯誤碼：' + response.status, 'error');
             }
         } catch (err) {
-            window.showToast('建立存檔失敗，請檢查網址與網路連線：' + err.message, 'error');
+            window.showToast('建立帳號失敗，請檢查網址與網路連線：' + err.message, 'error');
         } finally {
             window.hideLoadingOverlay();
         }
@@ -1898,9 +1898,12 @@
                 if (fbExtra) {
                     fbExtra.style.display = 'block';
                     fbExtra.innerHTML = `
-                        <div class="flex gap-2 w-full">
-                            <button onclick="window.handleFirebaseReadClick()" class="btn flex-1 py-2.5 text-sm bg-orange-700 hover:bg-orange-600 border-orange-500 font-bold text-white">登入</button>
-                            <button onclick="window.handleFirebaseCreateClick()" class="btn flex-1 py-2.5 text-sm bg-slate-800 hover:bg-slate-700 border-slate-700 font-bold text-yellow-400">建立存檔</button>
+                        <div class="flex flex-col gap-2 w-full">
+                            <div class="flex gap-2 w-full">
+                                <button onclick="window.handleFirebaseReadClick()" class="btn flex-1 py-2.5 text-sm bg-orange-700 hover:bg-orange-600 border-orange-500 font-bold text-white">登入</button>
+                                <button onclick="window.handleFirebaseCreateClick()" class="btn flex-1 py-2.5 text-sm bg-slate-800 hover:bg-slate-700 border-slate-700 font-bold text-yellow-400">建立帳號</button>
+                            </div>
+                            <a href="https://kid0924.github.io/idle-lineage-class/Firebase%20SOP/" target="_blank" rel="noopener noreferrer" class="text-[12px] text-orange-400 hover:text-orange-300 underline font-bold text-center py-1 bg-slate-900/60 rounded border border-orange-500/30 hover:border-orange-500 transition-colors">📖 查看 Firebase 圖文 SOP 教學 🔗</a>
                         </div>
                     `;
                 }
@@ -1965,7 +1968,7 @@
                 const fbSyncId = localStorage.getItem('klh_firebase_sync_id') || '';
                 const localSyncId = localStorage.getItem('klh_firebase_local_sync_id') || '';
                 if (localSyncId && fbSyncId !== localSyncId) {
-                    restoreContainer.innerHTML = `<button onclick="window.restoreFirebaseLocalSyncId()" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold w-full mb-1.5" style="position: relative; display: flex; justify-content: center; align-items: center;"><span style="position: absolute; left: 16px;">⭐</span><span class="font-bold">還原為本機雲端存檔</span><span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${localSyncId})</span></button>`;
+                    restoreContainer.innerHTML = `<button onclick="window.restoreFirebaseLocalSyncId()" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold w-full mb-1.5" style="position: relative; display: flex; justify-content: center; align-items: center;"><span style="position: absolute; left: 16px;">⭐</span><span class="font-bold">還原為本機雲端帳號</span><span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">(${localSyncId})</span></button>`;
                 }
             }
         }
@@ -2129,7 +2132,7 @@
                     
                     <div id="firebase-inputs-container" class="flex flex-col gap-2" style="display: none;">
                         <input id="firebase-server-input" type="text" placeholder="請輸入 Firebase 伺服器網址" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
-                        <input id="firebase-sync-input" type="text" placeholder="請輸入 Firebase 存檔名稱 (Sync ID)" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
+                        <input id="firebase-sync-input" type="text" placeholder="請輸入 Firebase 雲端帳號" class="w-full bg-slate-950 border border-slate-700 text-white rounded px-3 py-2.5 text-sm text-center focus:outline-none focus:border-yellow-500">
                     </div>
 
                     <div id="jsonblob-hint" class="text-[11px] text-slate-400 text-left -mt-1 leading-relaxed bg-slate-900/50 p-2 rounded" style="display: none;">
@@ -2142,13 +2145,14 @@
                         <span class="text-cyan-400 font-bold">💡 JSONBlob 適合 <b>存檔較小</b>（如初期玩家、進度較少，總存檔 &lt; 1MB）的 <b>單人使用者</b>。<a href="https://github.com/KID0924/idle-lineage-class" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold ml-1">詳情說明 🔗</a></span>
                     </div>
                     <div id="firebase-hint" class="text-[11px] text-slate-400 text-left -mt-1 leading-relaxed bg-slate-900/50 p-2 rounded" style="display: none;">
+                        🔥 <b><a href="https://kid0924.github.io/idle-lineage-class/Firebase%20SOP/" target="_blank" style="color: #f97316; text-decoration-color: #f97316;" class="hover:opacity-80 underline underline-offset-2 font-bold text-[12px]">點此查看 Firebase 圖文 SOP 教學網頁 🔗</a></b><br>
                         🔧 <b>Firebase 快速設定步驟：</b><br>
                         1. 前往 <a href="https://firebase.google.com" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold">Firebase 官網 🔗</a> ➔ 點擊 <b>Go to console</b>。<br>
                         2. 點擊 <b>新增專案</b>（關閉 Analytics 即可快速建立）。<br>
                         3. 進入左側 <b>Realtime Database</b> ➔ 點擊 <b>建立資料庫</b>（位置選美國/預設即可）。<br>
                         4. 切換到 <b>規則 (Rules)</b> 頁籤，將讀寫值皆改為 <b><code>true</code></b> 並點擊 <b>發布</b>。<br>
                         5. 複製資料庫主頁的 <b>資料庫網址</b><br>（格式：<span class="text-orange-400 font-mono text-[10px]">https://...firebaseio.com</span>）。<br>
-                        <span class="text-cyan-400 font-bold">💡 Firebase 適合 <b>存檔較大</b>（遊玩進度極深、遊戲數據龐大，免費容量高達 <b>1GB</b>，可建立不同存檔供 <b>30 ~ 50 人同時使用無壓力</b>）的使用者。<a href="https://github.com/KID0924/idle-lineage-class" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold ml-1">詳情說明 🔗</a></span>
+                        <span class="text-cyan-400 font-bold">💡 Firebase 適合 <b>存檔較大</b>（遊玩進度極深、遊戲數據龐大，免費容量高達 <b>1GB</b>，可建立不同存檔供 <b>30 ~ 50 人同時使用無壓力</b>）的使用者。<a href="https://kid0924.github.io/idle-lineage-class/Firebase%20SOP/" target="_blank" style="color: #3b82f6; text-decoration-color: #3b82f6;" class="hover:opacity-80 underline underline-offset-2 font-bold ml-1">圖文詳情 🔗</a></span>
                     </div>
                     <div id="supabase-hint" class="text-[11px] text-slate-400 text-left -mt-1 leading-relaxed bg-slate-900/50 p-2 rounded" style="display: none;">
                         伺服器頻寬有限，請盡量改用 Jsonblob 連線。
