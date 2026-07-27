@@ -9,40 +9,40 @@
 
 1. **點擊 Go to console** 
    前往 [Firebase 官網](https://firebase.google.com/)，點擊右上角進入控制台（您的 Google 帳號可能需要開通兩步驟驗證）。
-   ![步驟 1](images/sop1.jpg)
+   ![步驟 1](images/sop1.png)
 
 2. **開啟側邊欄位**
    登入專案後，點擊左下角開啟側邊選單欄位。
-   ![步驟 2](images/sop2.jpg)
+   ![步驟 2](images/sop2.png)
 
 3. **進入 Realtime Database**
    點擊側邊欄的「資料庫和儲存空間 (Build)」，然後選擇「**Realtime Database**」。
-   ![步驟 3](images/sop3.jpg)
+   ![步驟 3](images/sop3.png)
 
 4. **建立資料庫**
    點擊畫面上的「建立資料庫」按鈕。
-   ![步驟 4](images/sop4.jpg)
+   ![步驟 4](images/sop4.png)
 
 5. **選擇伺服器位置**
    位置選擇「美國」(或亞洲地區)，然後按下一步。
-   ![步驟 5](images/sop5.jpg)
+   ![步驟 5](images/sop5.png)
 
 6. **選擇安全規則**
    選擇「**預設為鎖定模式**」，然後按下「啟用」。
-   ![步驟 6](images/sop6.jpg)
+   ![步驟 6](images/sop6.png)
 
 7. **取得伺服器網址並前往設定規則**
    等待開通後，畫面上方出現的那串網址就是您的「**Firebase 伺服器網址**」。
    接著點選上方的「**規則 (Rules)**」標籤頁（我們需要設定規則讓遊戲可以讀取和寫入存檔）。
-   ![步驟 7](images/sop7.jpg)
+   ![步驟 7](images/sop7.png)
 
 8. **開放讀寫權限**
    把規則程式碼裡的 `.read` 與 `.write` 後面的 `false` 都改成 **`true`**，然後按下「發布」。
-   ![步驟 8](images/sop8.jpg)
+   ![步驟 8](images/sop8.png)
 
 9. **回到遊戲綁定**
    回到遊戲的雲端介面，填上剛剛拿到的 **Firebase 伺服器網址**，並輸入您想要的帳號名稱，按下「建立帳號」就大功告成了！
-   ![步驟 9](images/sop9.jpg)
+   ![步驟 9](images/sop9.png)
 
 ---
 
