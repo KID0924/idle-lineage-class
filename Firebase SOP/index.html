@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase 遊戲資料同步設定教學</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+        .step-card {
+            transition: all 0.3s ease-in-out;
+        }
+        .step-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+            border-color: #f97316; /* Tailwind orange-500 */
+        }
+        .step-number {
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-orange-500 selection:text-white pb-20">
+
+    <!-- Header -->
+    <header class="bg-slate-900 shadow-2xl border-b border-slate-700 py-6 md:py-12 md:sticky md:top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 text-center">
+            <h1 class="text-2xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-amber-400 to-yellow-300 mb-2 md:mb-4 tracking-tight">
+                🔥 Firebase 遊戲資料同步設定教學
+            </h1>
+            <p class="text-slate-400 text-sm md:text-xl font-medium">
+                跟著以下 9 個步驟，輕鬆建立你的免費專屬雲端存檔伺服器
+            </p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto px-4 py-12">
+        
+        <div class="space-y-12">
+            
+            <!-- Step 1 -->
+            <div class="step-card bg-slate-800 rounded-2xl overflow-hidden border border-slate-700 relative">
+                <div class="p-6 md:p-8">
+                    <div class="flex items-center mb-4">
+                        <span class="step-number flex-shrink-0 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-2xl mr-4 shadow-lg shadow-orange-500/40">1</span>
+                        <h2 class="text-2xl font-bold text-white">點擊 Go to console</h2>
+                    </div>
+                    <div class="ml-0 md:ml-16 bg-red-900/30 border border-red-500/50 rounded-lg p-3 mb-6 inline-block">
+                        <p class="text-red-300 text-sm font-semibold">⚠️ 註：您的 Google 帳號可能需要先開通 2 步驟驗證才能使用 Firebase。</p>
+                    </div>
+                    <div class="ml-0 md:ml-16 bg-slate-900 rounded-xl p-2 border border-slate-700 hover:border-slate-500 transition-colors">
+                        <img src="images/sop1.jpg" alt="步驟 1 圖示" class="w-full h-auto rounded-lg" onerror="this.src='images/sop1.png'">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="step-card bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                <div class="p-6 md:p-8">
+                    <div class="flex items-center mb-4">
+                        <span class="step-number flex-shrink-0 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-2xl mr-4 shadow-lg shadow-orange-500/40">2</span>
+                        <h2 class="text-2xl font-bold text-white">開啟側邊欄位</h2>
+                    </div>
+                    <p class="text-slate-300 mb-6 ml-0 md:ml-16">登入專案後，點擊左下角開啟側邊選單欄位。</p>
+                    <div class="ml-0 md:ml-16 bg-slate-900 rounded-xl p-2 border border-slate-700 hover:border-slate-500 transition-colors">
+                        <img src="images/sop2.jpg" alt="步驟 2 圖示" class="w-full h-auto rounded-lg" onerror="this.src='images/sop2.png'">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="step-card bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                <div class="p-6 md:p-8">
+                    <div class="flex items-center mb-4">
+                        <span class="step-number flex-shrink-0 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-2xl mr-4 shadow-lg shadow-orange-500/40">3</span>
+                        <h2 class="text-2xl font-bold text-white">進入 Realtime Database</h2>
+                    </div>
+                    <p class="text-slate-300 mb-6 ml-0 md:ml-16">點擊側邊欄的「資料庫和儲存空間 (Build)」，然後選擇「<strong class="text-orange-400">Realtime Database</strong>」。</p>
+                    <div class="ml-0 md:ml-16 bg-slate-900 rounded-xl p-2 border border-slate-700 hover:border-slate-500 transition-colors">
+                        <img src="images/sop3.jpg" alt="步驟 3 圖示" class="w-full h-auto rounded-lg" onerror="this.src='images/sop3.png'">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="step-card bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                <div class="p-6 md:p-8">
+                    <div class="flex items-center mb-4">
+                        <span class="step-number flex-shrink-0 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-2xl mr-4 shadow-lg shadow-orange-500/40">4</span>
+                        <h2 class="text-2xl font-bold text-white">建立資料庫</h2>
+                    </div>
+                    <div class="ml-0 md:ml-16 bg-slate-900 rounded-xl p-2 border border-slate-700 hover:border-slate-500 transition-colors">
+                        <img src="images/sop4.jpg" alt="步驟 4 圖示" class="w-full h-auto rounded-lg" onerror="this.src='images/sop4.png'">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5 -->
+            <div class="step-card bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                <div class="p-6 md:p-8">
+                    <div class="flex items-center mb-4">
+                        <span class="step-number flex-shrink-0 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-2xl mr-4 shadow-lg shadow-orange-500/40">5</span>
+                        <h2 class="text-2xl font-bold text-white">選擇伺服器位置</h2>
+                    </div>
+                    <p class="text-slate-300 mb-6 ml-0 md:ml-16">選擇「美國」(或亞洲地區)，然後按下一步。</p>
+                    <div class="ml-0 md:ml-16 bg-slate-900 rounded-xl p-2 border border-slate-700 hover:border-slate-500 transition-colors">
+                        <img src="images/sop5.jpg" alt="步驟 5 圖示" class="w-full h-auto rounded-lg" onerror="this.src='images/sop5.png'">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 6 -->
+            <div class="step-card bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                <div class="p-6 md:p-8">
+                    <div class="flex items-center mb-4">
+                        <span class="step-number flex-shrink-0 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-2xl mr-4 shadow-lg shadow-orange-500/40">6</span>
+                        <h2 class="text-2xl font-bold text-white">選擇預設為鎖定模式</h2>
+                    </div>
+                    <p class="text-slate-300 mb-6 ml-0 md:ml-16">選擇「<strong class="text-orange-400">預設為鎖定模式</strong>」，然後按下「啟用」。</p>
+                    <div class="ml-0 md:ml-16 bg-slate-900 rounded-xl p-2 border border-slate-700 hover:border-slate-500 transition-colors">
+                        <img src="images/sop6.jpg" alt="步驟 6 圖示" class="w-full h-auto rounded-lg" onerror="this.src='images/sop6.png'">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 7 -->
+            <div class="step-card bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                <div class="p-6 md:p-8">
+                    <div class="flex items-start mb-4">
+                        <span class="step-number flex-shrink-0 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-2xl mr-4 mt-1 shadow-lg shadow-orange-500/40">7</span>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white leading-relaxed">取得伺服器網址並前往設定規則</h2>
+                            <p class="text-slate-300 mt-2">等待開通後，畫面上方出現的那串網址就是您的「<strong class="text-orange-400">Firebase 伺服器網址</strong>」。</p>
+                            <p class="text-orange-300 font-semibold mt-1">接著點選上方的「規則 (Rules)」標籤頁。</p>
+                        </div>
+                    </div>
+                    <div class="ml-0 md:ml-16 bg-slate-900 rounded-xl p-2 border border-slate-700 hover:border-slate-500 transition-colors mt-6">
+                        <img src="images/sop7.jpg" alt="步驟 7 圖示" class="w-full h-auto rounded-lg" onerror="this.src='images/sop7.png'">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 8 -->
+            <div class="step-card bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                <div class="p-6 md:p-8">
+                    <div class="flex items-center mb-4">
+                        <span class="step-number flex-shrink-0 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-2xl mr-4 shadow-lg shadow-orange-500/40">8</span>
+                        <h2 class="text-2xl font-bold text-white leading-relaxed">開放讀寫權限</h2>
+                    </div>
+                    <p class="text-slate-300 mb-6 ml-0 md:ml-16">
+                        把規則程式碼裡的 `.read` 與 `.write` 後面的 <code class="bg-red-900/50 text-red-300 px-2 py-1 rounded font-mono border border-red-700/50">false</code> 都改成 <code class="bg-green-900/50 text-green-300 px-2 py-1 rounded font-mono border border-green-700/50">true</code>，然後按下「發布」。
+                    </p>
+                    <div class="ml-0 md:ml-16 bg-slate-900 rounded-xl p-2 border border-slate-700 hover:border-slate-500 transition-colors">
+                        <img src="images/sop8.jpg" alt="步驟 8 圖示" class="w-full h-auto rounded-lg" onerror="this.src='images/sop8.png'">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 9 -->
+            <div class="step-card bg-slate-800 rounded-2xl overflow-hidden border border-slate-700 ring-2 ring-orange-500/20">
+                <div class="p-6 md:p-8">
+                    <div class="flex items-start mb-4">
+                        <span class="step-number flex-shrink-0 bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-2xl mr-4 mt-1 shadow-lg shadow-orange-500/40">9</span>
+                        <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 leading-relaxed">回到遊戲綁定，大功告成！</h2>
+                    </div>
+                    <p class="text-slate-300 mb-6 ml-0 md:ml-16 text-lg">回到遊戲的雲端介面，填上剛剛拿到的 <strong class="text-orange-400">Firebase 伺服器網址</strong>，並輸入您想要的帳號名稱，按下「建立帳號」就大功告成了！</p>
+                    <div class="ml-0 md:ml-16 bg-slate-900 rounded-xl p-2 border border-slate-700 hover:border-slate-500 transition-colors">
+                        <img src="images/sop9.jpg" alt="步驟 9 圖示" class="w-full h-auto rounded-lg" onerror="this.src='images/sop9.png'">
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Info/Notice Section -->
+        <div class="mt-16 bg-gradient-to-br from-slate-800 to-slate-900 border border-orange-500/50 rounded-2xl p-8 md:p-10 shadow-2xl relative overflow-hidden">
+            <!-- Decorative icon -->
+            <div class="absolute -right-6 -top-10 opacity-10 text-[12rem] pointer-events-none">⚙️</div>
+            
+            <h3 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 mb-8 flex items-center">
+                <svg class="w-8 h-8 mr-3 text-orange-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                💡 關於帳號登入與共用
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-slate-300 relative z-10">
+                <div class="bg-slate-800/80 backdrop-blur-sm p-6 rounded-xl border border-slate-600/50 hover:border-orange-500/50 transition-colors">
+                    <h4 class="font-bold text-white mb-3 text-xl flex items-center">👤 帳號自由設定</h4>
+                    <p class="leading-relaxed">帳號名稱可以自己隨意設定（例如：您的英文名字或遊戲ID）。使用 <strong>Firebase 伺服器網址</strong> 搭配 <strong>帳號名稱</strong> 就可以在任何裝置上登入並同步進度。</p>
+                </div>
+                
+                <div class="bg-slate-800/80 backdrop-blur-sm p-6 rounded-xl border border-slate-600/50 hover:border-orange-500/50 transition-colors">
+                    <h4 class="font-bold text-white mb-3 text-xl flex items-center">🤝 與朋友同樂</h4>
+                    <p class="leading-relaxed">您完全可以大方地將這個網址分享給朋友，幫他建立一個帳號，讓他也能享受雲端存檔的便利！</p>
+                </div>
+                
+                <div class="bg-gradient-to-r from-green-900/40 to-emerald-900/40 p-6 rounded-xl border border-green-500/30 md:col-span-2 flex items-center hover:border-green-500/60 transition-colors mt-4">
+                    <div class="bg-green-500/20 p-4 rounded-full mr-6 text-green-400 shadow-inner flex-shrink-0">
+                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-white text-xl mb-2">伺服器效能預估</h4>
+                        <p class="text-green-100 text-lg">這個免費伺服器由 1 個人建立，供 <strong class="text-orange-400 font-bold text-xl px-1">50 人</strong> 同時連線使用是完全沒問題的！</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-8 text-slate-500 text-sm border-t border-slate-800 mt-12 bg-slate-900/50">
+        <p>© Firebase Game Sync Guide. Follow the steps above to setup your database.</p>
+    </footer>
+
+</body>
+</html>
