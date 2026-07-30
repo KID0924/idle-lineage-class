@@ -96,7 +96,16 @@
                     { text: '品質紅寶石', val: '品質紅寶石' },
                     { text: '品質藍寶石', val: '品質藍寶石' },
                     { text: '品質綠寶石', val: '品質綠寶石' },
+                    { text: '龍鱗', val: '龍鱗' },
+                    { text: '炎魔', val: '炎魔' },
+                    { text: '赤焰', val: '赤焰' },
                     { text: '烈焰之魂', val: '烈焰之魂' },
+                    { text: '食人巨魔', val: '食人巨魔' },
+                    { text: '力量手套', val: '力量手套' },
+                    { text: '之帽', val: '之帽' },
+                    { text: '瑟魯基之劍', val: '瑟魯基之劍' },
+                    { text: '熾炎天使弓', val: '熾炎天使弓' },
+                    { text: '古代的卷軸', val: '古代的卷軸' },
                     { text: 'STR', val: 'STR' },
                     { text: 'INT', val: 'INT' },
                     { text: 'DEX', val: 'DEX' },
@@ -761,7 +770,16 @@
                 { text: '品質紅寶石', val: '品質紅寶石' },
                 { text: '品質藍寶石', val: '品質藍寶石' },
                 { text: '品質綠寶石', val: '品質綠寶石' },
+                { text: '龍鱗', val: '龍鱗' },
+                { text: '炎魔', val: '炎魔' },
+                { text: '赤焰', val: '赤焰' },
                 { text: '烈焰之魂', val: '烈焰之魂' },
+                { text: '食人巨魔', val: '食人巨魔' },
+                { text: '力量手套', val: '力量手套' },
+                { text: '之帽', val: '之帽' },
+                { text: '瑟魯基之劍', val: '瑟魯基之劍' },
+                { text: '熾炎天使弓', val: '熾炎天使弓' },
+                { text: '古代的卷軸', val: '古代的卷軸' },
                 { text: 'STR', val: 'STR' },
                 { text: 'INT', val: 'INT' },
                 { text: 'DEX', val: 'DEX' },
@@ -811,6 +829,18 @@
                     if (minUnit > 0 && minUnit < 100000000) {
                         isAlert = true;
                     }
+                } else if (searchTxt === '力量手套') {
+                    if (minUnit > 0 && minUnit < 1000000) isAlert = true;
+                } else if (searchTxt === '食人巨魔') {
+                    if (minUnit > 0 && minUnit < 1000000) isAlert = true;
+                } else if (searchTxt === '瑟魯基之劍') {
+                    if (minUnit > 0 && minUnit < 1000000) isAlert = true;
+                } else if (searchTxt === '熾炎天使弓') {
+                    if (minUnit > 0 && minUnit < 1000000) isAlert = true;
+                } else if (searchTxt === '之帽') {
+                    if (minUnit > 0 && minUnit < 20000000) isAlert = true;
+                } else if (searchTxt === '古代的卷軸') {
+                    if (minUnit > 0 && minUnit < 20000000) isAlert = true;
                 } else if (matched.length >= 2) {
                     var u1 = matched[0].unitPrice;
                     var u2 = matched[1].unitPrice;
@@ -876,14 +906,23 @@
             cHtml += '<table style="width:100%;min-width:480px;border-collapse:collapse;font-size:12px;text-align:left;">';
             cHtml += '<thead><tr style="border-bottom:2px solid #5a4a36;color:#e8d0a0;background:#241f19;">' +
                     '<th style="padding:6px 8px;min-width:110px;white-space:nowrap;">分類關鍵字</th>' +
-                    '<th style="padding:6px 8px;text-align:center;min-width:85px;white-space:nowrap;">掛單數</th>' +
                     '<th style="padding:6px 8px;text-align:right;min-width:110px;white-space:nowrap;">最低單價</th>' +
                     '<th style="padding:6px 8px;text-align:right;min-width:110px;white-space:nowrap;">前20低平均單價</th>' +
+                    '<th style="padding:6px 8px;text-align:center;min-width:85px;white-space:nowrap;">掛單數</th>' +
                     '</tr></thead><tbody>';
 
             for (var cgIdx = 0; cgIdx < finalCatGroups.length; cgIdx++) {
                 var cg = finalCatGroups[cgIdx];
-                var isGold = cg.isAlert && (cg.minUnitCnt >= 100 || cg.name === '烈焰之魂');
+                var isGold = cg.isAlert && (
+                    cg.minUnitCnt >= 100 || 
+                    cg.name === '烈焰之魂' ||
+                    cg.name === '力量手套' ||
+                    cg.name === '食人巨魔' ||
+                    cg.name === '瑟魯基之劍' ||
+                    cg.name === '熾炎天使弓' ||
+                    cg.name === '之帽' ||
+                    cg.name === '古代的卷軸'
+                );
                 var bg, hoverBg, borderCol;
                 if (isGold) {
                     bg = '#5c4813';
@@ -928,9 +967,9 @@
                 cHtml += ' onmouseover="this.style.background=\'' + hoverBg + '\'"';
                 cHtml += ' onmouseout="this.style.background=\'' + bg + '\'">';
                 cHtml += '<td style="padding:6px 8px;color:' + (isGold ? '#fde047' : (cg.isAlert ? '#f87171' : '#fff')) + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + nameText + '</td>';
-                cHtml += '<td style="padding:6px 8px;text-align:center;color:' + (isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#d0b898')) + ';vertical-align:middle;white-space:nowrap;">' + packsText + '</td>';
                 cHtml += '<td style="padding:6px 8px;text-align:right;color:' + (isGold ? '#fde047' : (cg.isAlert ? '#f87171' : '#6ee7b7')) + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + minUnitText + '</td>';
                 cHtml += '<td style="padding:6px 8px;text-align:right;color:' + (isGold ? '#fef08a' : (cg.isAlert ? '#fde047' : '#fcd34d')) + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + avgTop20Text + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:center;color:' + (isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#d0b898')) + ';vertical-align:middle;white-space:nowrap;">' + packsText + '</td>';
                 cHtml += '</tr>';
             }
             cHtml += '</tbody></table>';
