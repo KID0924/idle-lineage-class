@@ -13,6 +13,22 @@
     window._myCurrentSort = 'none';
     
     // ----------------------------------------------------
+    // 工具函數
+    // ----------------------------------------------------
+    function formatLargeNumberHtml(num) {
+        if (typeof num !== 'number') return num;
+        var textStr;
+        if (num >= 100000000) {
+            textStr = parseFloat((num / 100000000).toFixed(2)) + '億';
+        } else if (num >= 10000) {
+            textStr = parseFloat((num / 10000).toFixed(1)) + '萬';
+        } else {
+            textStr = num.toLocaleString();
+        }
+        return '<span title="' + num.toLocaleString() + '" style="cursor:help;">' + textStr + '</span>';
+    }
+
+    // ----------------------------------------------------
     // 1. 交易所原版清單 排序與繪製 Hook
     // ----------------------------------------------------
     window.paintTradeList = function() {
@@ -92,8 +108,6 @@
                     { text: '鋼鐵', val: '鋼鐵' },
                     { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                     { text: '鋼鐵手套', val: '鋼鐵手套' },
-                    { text: '品質', val: '品質' },
-                    { text: '品質紅寶石', val: '品質紅寶石' },
                     { text: '品質藍寶石', val: '品質藍寶石' },
                     { text: '品質綠寶石', val: '品質綠寶石' },
                     { text: '龍鱗', val: '龍鱗' },
@@ -335,8 +349,11 @@
         modalOverlay.style.position = 'fixed';
         modalOverlay.style.top = '0';
         modalOverlay.style.left = '0';
+        modalOverlay.style.right = '0';
+        modalOverlay.style.bottom = '0';
         modalOverlay.style.width = '100vw';
         modalOverlay.style.height = '100vh';
+        modalOverlay.style.height = '100dvh';
         modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
         modalOverlay.style.backdropFilter = 'blur(5px)';
         modalOverlay.style.zIndex = '999999';
@@ -348,7 +365,8 @@
         var modalBox = document.createElement('div');
         modalBox.style.width = '96%';
         modalBox.style.maxWidth = '780px';
-        modalBox.style.maxHeight = '92vh';
+        modalBox.style.maxHeight = '82vh';
+        modalBox.style.maxHeight = 'calc(100dvh - 60px)';
         modalBox.style.background = '#1a1816';
         modalBox.style.color = '#f0e6d2';
         modalBox.style.border = '2px solid #a88238';
@@ -575,10 +593,11 @@
 
         var contentBody = document.createElement('div');
         contentBody.id = 'my-modal-body';
-        contentBody.style.padding = '10px 8px';
+        contentBody.style.padding = '10px 8px 70px 8px';
         contentBody.style.overflowY = 'auto';
         contentBody.style.overflowX = 'auto';
         contentBody.style.webkitOverflowScrolling = 'touch';
+        contentBody.style.overscrollBehavior = 'contain';
         contentBody.style.flex = '1';
         modalBox.appendChild(contentBody);
 
@@ -694,9 +713,9 @@
                 html += '<tr class="my-modal-row" data-name="' + grp.name + '" style="border-bottom:1px solid #332b21;background:' + bg + ';cursor:pointer;" onmouseover="this.style.background=\'#3a3124\'" onmouseout="this.style.background=\'' + bg + '\'">' +
                         '<td style="padding:6px 8px;color:#fff;font-weight:bold;white-space:nowrap;">' + grp.name + '</td>' +
                         '<td style="padding:6px 8px;text-align:center;color:#d0b898;white-space:nowrap;">' + grp.packs + ' 筆 (' + grp.totalCnt.toLocaleString() + '個)</td>' +
-                        '<td style="padding:6px 8px;text-align:right;color:#6ee7b7;font-weight:bold;white-space:nowrap;">' + grp.minUnit.toLocaleString() + '</td>' +
-                        '<td style="padding:6px 8px;text-align:right;color:#fcd34d;white-space:nowrap;">' + grp.avgUnit.toLocaleString() + '</td>' +
-                        '<td style="padding:6px 8px;text-align:right;color:#93c5fd;white-space:nowrap;">' + grp.minTotalPrice.toLocaleString() + '</td>' +
+                        '<td style="padding:6px 8px;text-align:right;color:#6ee7b7;font-weight:bold;white-space:nowrap;">' + formatLargeNumberHtml(grp.minUnit) + '</td>' +
+                        '<td style="padding:6px 8px;text-align:right;color:#fcd34d;white-space:nowrap;">' + formatLargeNumberHtml(grp.avgUnit) + '</td>' +
+                        '<td style="padding:6px 8px;text-align:right;color:#93c5fd;white-space:nowrap;">' + formatLargeNumberHtml(grp.minTotalPrice) + '</td>' +
                         '</tr>';
             }
             html += '</tbody></table>';
@@ -724,8 +743,8 @@
                 dHtml += '<tr class="my-modal-row" data-name="' + deal.cleanName + '" style="border-bottom:1px solid #332b21;background:' + dBg + ';cursor:pointer;" onmouseover="this.style.background=\'#3a3124\'" onmouseout="this.style.background=\'' + dBg + '\'">' +
                         '<td style="padding:6px 8px;color:#fff;font-weight:bold;white-space:nowrap;">' + deal.cleanName + '</td>' +
                         '<td style="padding:6px 8px;text-align:center;color:#d0b898;white-space:nowrap;">' + deal.cnt.toLocaleString() + '</td>' +
-                        '<td style="padding:6px 8px;text-align:right;color:#6ee7b7;font-weight:bold;white-space:nowrap;">' + deal.unitPrice.toLocaleString() + '</td>' +
-                        '<td style="padding:6px 8px;text-align:right;color:#93c5fd;white-space:nowrap;">' + deal.price.toLocaleString() + '</td>' +
+                        '<td style="padding:6px 8px;text-align:right;color:#6ee7b7;font-weight:bold;white-space:nowrap;">' + formatLargeNumberHtml(deal.unitPrice) + '</td>' +
+                        '<td style="padding:6px 8px;text-align:right;color:#93c5fd;white-space:nowrap;">' + formatLargeNumberHtml(deal.price) + '</td>' +
                         '</tr>';
             }
             dHtml += '</tbody></table>';
@@ -768,8 +787,6 @@
                 { text: '鋼鐵', val: '鋼鐵' },
                 { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                 { text: '鋼鐵手套', val: '鋼鐵手套' },
-                { text: '品質', val: '品質' },
-                { text: '品質紅寶石', val: '品質紅寶石' },
                 { text: '品質藍寶石', val: '品質藍寶石' },
                 { text: '品質綠寶石', val: '品質綠寶石' },
                 { text: '龍鱗', val: '龍鱗' },
@@ -914,8 +931,10 @@
             cHtml += '<table style="width:100%;min-width:480px;border-collapse:collapse;font-size:12px;text-align:left;">';
             cHtml += '<thead><tr style="border-bottom:2px solid #5a4a36;color:#e8d0a0;background:#241f19;">' +
                     '<th style="padding:6px 8px;min-width:110px;white-space:nowrap;">分類關鍵字</th>' +
-                    '<th style="padding:6px 8px;text-align:right;min-width:110px;white-space:nowrap;">最低單價</th>' +
-                    '<th style="padding:6px 8px;text-align:right;min-width:110px;white-space:nowrap;">前20低平均單價</th>' +
+                    '<th style="padding:6px 8px;text-align:left;min-width:90px;white-space:nowrap;">最低價物品</th>' +
+                    '<th style="padding:6px 8px;text-align:right;min-width:70px;width:70px;white-space:nowrap;">最低單價</th>' +
+                    '<th style="padding:6px 8px;text-align:right;min-width:85px;width:85px;white-space:nowrap;">前20均價</th>' +
+                    '<th style="padding:6px 8px;text-align:left;min-width:60px;white-space:nowrap;">統計</th>' +
                     '<th style="padding:6px 8px;text-align:center;min-width:85px;white-space:nowrap;">掛單數</th>' +
                     '</tr></thead><tbody>';
 
@@ -947,7 +966,7 @@
                     hoverBg = '#3a3124';
                     borderCol = '#332b21';
                 }
-                var packsText, minUnitText, avgTop20Text, nameText;
+                var packsText, minUnitText, minUnitItemText, avgTop20Text, avgTop20Suffix, nameText;
                 if (cg.isAlert) {
                     var badgeBg = isGold ? '#d97706' : '#dc2626';
                     nameText = '🔥 ' + cg.name + ' <span style="font-size:10px;background:' + badgeBg + ';color:#ffffff;padding:1px 4px;border-radius:3px;margin-left:2px;font-weight:normal;">撿漏警示</span>';
@@ -960,25 +979,30 @@
 
                 if (cg.packs > 0) {
                     packsText = cg.packs + ' 筆 (' + cg.totalCnt.toLocaleString() + '個)';
-                    minUnitText = cg.minUnit.toLocaleString();
+                    minUnitText = formatLargeNumberHtml(cg.minUnit);
                     var subColor = isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#8a8070');
-                    minUnitText += ' <span style="font-size:11px;color:' + subColor + ';font-weight:normal;">(' + cg.minUnitName + ')</span>';
-                    minUnitText += '<span style="font-size:11px;color:' + subColor + ';font-weight:normal;">(' + cg.minUnitCnt.toLocaleString() + ')</span>';
+                    var cntColor = isGold ? '#fef08a' : (cg.isAlert ? '#fcd34d' : '#fbbf24');
+                    minUnitItemText = '<span style="font-size:11px;color:' + subColor + ';font-weight:normal;">(' + cg.minUnitName + ')</span>';
+                    minUnitItemText += ' <span style="font-size:11px;color:' + cntColor + ';font-weight:bold;">× ' + cg.minUnitCnt.toLocaleString() + '</span>';
                     
-                    avgTop20Text = cg.avgTop20.toLocaleString();
-                    avgTop20Text += ' <span style="font-size:11px;color:' + (isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#8a8070')) + ';font-weight:normal;">(前' + cg.top20Count + '筆)</span>';
+                    avgTop20Text = formatLargeNumberHtml(cg.avgTop20);
+                    avgTop20Suffix = '<span style="font-size:11px;color:' + (isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#8a8070')) + ';font-weight:normal;">(前' + cg.top20Count + '筆)</span>';
                 } else {
                     packsText = '<span style="color:#666;">無掛牌</span>';
                     minUnitText = '<span style="color:#666;">-</span>';
+                    minUnitItemText = '<span style="color:#666;">-</span>';
                     avgTop20Text = '<span style="color:#666;">-</span>';
+                    avgTop20Suffix = '<span style="color:#666;">-</span>';
                 }
                 cHtml += '<tr class="my-modal-row" data-name="' + cg.val + '"';
                 cHtml += ' style="border-bottom:1px solid ' + borderCol + ';background:' + bg + ';cursor:pointer;"';
                 cHtml += ' onmouseover="this.style.background=\'' + hoverBg + '\'"';
                 cHtml += ' onmouseout="this.style.background=\'' + bg + '\'">';
                 cHtml += '<td style="padding:6px 8px;color:' + (isGold ? '#fde047' : (cg.isAlert ? '#f87171' : '#fff')) + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + nameText + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:left;vertical-align:middle;white-space:nowrap;">' + minUnitItemText + '</td>';
                 cHtml += '<td style="padding:6px 8px;text-align:right;color:' + (isGold ? '#fde047' : (cg.isAlert ? '#f87171' : '#6ee7b7')) + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + minUnitText + '</td>';
                 cHtml += '<td style="padding:6px 8px;text-align:right;color:' + (isGold ? '#fef08a' : (cg.isAlert ? '#fde047' : '#fcd34d')) + ';font-weight:bold;vertical-align:middle;white-space:nowrap;">' + avgTop20Text + '</td>';
+                cHtml += '<td style="padding:6px 8px;text-align:left;vertical-align:middle;white-space:nowrap;">' + avgTop20Suffix + '</td>';
                 cHtml += '<td style="padding:6px 8px;text-align:center;color:' + (isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#d0b898')) + ';vertical-align:middle;white-space:nowrap;">' + packsText + '</td>';
                 cHtml += '</tr>';
             }
