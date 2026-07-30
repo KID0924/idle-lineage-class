@@ -12,20 +12,51 @@
     window._origPaintTradeList = origPaint;
     window._myCurrentSort = 'none';
     
-    // ----------------------------------------------------
-    // 工具函數
-    // ----------------------------------------------------
+    if (typeof window._priceFormatMode === 'undefined') {
+        try {
+            var savedFormat = localStorage.getItem('my_price_format_mode');
+            window._priceFormatMode = (savedFormat === 'full' || savedFormat === 'abbrev') ? savedFormat : 'abbrev';
+        } catch(e) {
+            window._priceFormatMode = 'abbrev';
+        }
+    }
+
+    if (typeof window._showUnitPriceInList === 'undefined') {
+        try {
+            var savedShow = localStorage.getItem('my_show_unit_price');
+            window._showUnitPriceInList = savedShow !== null ? (savedShow === 'true') : true;
+        } catch(e) {
+            window._showUnitPriceInList = true;
+        }
+    }
+
     function formatLargeNumberHtml(num) {
         if (typeof num !== 'number') return num;
         var textStr;
-        if (num >= 100000000) {
-            textStr = parseFloat((num / 100000000).toFixed(2)) + '億';
-        } else if (num >= 10000) {
-            textStr = parseFloat((num / 10000).toFixed(1)) + '萬';
-        } else {
+        if (window._priceFormatMode === 'full') {
             textStr = num.toLocaleString();
+        } else {
+            if (num >= 100000000) {
+                textStr = parseFloat((num / 100000000).toFixed(2)) + '億';
+            } else if (num >= 10000) {
+                textStr = parseFloat((num / 10000).toFixed(1)) + '萬';
+            } else {
+                textStr = num.toLocaleString();
+            }
         }
         return '<span title="' + num.toLocaleString() + '" style="cursor:help;">' + textStr + '</span>';
+    }
+
+    function formatPriceText(num) {
+        if (typeof num !== 'number') return num;
+        if (window._priceFormatMode === 'abbrev') {
+            if (num >= 100000000) {
+                return parseFloat((num / 100000000).toFixed(2)) + '億';
+            } else if (num >= 10000) {
+                return parseFloat((num / 10000).toFixed(1)) + '萬';
+            }
+        }
+        return num.toLocaleString();
     }
 
     // ----------------------------------------------------
@@ -317,9 +348,11 @@
                                     unitSpan.style.marginLeft = '8px';
                                     unitSpan.style.fontSize = '12px';
                                     unitSpan.style.fontWeight = 'bold';
-                                    unitSpan.textContent = '(單價: ' + unitPrice.toLocaleString() + ')';
                                     sip.appendChild(unitSpan);
+                                    existingUnitSpan = unitSpan;
                                 }
+                                existingUnitSpan.textContent = '(單價: ' + formatPriceText(unitPrice) + ')';
+                                existingUnitSpan.title = '完整單價: ' + unitPrice.toLocaleString();
                             }
                         }
                     }
@@ -460,7 +493,21 @@
         startAutoRefreshTimer();
 
         if (typeof window._showUnitPriceInList === 'undefined') {
-            window._showUnitPriceInList = true;
+            try {
+                var savedShow = localStorage.getItem('my_show_unit_price');
+                window._showUnitPriceInList = savedShow !== null ? (savedShow === 'true') : true;
+            } catch(e) {
+                window._showUnitPriceInList = true;
+            }
+        }
+
+        if (typeof window._priceFormatMode === 'undefined') {
+            try {
+                var savedFormat = localStorage.getItem('my_price_format_mode');
+                window._priceFormatMode = (savedFormat === 'full' || savedFormat === 'abbrev') ? savedFormat : 'abbrev';
+            } catch(e) {
+                window._priceFormatMode = 'abbrev';
+            }
         }
 
         var unitToggleBtn = document.createElement('button');
@@ -487,7 +534,44 @@
 
         unitToggleBtn.addEventListener('click', function() {
             window._showUnitPriceInList = !window._showUnitPriceInList;
+            try {
+                localStorage.setItem('my_show_unit_price', window._showUnitPriceInList ? 'true' : 'false');
+            } catch(e) {}
             updateUnitToggleBtnState();
+            if (typeof window.paintTradeList === 'function') {
+                window.paintTradeList();
+            }
+        });
+
+        var formatToggleBtn = document.createElement('button');
+        formatToggleBtn.id = 'my-format-toggle-btn';
+        formatToggleBtn.style.padding = '4px 8px';
+        formatToggleBtn.style.borderRadius = '6px';
+        formatToggleBtn.style.border = '1px solid #5a4a36';
+        formatToggleBtn.style.fontSize = '12px';
+        formatToggleBtn.style.fontWeight = 'bold';
+        formatToggleBtn.style.cursor = 'pointer';
+
+        function updateFormatToggleBtnState() {
+            if (window._priceFormatMode === 'full') {
+                formatToggleBtn.textContent = '價格: 完整';
+                formatToggleBtn.style.background = '#059669';
+                formatToggleBtn.style.color = '#fff';
+            } else {
+                formatToggleBtn.textContent = '價格: 縮寫';
+                formatToggleBtn.style.background = '#374151';
+                formatToggleBtn.style.color = '#d1d5db';
+            }
+        }
+        updateFormatToggleBtnState();
+
+        formatToggleBtn.addEventListener('click', function() {
+            window._priceFormatMode = (window._priceFormatMode === 'full') ? 'abbrev' : 'full';
+            try {
+                localStorage.setItem('my_price_format_mode', window._priceFormatMode);
+            } catch(e) {}
+            updateFormatToggleBtnState();
+            window.renderMarketAnalyticsContent();
             if (typeof window.paintTradeList === 'function') {
                 window.paintTradeList();
             }
@@ -515,6 +599,7 @@
         headerRight.appendChild(autoInput);
         headerRight.appendChild(autoStatus);
         headerRight.appendChild(unitToggleBtn);
+        headerRight.appendChild(formatToggleBtn);
         headerRight.appendChild(closeBtn);
 
         header.appendChild(title);
@@ -980,7 +1065,7 @@
                 if (cg.packs > 0) {
                     packsText = cg.packs + ' 筆 (' + cg.totalCnt.toLocaleString() + '個)';
                     minUnitText = formatLargeNumberHtml(cg.minUnit);
-                    var subColor = isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#8a8070');
+                    var subColor = isGold ? '#fef08a' : (cg.isAlert ? '#fca5a5' : '#ffffff');
                     var cntColor = isGold ? '#fef08a' : (cg.isAlert ? '#fcd34d' : '#fbbf24');
                     minUnitItemText = '<span style="font-size:11px;color:' + subColor + ';font-weight:normal;">(' + cg.minUnitName + ')</span>';
                     minUnitItemText += ' <span style="font-size:11px;color:' + cntColor + ';font-weight:bold;">× ' + cg.minUnitCnt.toLocaleString() + '</span>';
