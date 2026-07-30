@@ -102,7 +102,9 @@
                     { text: '烈焰之魂', val: '烈焰之魂' },
                     { text: '食人巨魔', val: '食人巨魔' },
                     { text: '力量手套', val: '力量手套' },
-                    { text: '之帽', val: '之帽' },
+                    { text: '巴士瑟之帽', val: '巴士瑟之帽' },
+                    { text: '馬庫爾之帽', val: '馬庫爾之帽' },
+                    { text: '西瑪之帽', val: '西瑪之帽' },
                     { text: '瑟魯基之劍', val: '瑟魯基之劍' },
                     { text: '熾炎天使弓', val: '熾炎天使弓' },
                     { text: '古代的卷軸', val: '古代的卷軸' },
@@ -776,7 +778,9 @@
                 { text: '烈焰之魂', val: '烈焰之魂' },
                 { text: '食人巨魔', val: '食人巨魔' },
                 { text: '力量手套', val: '力量手套' },
-                { text: '之帽', val: '之帽' },
+                { text: '巴士瑟之帽', val: '巴士瑟之帽' },
+                { text: '馬庫爾之帽', val: '馬庫爾之帽' },
+                { text: '西瑪之帽', val: '西瑪之帽' },
                 { text: '瑟魯基之劍', val: '瑟魯基之劍' },
                 { text: '熾炎天使弓', val: '熾炎天使弓' },
                 { text: '古代的卷軸', val: '古代的卷軸' },
@@ -837,7 +841,11 @@
                     if (minUnit > 0 && minUnit < 1000000) isAlert = true;
                 } else if (searchTxt === '熾炎天使弓') {
                     if (minUnit > 0 && minUnit < 1000000) isAlert = true;
-                } else if (searchTxt === '之帽') {
+                } else if (searchTxt === '巴士瑟之帽') {
+                    if (minUnit > 0 && minUnit < 20000000) isAlert = true;
+                } else if (searchTxt === '馬庫爾之帽') {
+                    if (minUnit > 0 && minUnit < 20000000) isAlert = true;
+                } else if (searchTxt === '西瑪之帽') {
                     if (minUnit > 0 && minUnit < 20000000) isAlert = true;
                 } else if (searchTxt === '古代的卷軸') {
                     if (minUnit > 0 && minUnit < 20000000) isAlert = true;
@@ -920,7 +928,9 @@
                     cg.name === '食人巨魔' ||
                     cg.name === '瑟魯基之劍' ||
                     cg.name === '熾炎天使弓' ||
-                    cg.name === '之帽' ||
+                    cg.name === '巴士瑟之帽' ||
+                    cg.name === '馬庫爾之帽' ||
+                    cg.name === '西瑪之帽' ||
                     cg.name === '古代的卷軸'
                 );
                 var bg, hoverBg, borderCol;
