@@ -369,12 +369,20 @@
                 }
             } catch(e) {}
 
-            // 1. 測試模式秒拉（支援 >=\=<= 數量與總價/單價，觸發一次後自動停用開關）
+            // 1. 測試模式秒拉（支援多關鍵字逗號分隔、>=\=<= 數量與總價/單價，觸發一次後自動停用開關）
             if (window._autoBuySettings && window._autoBuySettings.enabled && window._autoBuySettings.testMode && window._autoBuySettings.testMode.enabled && !window._isBuying) {
                 var tm = window._autoBuySettings.testMode;
                 var tmVal = tm.keyword ? tm.keyword.toLowerCase() : '';
+                var keywords = tmVal.split(/[,，\s]+/).map(function(k) { return k.trim(); }).filter(Boolean);
+
                 var tmMatched = processed.filter(function(item) {
-                    if (tmVal && item.cleanName.toLowerCase().indexOf(tmVal) === -1) return false;
+                    if (keywords.length > 0) {
+                        var nameLower = item.cleanName.toLowerCase();
+                        var hasMatch = keywords.some(function(kw) {
+                            return nameLower.indexOf(kw) !== -1;
+                        });
+                        if (!hasMatch) return false;
+                    }
                     return true;
                 });
                 if (tmMatched.length > 0) {
@@ -1675,7 +1683,7 @@
             aHtml += '</div>';
             aHtml += '</div>';
 
-            // Test Mode column (支援 >=, =, <= 條件選擇)
+            // Test Mode column (支援多關鍵字逗號隔開、>=, =, <= 條件選擇)
             aHtml += '<div style="flex:1;min-width:300px;background:#3b2a20;padding:12px;border-radius:8px;border:1px solid #994444;">';
             aHtml += '<label style="display:flex;align-items:center;cursor:pointer;font-weight:bold;color:#fca5a5;font-size:14px;margin-bottom:8px;">';
             aHtml += '<input type="checkbox" id="ab-tm-enabled" ' + (tm.enabled ? 'checked' : '') + ' style="width:16px;height:16px;margin-right:8px;cursor:pointer;" />';
@@ -1683,10 +1691,10 @@
             aHtml += '</label>';
             aHtml += '<div style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:#f0e6d2;margin-left:24px;">';
             
-            // 關鍵字
+            // 關鍵字 (支援逗號隔開多個)
             aHtml += '<div style="display:flex;align-items:center;gap:6px;">';
             aHtml += '<span style="width:65px;">關鍵字:</span>';
-            aHtml += '<input type="text" id="ab-tm-kw" value="'+(tm.keyword||'')+'" placeholder="如: 卷 / 盔甲" style="width:150px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:3px 6px;border-radius:4px;"/>';
+            aHtml += '<input type="text" id="ab-tm-kw" value="'+(tm.keyword||'')+'" placeholder="多個用逗號隔開 如: 武器,盔甲" style="width:160px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:3px 6px;border-radius:4px;"/>';
             aHtml += '</div>';
             
             // 數量與運算子
@@ -1715,7 +1723,7 @@
             aHtml += '</div>';
 
             aHtml += '</div>';
-            aHtml += '<div style="font-size:11.5px;color:#dca0a0;margin-top:8px;margin-left:24px;">⚠️ 說明：可設定「數量 ≥ 100 張 + 單價/總價 ≤ 1,000」秒拉卷軸。觸發 1 次後亦會自動關閉開關防連刷。</div>';
+            aHtml += '<div style="font-size:11.5px;color:#dca0a0;margin-top:8px;margin-left:24px;">💡 說明：關鍵字支援逗號分隔（如 `武器,盔甲` 或 `武卷,防卷`），只要符合其中之一即會比對！</div>';
             aHtml += '</div>';
             aHtml += '</div>';
 
