@@ -37,6 +37,65 @@
         }
     }
 
+    if (typeof window._autoBuySettings === 'undefined') {
+        var defaultHP = ['烈焰之魂', '變形控制戒指', '古代的卷軸', '巴士瑟之帽', '馬庫爾之帽', '西瑪之帽', '力量手套', '食人巨魔', '瑟魯基之劍', '熾炎天使弓', '赤焰'];
+        try {
+            var savedAutoBuy = localStorage.getItem('my_auto_buy_settings');
+            window._autoBuySettings = savedAutoBuy ? JSON.parse(savedAutoBuy) : null;
+        } catch(e) {}
+        if (!window._autoBuySettings) {
+            window._autoBuySettings = { 
+                enabled: false, minBuy: 200, maxBuy: 3000, minConfirm: 300, maxConfirm: 500,
+                trackedItems: defaultHP,
+                testMode: { enabled: false, keyword: '', cntOp: '>=', cnt: 1, priceType: 'total', priceOp: '<=', price: 100 }
+            };
+        } else {
+            if (!window._autoBuySettings.trackedItems) window._autoBuySettings.trackedItems = defaultHP;
+            if (!window._autoBuySettings.testMode) {
+                window._autoBuySettings.testMode = { enabled: false, keyword: '', cntOp: '>=', cnt: 1, priceType: 'total', priceOp: '<=', price: 100 };
+            } else {
+                if (!window._autoBuySettings.testMode.cntOp) window._autoBuySettings.testMode.cntOp = '>=';
+                if (!window._autoBuySettings.testMode.priceType) window._autoBuySettings.testMode.priceType = 'total';
+                if (!window._autoBuySettings.testMode.priceOp) window._autoBuySettings.testMode.priceOp = '<=';
+            }
+        }
+    }
+
+    function getRandomDelay(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    window.humanLikeAutoBuy = function(itemId) {
+        var s = window._autoBuySettings;
+        var delayBeforeBuy = getRandomDelay(s.minBuy, s.maxBuy);
+        console.log('[自動購買] 準備購買物品 ' + itemId + '，等待 ' + delayBeforeBuy + ' 毫秒...');
+        setTimeout(function() {
+            var popup = document.getElementById('msg-popup');
+            if (popup && !popup.classList.contains('hidden')) {
+                popup.classList.add('hidden');
+            }
+
+            var freshBtn = document.querySelector('button[data-buy="' + itemId + '"]');
+            if (!freshBtn) {
+                console.log('[自動購買] 找不到購買按鈕 ' + itemId + '，可能已被搶走');
+                return;
+            }
+            freshBtn.click();
+            var delayBeforeConfirm = getRandomDelay(s.minConfirm, s.maxConfirm);
+            console.log('[自動購買] 確認視窗已彈出，等待 ' + delayBeforeConfirm + ' 毫秒後按下確認...');
+            setTimeout(function() {
+                var msgPopup = document.getElementById('msg-popup');
+                var confirmBtn = document.getElementById('msg-ok');
+                if (confirmBtn && msgPopup && !msgPopup.classList.contains('hidden')) {
+                    confirmBtn.click();
+                    console.log('[自動購買] 已送出購買請求！');
+                } else {
+                    console.log('[自動購買] 確認視窗未出現，跳過');
+                }
+            }, delayBeforeConfirm);
+        }, delayBeforeBuy);
+    };
+
     function formatLargeNumberHtml(num) {
         if (typeof num !== 'number') return num;
         var textStr;
@@ -122,7 +181,7 @@
             { text: '鋼鐵', val: '鋼鐵' },
             { text: '鋼鐵長靴', val: '鋼鐵長靴' },
             { text: '鋼鐵手套', val: '鋼鐵手套' },
-            { text: '品質藍寶石', val: '品質藍寶石' },
+            { text: '品質藍寶石', val: '品質綠寶石' },
             { text: '品質綠寶石', val: '品質綠寶石' },
             { text: '龍鱗', val: '龍鱗' },
             { text: '炎魔', val: '炎魔' },
@@ -269,24 +328,18 @@
         } catch(e) {}
     }
 
+    function getAbMaxPrice(name) {
+        if (name === '烈焰之魂') return 100000000;
+        if (name === '力量手套' || name === '食人巨魔' || name === '瑟魯基之劍' || name === '熾炎天使弓' || name === '赤焰') return 1000000;
+        if (name === '巴士瑟之帽' || name === '馬庫爾之帽' || name === '西瑪之帽' || name === '古代的卷軸' || name === '變形控制戒指') return 20000000;
+        return 0; // 其他非特級金黃色項目一律禁止自動購買
+    }
+
     function checkAutoFocusGold(allData, isFromModal) {
         if (typeof allData === 'undefined' || !Array.isArray(allData) || allData.length === 0) return;
+        if (window._isBuying) return; // 購買進行中，跳過所有偵測與搜尋，避免覆蓋關鍵字
+
         try {
-            var enabledVal = localStorage.getItem('my_auto_focus_gold_enabled');
-            var isEnabled = enabledVal !== null ? (enabledVal === 'true') : true;
-            if (!isEnabled) return;
-
-            if (!isFromModal) {
-                var bgEnabledVal = localStorage.getItem('my_auto_focus_bg_enabled');
-                var isBgEnabled = bgEnabledVal !== null ? (bgEnabledVal === 'true') : true;
-                if (!isBgEnabled) return;
-            }
-
-            var scrollGoldOnlyVal = localStorage.getItem('my_auto_focus_scroll_gold_only');
-            var isScrollGoldOnly = scrollGoldOnlyVal !== null ? (scrollGoldOnlyVal === 'true') : true;
-
-            var trackedMap = getTrackedItemsMap();
-
             var processed = [];
             for (var i = 0; i < allData.length; i++) {
                 var d = allData[i];
@@ -303,6 +356,182 @@
                     unitPrice: unitPrice
                 });
             }
+
+            var myGold = -1;
+            try {
+                var goldEl = document.getElementById('t-gold') || document.getElementById('cas-gold');
+                if (goldEl) {
+                    var goldTxt = goldEl.innerText || goldEl.textContent;
+                    var goldNum = parseInt(goldTxt.replace(/,/g, ''));
+                    if (!isNaN(goldNum)) {
+                        myGold = goldNum;
+                    }
+                }
+            } catch(e) {}
+
+            // 1. 測試模式秒拉（支援 >=\=<= 數量與總價/單價，觸發一次後自動停用開關）
+            if (window._autoBuySettings && window._autoBuySettings.enabled && window._autoBuySettings.testMode && window._autoBuySettings.testMode.enabled && !window._isBuying) {
+                var tm = window._autoBuySettings.testMode;
+                var tmVal = tm.keyword ? tm.keyword.toLowerCase() : '';
+                var tmMatched = processed.filter(function(item) {
+                    if (tmVal && item.cleanName.toLowerCase().indexOf(tmVal) === -1) return false;
+                    return true;
+                });
+                if (tmMatched.length > 0) {
+                    tmMatched.sort(function(a, b) { return a.unitPrice - b.unitPrice; });
+                    
+                    var tmBest = null;
+                    if (!window._boughtItemIds) window._boughtItemIds = [];
+                    
+                    for (var k = 0; k < tmMatched.length; k++) {
+                        var candidate = tmMatched[k];
+                        
+                        // 數量判斷 (cntOp: >=, =, <=)
+                        var cntMatch = true;
+                        if (!isNaN(tm.cnt) && tm.cnt !== null) {
+                            var opC = tm.cntOp || '>=';
+                            if (opC === '>=') cntMatch = candidate.cnt >= tm.cnt;
+                            else if (opC === '=') cntMatch = candidate.cnt === tm.cnt;
+                            else if (opC === '<=') cntMatch = candidate.cnt <= tm.cnt;
+                        }
+
+                        // 價格/單價判斷 (priceType: total/unit, priceOp: <=, =, >=)
+                        var priceMatch = true;
+                        if (!isNaN(tm.price) && tm.price !== null) {
+                            var checkVal = (tm.priceType === 'unit') ? candidate.unitPrice : candidate.price;
+                            var opP = tm.priceOp || '<=';
+                            if (opP === '<=') priceMatch = checkVal <= tm.price;
+                            else if (opP === '=') priceMatch = checkVal === tm.price;
+                            else if (opP === '>=') priceMatch = checkVal >= tm.price;
+                        }
+
+                        if (cntMatch && priceMatch) {
+                            if (window._boughtItemIds.indexOf(candidate.id) === -1) {
+                                tmBest = candidate;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (tmBest) {
+                        if (myGold !== -1 && myGold < tmBest.price) {
+                            return; // 金幣不足時阻擋
+                        }
+                        window._boughtItemIds.push(tmBest.id);
+                        if (window._boughtItemIds.length > 200) window._boughtItemIds.shift();
+
+                        var tmKey = 'test_' + tmBest.id;
+                        if (window._lastAutoFocusedKey !== tmKey) {
+                            window._lastAutoFocusedKey = tmKey;
+                            window._isBuying = true; // 上鎖
+                            
+                            // 每次成功購買 1 件後自動停用開關，防止重複購買
+                            window._autoBuySettings.enabled = false;
+                            window._autoBuySettings.testMode.enabled = false;
+                            var tmChk = document.getElementById('ab-tm-enabled');
+                            if (tmChk) tmChk.checked = false;
+                            var abChk = document.getElementById('my-autobuy-enabled');
+                            if (abChk) abChk.checked = false;
+                            try { localStorage.setItem('my_auto_buy_settings', JSON.stringify(window._autoBuySettings)); } catch(e){}
+
+                            var tmOverlay = document.getElementById('my-market-modal');
+                            if (tmOverlay) tmOverlay.style.display = 'none';
+                            if (typeof window.doQuickSearch === 'function') {
+                                window.doQuickSearch(tmBest.cleanName);
+                            }
+                            setTimeout(function() {
+                                window.humanLikeAutoBuy(tmBest.id);
+                                setTimeout(function() {
+                                    window._isBuying = false;
+                                }, window._autoBuySettings.maxBuy + window._autoBuySettings.maxConfirm + 1000);
+                            }, 200);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // 2. 正式模式秒拉（嚴格限金黃色高價品，且單價與總價皆需小於天花板防買貴）
+            if (window._autoBuySettings && window._autoBuySettings.enabled && !window._isBuying && window._autoBuySettings.trackedItems && window._autoBuySettings.trackedItems.length > 0) {
+                var allHP = ['烈焰之魂', '變形控制戒指', '古代的卷軸', '巴士瑟之帽', '馬庫爾之帽', '西瑪之帽', '力量手套', '食人巨魔', '瑟魯基之劍', '熾炎天使弓', '赤焰'];
+                var abMatched = [];
+                
+                for (var i = 0; i < processed.length; i++) {
+                    var item = processed[i];
+                    // 嚴格限制：必須屬於特級金黃色項目，且在玩家勾選的清單中
+                    if (allHP.indexOf(item.cleanName) !== -1 && window._autoBuySettings.trackedItems.indexOf(item.cleanName) !== -1) {
+                        var maxAllowed = getAbMaxPrice(item.cleanName);
+                        // 嚴格防買貴：單價與總價必須低於門檻
+                        if (maxAllowed > 0 && item.unitPrice < maxAllowed && item.price < maxAllowed) {
+                            if (myGold === -1 || myGold >= item.price) {
+                                abMatched.push(item);
+                            }
+                        }
+                    }
+                }
+                if (abMatched.length > 0) {
+                    abMatched.sort(function(a, b) {
+                        return a.unitPrice - b.unitPrice;
+                    });
+                    
+                    var abBest = null;
+                    if (!window._boughtItemIds) window._boughtItemIds = [];
+                    
+                    for (var m = 0; m < abMatched.length; m++) {
+                        var abCand = abMatched[m];
+                        if (window._boughtItemIds.indexOf(abCand.id) === -1) {
+                            abBest = abCand;
+                            break;
+                        }
+                    }
+
+                    if (abBest) {
+                        window._boughtItemIds.push(abBest.id);
+                        if (window._boughtItemIds.length > 200) window._boughtItemIds.shift();
+                        
+                        var abKey = 'ab_' + abBest.id;
+                        if (window._lastAutoFocusedKey !== abKey) {
+                            window._lastAutoFocusedKey = abKey;
+                            window._isBuying = true; // 上鎖
+                            
+                            // 每次成功購買 1 件後自動停用開關，確保一次只買一件
+                            window._autoBuySettings.enabled = false;
+                            var abChk = document.getElementById('my-autobuy-enabled');
+                            if (abChk) abChk.checked = false;
+                            try { localStorage.setItem('my_auto_buy_settings', JSON.stringify(window._autoBuySettings)); } catch(e){}
+
+                            var abOverlay = document.getElementById('my-market-modal');
+                            if (abOverlay) abOverlay.style.display = 'none';
+                            if (typeof window.doQuickSearch === 'function') {
+                                window.doQuickSearch(abBest.cleanName);
+                            }
+                            setTimeout(function() {
+                                window.humanLikeAutoBuy(abBest.id);
+                                setTimeout(function() {
+                                    window._isBuying = false;
+                                }, window._autoBuySettings.maxBuy + window._autoBuySettings.maxConfirm + 1000);
+                            }, 200);
+                        }
+                        return; // 已觸發購買，結束流程
+                    }
+                }
+            }
+
+            // 3. 一般「關鍵字自動鎖定帶入」邏輯
+            var enabledVal = localStorage.getItem('my_auto_focus_gold_enabled');
+            var isEnabled = enabledVal !== null ? (enabledVal === 'true') : true;
+            if (!isEnabled) return;
+
+            if (!isFromModal) {
+                var bgEnabledVal = localStorage.getItem('my_auto_focus_bg_enabled');
+                var isBgEnabled = bgEnabledVal !== null ? (bgEnabledVal === 'true') : true;
+                if (!isBgEnabled) return;
+            }
+
+            var scrollGoldOnlyVal = localStorage.getItem('my_auto_focus_scroll_gold_only');
+            var isScrollGoldOnly = scrollGoldOnlyVal !== null ? (scrollGoldOnlyVal === 'true') : true;
+
+            var trackedMap = getTrackedItemsMap();
 
             var catItems = [
                 { text: '卷', val: '卷' },
@@ -340,7 +569,7 @@
                 { text: '鋼鐵', val: '鋼鐵' },
                 { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                 { text: '鋼鐵手套', val: '鋼鐵手套' },
-                { text: '品質藍寶石', val: '品質藍寶石' },
+                { text: '品質藍寶石', val: '品質綠寶石' },
                 { text: '品質綠寶石', val: '品質綠寶石' },
                 { text: '龍鱗', val: '龍鱗' },
                 { text: '炎魔', val: '炎魔' },
@@ -416,7 +645,6 @@
                     var isGold = isHP || (minUnitCnt >= 100) || isElixir20;
                     var isScroll = searchTxt.indexOf('卷') !== -1 || searchTxt === '萬能藥';
 
-                    // 若開啟「大單限制」，且為卷軸/萬能藥但數量不達大單門檻且非高價物，則不自動帶入
                     if (isScrollGoldOnly && isScroll && !isGold) {
                         continue;
                     }
@@ -560,7 +788,7 @@
                     { text: '鋼鐵', val: '鋼鐵' },
                     { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                     { text: '鋼鐵手套', val: '鋼鐵手套' },
-                    { text: '品質藍寶石', val: '品質藍寶石' },
+                    { text: '品質藍寶石', val: '品質綠寶石' },
                     { text: '品質綠寶石', val: '品質綠寶石' },
                     { text: '龍鱗', val: '龍鱗' },
                     { text: '炎魔', val: '炎魔' },
@@ -1086,6 +1314,7 @@
         tabsNav.appendChild(createTabBtn('deals', '最低單價撿漏'));
         tabsNav.appendChild(createTabBtn('categories', '熱門分類'));
         tabsNav.appendChild(createTabBtn('focus', '🎯 專注自動搜尋'));
+        tabsNav.appendChild(createTabBtn('autobuy', '🛒 自動秒拉'));
         toolbar.appendChild(tabsNav);
 
         var filterInput = document.createElement('input');
@@ -1140,7 +1369,7 @@
         if (tab) { window._myActiveTab = tab; }
         tab = tab || window._myActiveTab || 'summary';
 
-        if (tab === 'focus' && isAutoRefresh && document.getElementById('my-focus-grid')) {
+        if ((tab === 'focus' || tab === 'autobuy') && isAutoRefresh) {
             return;
         }
 
@@ -1408,6 +1637,153 @@
             return;
         }
 
+        if (tab === 'autobuy') {
+            var s = window._autoBuySettings || { enabled: false, minBuy: 200, maxBuy: 3000, minConfirm: 300, maxConfirm: 500, trackedItems: [], testMode: {enabled:false, keyword:'', cntOp: '>=', cnt:1, priceType:'total', priceOp:'<=', price:100} };
+            var allHP = ['烈焰之魂', '變形控制戒指', '古代的卷軸', '巴士瑟之帽', '馬庫爾之帽', '西瑪之帽', '力量手套', '食人巨魔', '瑟魯基之劍', '熾炎天使弓', '赤焰'];
+            if (!s.trackedItems) s.trackedItems = allHP;
+            if (!s.testMode) s.testMode = {enabled:false, keyword:'', cntOp: '>=', cnt:1, priceType:'total', priceOp:'<=', price:100};
+            if (!s.testMode.cntOp) s.testMode.cntOp = '>=';
+            if (!s.testMode.priceType) s.testMode.priceType = 'total';
+            if (!s.testMode.priceOp) s.testMode.priceOp = '<=';
+
+            var tm = s.testMode;
+            
+            var aHtml = '<div style="padding:14px;background:#1e1a16;border-radius:10px;border:1px solid #4a3d2c;color:#f0e6d2;font-size:13px;line-height:1.6;">';
+            aHtml += '<div style="font-size:16px;font-weight:bold;color:#f3d898;margin-bottom:12px;">🛒 自動秒拉設定</div>';
+            
+            aHtml += '<div style="margin-bottom:16px;background:#2a2219;padding:12px;border-radius:8px;border:1px solid #7c5a24;">';
+            aHtml += '<label style="display:flex;align-items:center;cursor:pointer;font-weight:bold;color:#fcd34d;font-size:14.5px;">';
+            aHtml += '<input type="checkbox" id="my-autobuy-enabled" ' + (s.enabled ? 'checked' : '') + ' style="width:19px;height:19px;margin-right:10px;cursor:pointer;" />';
+            aHtml += '開啟「自動購買 (秒拉)」總開關 (成功購買 1 件後自動停用防連刷)';
+            aHtml += '</label>';
+            aHtml += '<div style="font-size:12px;color:#caa668;margin-top:6px;margin-left:29px;">';
+            aHtml += '💡 說明：開啟後，將自動幫您購買下方勾選的特級金黃色高價品或測試模式標的。<b>嚴格低於門檻才購買（防買貴），且每次成功購買 1 件後即自動關閉開關</b>。';
+            aHtml += '</div></div>';
+
+            aHtml += '<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">';
+            // Delays column
+            aHtml += '<div style="flex:1;min-width:280px;background:#2a2219;padding:12px;border-radius:8px;border:1px solid #5a4a36;">';
+            aHtml += '<div style="font-weight:bold;color:#e2e8f0;margin-bottom:8px;">1. 點擊「購買」前延遲 (毫秒)</div>';
+            aHtml += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">';
+            aHtml += '最小: <input type="number" id="ab-min-buy" value="'+s.minBuy+'" style="width:70px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:4px;border-radius:4px;"/>';
+            aHtml += '最大: <input type="number" id="ab-max-buy" value="'+s.maxBuy+'" style="width:70px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:4px;border-radius:4px;"/>';
+            aHtml += '</div>';
+            aHtml += '<div style="font-weight:bold;color:#e2e8f0;margin-bottom:8px;">2. 點擊「確認」前延遲 (毫秒)</div>';
+            aHtml += '<div style="display:flex;align-items:center;gap:10px;">';
+            aHtml += '最小: <input type="number" id="ab-min-confirm" value="'+s.minConfirm+'" style="width:70px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:4px;border-radius:4px;"/>';
+            aHtml += '最大: <input type="number" id="ab-max-confirm" value="'+s.maxConfirm+'" style="width:70px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:4px;border-radius:4px;"/>';
+            aHtml += '</div>';
+            aHtml += '</div>';
+
+            // Test Mode column (支援 >=, =, <= 條件選擇)
+            aHtml += '<div style="flex:1;min-width:300px;background:#3b2a20;padding:12px;border-radius:8px;border:1px solid #994444;">';
+            aHtml += '<label style="display:flex;align-items:center;cursor:pointer;font-weight:bold;color:#fca5a5;font-size:14px;margin-bottom:8px;">';
+            aHtml += '<input type="checkbox" id="ab-tm-enabled" ' + (tm.enabled ? 'checked' : '') + ' style="width:16px;height:16px;margin-right:8px;cursor:pointer;" />';
+            aHtml += '🧪 測試模式 (自訂條件秒拉物品)';
+            aHtml += '</label>';
+            aHtml += '<div style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:#f0e6d2;margin-left:24px;">';
+            
+            // 關鍵字
+            aHtml += '<div style="display:flex;align-items:center;gap:6px;">';
+            aHtml += '<span style="width:65px;">關鍵字:</span>';
+            aHtml += '<input type="text" id="ab-tm-kw" value="'+(tm.keyword||'')+'" placeholder="如: 卷 / 盔甲" style="width:150px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:3px 6px;border-radius:4px;"/>';
+            aHtml += '</div>';
+            
+            // 數量與運算子
+            aHtml += '<div style="display:flex;align-items:center;gap:6px;">';
+            aHtml += '<span style="width:65px;">數量:</span>';
+            aHtml += '<select id="ab-tm-cnt-op" style="background:#141210;color:#fcd34d;border:1px solid #5a4a36;padding:3px 4px;border-radius:4px;font-weight:bold;">';
+            aHtml += '<option value=">="' + (tm.cntOp === '>=' ? ' selected' : '') + '>=(大於等於)</option>';
+            aHtml += '<option value="="' + (tm.cntOp === '=' ? ' selected' : '') + '">=(精確等於)</option>';
+            aHtml += '<option value="<="' + (tm.cntOp === '<=' ? ' selected' : '') + '"><=(小於等於)</option>';
+            aHtml += '</select>';
+            aHtml += '<input type="number" id="ab-tm-cnt" value="'+(isNaN(tm.cnt) || tm.cnt === null ? '' : tm.cnt)+'" placeholder="留空不限" style="width:75px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:3px 6px;border-radius:4px;"/>';
+            aHtml += '</div>';
+            
+            // 金額類型、金額運算子與數值
+            aHtml += '<div style="display:flex;align-items:center;gap:6px;">';
+            aHtml += '<select id="ab-tm-price-type" style="background:#141210;color:#6ee7b7;border:1px solid #5a4a36;padding:3px 4px;border-radius:4px;font-weight:bold;">';
+            aHtml += '<option value="total"' + (tm.priceType === 'total' ? ' selected' : '') + '>總價</option>';
+            aHtml += '<option value="unit"' + (tm.priceType === 'unit' ? ' selected' : '') + '>單價</option>';
+            aHtml += '</select>';
+            aHtml += '<select id="ab-tm-price-op" style="background:#141210;color:#fcd34d;border:1px solid #5a4a36;padding:3px 4px;border-radius:4px;font-weight:bold;">';
+            aHtml += '<option value="<="' + (tm.priceOp === '<=' ? ' selected' : '') + '"><=(低於等於)</option>';
+            aHtml += '<option value="="' + (tm.priceOp === '=' ? ' selected' : '') + '">=(精確等於)</option>';
+            aHtml += '<option value=">="' + (tm.priceOp === '>=' ? ' selected' : '') + '>=(高於等於)</option>';
+            aHtml += '</select>';
+            aHtml += '<input type="number" id="ab-tm-price" value="'+(isNaN(tm.price) || tm.price === null ? '' : tm.price)+'" placeholder="金額" style="width:75px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:3px 6px;border-radius:4px;"/>';
+            aHtml += '</div>';
+
+            aHtml += '</div>';
+            aHtml += '<div style="font-size:11.5px;color:#dca0a0;margin-top:8px;margin-left:24px;">⚠️ 說明：可設定「數量 ≥ 100 張 + 單價/總價 ≤ 1,000」秒拉卷軸。觸發 1 次後亦會自動關閉開關防連刷。</div>';
+            aHtml += '</div>';
+            aHtml += '</div>';
+
+            // Tracked items grid (ONLY 金黃色特級高價品)
+            aHtml += '<div style="margin-bottom:16px;background:#2a2219;padding:12px;border-radius:8px;border:1px solid #5a4a36;">';
+            aHtml += '<div style="font-weight:bold;color:#fcd34d;font-size:14px;margin-bottom:4px;">📌 獨立勾選要自動秒拉的高價品 (僅限特級金黃色項目)：</div>';
+            aHtml += '<div style="font-size:12px;color:#caa668;margin-bottom:8px;">嚴格低於門檻上限才購買（烈魂 < 1億，頭盔/變戒/古卷 < 2000萬，力手/食魔/瑟劍/赤焰/天使弓 < 100萬）。</div>';
+            aHtml += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:8px;background:#141210;padding:12px;border-radius:8px;border:1px solid #3d3224;">';
+            
+            for (var i = 0; i < allHP.length; i++) {
+                var hp = allHP[i];
+                var isChecked = s.trackedItems.indexOf(hp) !== -1;
+                aHtml += '<label style="display:flex;align-items:center;cursor:pointer;color:#fef08a;font-size:12.5px;">';
+                aHtml += '<input type="checkbox" class="my-ab-item-chk" value="' + hp + '"' + (isChecked ? ' checked' : '') + ' style="width:15px;height:15px;margin-right:6px;cursor:pointer;" />';
+                aHtml += '⭐ ' + hp;
+                aHtml += '</label>';
+            }
+            
+            aHtml += '</div></div>';
+
+            aHtml += '<button id="my-autobuy-save" style="padding:8px 16px;background:#059669;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;font-size:14px;">💾 儲存設定</button>';
+            aHtml += '<span id="my-autobuy-msg" style="margin-left:10px;color:#6ee7b7;font-size:12px;"></span>';
+            aHtml += '</div>';
+
+            body.innerHTML = aHtml;
+
+            var saveBtn = document.getElementById('my-autobuy-save');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', function() {
+                    var chks = document.querySelectorAll('.my-ab-item-chk');
+                    var newTracked = [];
+                    for (var k = 0; k < chks.length; k++) {
+                        if (chks[k].checked) newTracked.push(chks[k].value);
+                    }
+
+                    var tmCntVal = parseInt(document.getElementById('ab-tm-cnt').value);
+                    var tmPriceVal = parseInt(document.getElementById('ab-tm-price').value);
+
+                    window._autoBuySettings = {
+                        enabled: document.getElementById('my-autobuy-enabled').checked,
+                        minBuy: parseInt(document.getElementById('ab-min-buy').value) || 200,
+                        maxBuy: parseInt(document.getElementById('ab-max-buy').value) || 3000,
+                        minConfirm: parseInt(document.getElementById('ab-min-confirm').value) || 300,
+                        maxConfirm: parseInt(document.getElementById('ab-max-confirm').value) || 500,
+                        trackedItems: newTracked,
+                        testMode: {
+                            enabled: document.getElementById('ab-tm-enabled').checked,
+                            keyword: document.getElementById('ab-tm-kw').value.trim(),
+                            cntOp: document.getElementById('ab-tm-cnt-op').value,
+                            cnt: isNaN(tmCntVal) ? null : tmCntVal,
+                            priceType: document.getElementById('ab-tm-price-type').value,
+                            priceOp: document.getElementById('ab-tm-price-op').value,
+                            price: isNaN(tmPriceVal) ? null : tmPriceVal
+                        }
+                    };
+                    try {
+                        localStorage.setItem('my_auto_buy_settings', JSON.stringify(window._autoBuySettings));
+                    } catch(e) {}
+                    document.getElementById('my-autobuy-msg').textContent = '設定已儲存！';
+                    setTimeout(function(){ 
+                        var m = document.getElementById('my-autobuy-msg');
+                        if (m) m.textContent=''; 
+                    }, 2000);
+                });
+            }
+            return;
+        }
+
         if (tab === 'summary') {
             var groups = {};
             for (var j = 0; j < processedData.length; j++) {
@@ -1535,7 +1911,7 @@
                 { text: '鋼鐵', val: '鋼鐵' },
                 { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                 { text: '鋼鐵手套', val: '鋼鐵手套' },
-                { text: '品質藍寶石', val: '品質藍寶石' },
+                { text: '品質藍寶石', val: '品質綠寶石' },
                 { text: '品質綠寶石', val: '品質綠寶石' },
                 { text: '龍鱗', val: '龍鱗' },
                 { text: '炎魔', val: '炎魔' },
