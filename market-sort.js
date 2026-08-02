@@ -1093,8 +1093,10 @@
 
         var header = document.createElement('div');
         header.style.display = 'flex';
+        header.style.flexWrap = 'wrap';
         header.style.justifyContent = 'space-between';
         header.style.alignItems = 'center';
+        header.style.gap = '10px';
         header.style.padding = '12px 18px';
         header.style.background = '#28231d';
         header.style.borderBottom = '1px solid #4a3d2c';
@@ -1103,10 +1105,12 @@
         title.style.fontSize = '17px';
         title.style.fontWeight = 'bold';
         title.style.color = '#f3d898';
+        title.style.whiteSpace = 'nowrap';
         title.innerHTML = '交易所數據大師 <span style="font-size:12px;color:#a09078;font-weight:normal;">(全市場即時大盤)</span>';
 
         var headerRight = document.createElement('div');
         headerRight.style.display = 'flex';
+        headerRight.style.flexWrap = 'wrap';
         headerRight.style.alignItems = 'center';
         headerRight.style.gap = '8px';
 
@@ -1120,6 +1124,7 @@
         refreshBtn.style.fontSize = '12px';
         refreshBtn.style.fontWeight = 'bold';
         refreshBtn.style.cursor = 'pointer';
+        refreshBtn.style.whiteSpace = 'nowrap';
         refreshBtn.addEventListener('click', function() {
             window.renderMarketAnalyticsContent();
         });
@@ -1200,6 +1205,7 @@
         unitToggleBtn.style.fontSize = '12px';
         unitToggleBtn.style.fontWeight = 'bold';
         unitToggleBtn.style.cursor = 'pointer';
+        unitToggleBtn.style.whiteSpace = 'nowrap';
 
         function updateUnitToggleBtnState() {
             if (window._showUnitPriceInList) {
@@ -1233,6 +1239,7 @@
         formatToggleBtn.style.fontSize = '12px';
         formatToggleBtn.style.fontWeight = 'bold';
         formatToggleBtn.style.cursor = 'pointer';
+        formatToggleBtn.style.whiteSpace = 'nowrap';
 
         function updateFormatToggleBtnState() {
             if (window._priceFormatMode === 'full') {
