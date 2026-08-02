@@ -42,10 +42,16 @@
         try {
             var savedAutoBuy = localStorage.getItem('my_auto_buy_settings');
             window._autoBuySettings = savedAutoBuy ? JSON.parse(savedAutoBuy) : null;
+            if (window._autoBuySettings) {
+                window._autoBuySettings.enabled = false;
+                if (window._autoBuySettings.testMode) {
+                    window._autoBuySettings.testMode.enabled = false;
+                }
+            }
         } catch(e) {}
         if (!window._autoBuySettings) {
             window._autoBuySettings = { 
-                enabled: false, minBuy: 200, maxBuy: 3000, minConfirm: 300, maxConfirm: 500,
+                enabled: false, buyLimit: 1, minBuy: 200, maxBuy: 3000, minConfirm: 300, maxConfirm: 500,
                 trackedItems: defaultHP,
                 testMode: { enabled: false, keyword: '', cntOp: '>=', cnt: 1, priceType: 'total', priceOp: '<=', price: 100 }
             };
@@ -433,13 +439,18 @@
                             window._lastAutoFocusedKey = tmKey;
                             window._isBuying = true; // 上鎖
                             
-                            // 每次成功購買 1 件後自動停用開關，防止重複購買
-                            window._autoBuySettings.enabled = false;
-                            window._autoBuySettings.testMode.enabled = false;
-                            var tmChk = document.getElementById('ab-tm-enabled');
-                            if (tmChk) tmChk.checked = false;
-                            var abChk = document.getElementById('my-autobuy-enabled');
-                            if (abChk) abChk.checked = false;
+                            var limit = window._autoBuySettings.buyLimit || 1;
+                            limit--;
+                            window._autoBuySettings.buyLimit = limit;
+                            if (limit <= 0) {
+                                window._autoBuySettings.enabled = false;
+                                window._autoBuySettings.testMode.enabled = false;
+                                var tmChk = document.getElementById('ab-tm-enabled');
+                                if (tmChk) tmChk.checked = false;
+                                var abChk = document.getElementById('my-autobuy-enabled');
+                                if (abChk) abChk.checked = false;
+                                console.log("[測試模式秒拉] 已達購買次數上限，防護機制自動關閉！");
+                            }
                             try { localStorage.setItem('my_auto_buy_settings', JSON.stringify(window._autoBuySettings)); } catch(e){}
 
                             var tmOverlay = document.getElementById('my-market-modal');
@@ -502,10 +513,15 @@
                             window._lastAutoFocusedKey = abKey;
                             window._isBuying = true; // 上鎖
                             
-                            // 每次成功購買 1 件後自動停用開關，確保一次只買一件
-                            window._autoBuySettings.enabled = false;
-                            var abChk = document.getElementById('my-autobuy-enabled');
-                            if (abChk) abChk.checked = false;
+                            var limit = window._autoBuySettings.buyLimit || 1;
+                            limit--;
+                            window._autoBuySettings.buyLimit = limit;
+                            if (limit <= 0) {
+                                window._autoBuySettings.enabled = false;
+                                var abChk = document.getElementById('my-autobuy-enabled');
+                                if (abChk) abChk.checked = false;
+                                console.log("[正式模式秒拉] 已達購買次數上限，防護機制自動關閉！");
+                            }
                             try { localStorage.setItem('my_auto_buy_settings', JSON.stringify(window._autoBuySettings)); } catch(e){}
 
                             var abOverlay = document.getElementById('my-market-modal');
@@ -1288,10 +1304,22 @@
 
         window._myAfkTimer = null;
         function randomAntiAfk() {
-            if (typeof socket !== 'undefined' && socket && socket.connected) {
-                socket.emit("getLeaderboard", "level");
-                console.log("[腳本防斷線] 已向伺服器發送排行榜查詢封包，重置20分鐘閒置計時");
+            var gameDiv = document.getElementById('game');
+            var isGameVisible = gameDiv && !gameDiv.classList.contains('hidden');
+            
+            if (typeof socket === 'undefined' || !socket || !socket.connected || !isGameVisible) {
+                console.log("[腳本防斷線] 偵測到連線中斷或已回到大廳，強制關閉防斷線機制！");
+                if (afkCheckbox) afkCheckbox.checked = false;
+                if (window._myAfkTimer) {
+                    clearTimeout(window._myAfkTimer);
+                    window._myAfkTimer = null;
+                }
+                return;
             }
+
+            socket.emit("getLeaderboard", "level");
+            console.log("[腳本防斷線] 已向伺服器發送排行榜查詢封包，重置20分鐘閒置計時");
+            
             if (afkCheckbox.checked) {
                 var randomMinutes = Math.floor(Math.random() * 5) + 14;
                 var randomDelay = randomMinutes * 60 * 1000;
@@ -1697,7 +1725,7 @@
         }
 
         if (tab === 'autobuy') {
-            var s = window._autoBuySettings || { enabled: false, minBuy: 200, maxBuy: 3000, minConfirm: 300, maxConfirm: 500, trackedItems: [], testMode: {enabled:false, keyword:'', cntOp: '>=', cnt:1, priceType:'total', priceOp:'<=', price:100} };
+            var s = window._autoBuySettings || { enabled: false, buyLimit: 1, minBuy: 200, maxBuy: 3000, minConfirm: 300, maxConfirm: 500, trackedItems: [], testMode: {enabled:false, keyword:'', cntOp: '>=', cnt:1, priceType:'total', priceOp:'<=', price:100} };
             var allHP = ['烈焰之魂', '變形控制戒指', '古代的卷軸', '巴士瑟之帽', '馬庫爾之帽', '西瑪之帽', '力量手套', '食人巨魔', '瑟魯基之劍', '熾炎天使弓', '赤焰'];
             if (!s.trackedItems) s.trackedItems = allHP;
             if (!s.testMode) s.testMode = {enabled:false, keyword:'', cntOp: '>=', cnt:1, priceType:'total', priceOp:'<=', price:100};
@@ -1713,10 +1741,12 @@
             aHtml += '<div style="margin-bottom:16px;background:#2a2219;padding:12px;border-radius:8px;border:1px solid #7c5a24;">';
             aHtml += '<label style="display:flex;align-items:center;cursor:pointer;font-weight:bold;color:#fcd34d;font-size:14.5px;">';
             aHtml += '<input type="checkbox" id="my-autobuy-enabled" ' + (s.enabled ? 'checked' : '') + ' style="width:19px;height:19px;margin-right:10px;cursor:pointer;" />';
-            aHtml += '開啟「自動購買 (秒拉)」總開關 (成功購買 1 件後自動停用防連刷)';
+            aHtml += '開啟「自動購買 (秒拉)」總開關';
+            aHtml += '<span style="font-size:12px;color:#a09078;margin-left:12px;">購買次數上限:</span>';
+            aHtml += '<input type="number" id="ab-buy-limit" value="'+(s.buyLimit||1)+'" style="width:50px;margin-left:6px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:3px;border-radius:4px;text-align:center;" min="1" title="達到購買次數後自動關閉總開關" />';
             aHtml += '</label>';
             aHtml += '<div style="font-size:12px;color:#caa668;margin-top:6px;margin-left:29px;">';
-            aHtml += '💡 說明：開啟後，將自動幫您購買下方勾選的特級金黃色高價品或測試模式標的。<b>嚴格低於門檻才購買（防買貴），且每次成功購買 1 件後即自動關閉開關</b>。';
+            aHtml += '💡 說明：開啟後，將自動幫您購買下方勾選的特級金黃色高價品或測試模式標的。<b>嚴格低於門檻才購買（防買貴），且達到次數上限後自動關閉開關</b>。';
             aHtml += '</div></div>';
 
             aHtml += '<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">';
@@ -1815,6 +1845,7 @@
 
                     window._autoBuySettings = {
                         enabled: document.getElementById('my-autobuy-enabled').checked,
+                        buyLimit: parseInt(document.getElementById('ab-buy-limit').value) || 1,
                         minBuy: parseInt(document.getElementById('ab-min-buy').value) || 200,
                         maxBuy: parseInt(document.getElementById('ab-max-buy').value) || 3000,
                         minConfirm: parseInt(document.getElementById('ab-min-confirm').value) || 300,
