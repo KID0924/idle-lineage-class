@@ -181,7 +181,7 @@
             { text: '鋼鐵', val: '鋼鐵' },
             { text: '鋼鐵長靴', val: '鋼鐵長靴' },
             { text: '鋼鐵手套', val: '鋼鐵手套' },
-            { text: '品質藍寶石', val: '品質綠寶石' },
+            { text: '品質藍寶石', val: '品質藍寶石' },
             { text: '品質綠寶石', val: '品質綠寶石' },
             { text: '龍鱗', val: '龍鱗' },
             { text: '炎魔', val: '炎魔' },
@@ -577,7 +577,7 @@
                 { text: '鋼鐵', val: '鋼鐵' },
                 { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                 { text: '鋼鐵手套', val: '鋼鐵手套' },
-                { text: '品質藍寶石', val: '品質綠寶石' },
+                { text: '品質藍寶石', val: '品質藍寶石' },
                 { text: '品質綠寶石', val: '品質綠寶石' },
                 { text: '龍鱗', val: '龍鱗' },
                 { text: '炎魔', val: '炎魔' },
@@ -796,7 +796,7 @@
                     { text: '鋼鐵', val: '鋼鐵' },
                     { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                     { text: '鋼鐵手套', val: '鋼鐵手套' },
-                    { text: '品質藍寶石', val: '品質綠寶石' },
+                    { text: '品質藍寶石', val: '品質藍寶石' },
                     { text: '品質綠寶石', val: '品質綠寶石' },
                     { text: '龍鱗', val: '龍鱗' },
                     { text: '炎魔', val: '炎魔' },
@@ -1266,6 +1266,57 @@
         headerRight.appendChild(autoStatus);
         headerRight.appendChild(unitToggleBtn);
         headerRight.appendChild(formatToggleBtn);
+
+        var afkLabel = document.createElement('label');
+        afkLabel.style.color = '#a09078';
+        afkLabel.style.fontSize = '12px';
+        afkLabel.style.display = 'flex';
+        afkLabel.style.alignItems = 'center';
+        afkLabel.style.gap = '4px';
+        afkLabel.style.cursor = 'pointer';
+        afkLabel.style.marginLeft = '10px';
+        afkLabel.title = '每14~18分鐘自動發送排行榜查詢，防止閒置斷線';
+
+        var afkCheckbox = document.createElement('input');
+        afkCheckbox.type = 'checkbox';
+        afkCheckbox.id = 'my-afk-checkbox';
+        afkCheckbox.style.cursor = 'pointer';
+
+        var afkText = document.createTextNode('防斷線(14~18m)');
+        afkLabel.appendChild(afkCheckbox);
+        afkLabel.appendChild(afkText);
+
+        window._myAfkTimer = null;
+        function randomAntiAfk() {
+            if (typeof socket !== 'undefined' && socket && socket.connected) {
+                socket.emit("getLeaderboard", "level");
+                console.log("[腳本防斷線] 已向伺服器發送排行榜查詢封包，重置20分鐘閒置計時");
+            }
+            if (afkCheckbox.checked) {
+                var randomMinutes = Math.floor(Math.random() * 5) + 14;
+                var randomDelay = randomMinutes * 60 * 1000;
+                window._myAfkTimer = setTimeout(randomAntiAfk, randomDelay);
+                console.log("[腳本防斷線] 下一次發送將在 " + randomMinutes + " 分鐘後執行");
+            }
+        }
+
+        afkCheckbox.addEventListener('change', function() {
+            if (afkCheckbox.checked) {
+                console.log("[腳本防斷線] 機制已啟動");
+                var randomMinutes = Math.floor(Math.random() * 5) + 14;
+                var randomDelay = randomMinutes * 60 * 1000;
+                window._myAfkTimer = setTimeout(randomAntiAfk, randomDelay);
+                console.log("[腳本防斷線] 首次發送將在 " + randomMinutes + " 分鐘後執行");
+            } else {
+                if (window._myAfkTimer) {
+                    clearTimeout(window._myAfkTimer);
+                    window._myAfkTimer = null;
+                }
+                console.log("[腳本防斷線] 機制已關閉");
+            }
+        });
+        
+        headerRight.appendChild(afkLabel);
         headerRight.appendChild(closeBtn);
 
         header.appendChild(title);
@@ -1701,9 +1752,9 @@
             aHtml += '<div style="display:flex;align-items:center;gap:6px;">';
             aHtml += '<span style="width:65px;">數量:</span>';
             aHtml += '<select id="ab-tm-cnt-op" style="background:#141210;color:#fcd34d;border:1px solid #5a4a36;padding:3px 4px;border-radius:4px;font-weight:bold;">';
-            aHtml += '<option value=">="' + (tm.cntOp === '>=' ? ' selected' : '') + '>=(大於等於)</option>';
-            aHtml += '<option value="="' + (tm.cntOp === '=' ? ' selected' : '') + '">=(精確等於)</option>';
-            aHtml += '<option value="<="' + (tm.cntOp === '<=' ? ' selected' : '') + '"><=(小於等於)</option>';
+            aHtml += '<option value=">="' + (tm.cntOp === '>=' ? ' selected' : '') + '>>=(大於等於)</option>';
+            aHtml += '<option value="="' + (tm.cntOp === '=' ? ' selected' : '') + '>>=(精確等於)</option>';
+            aHtml += '<option value="<="' + (tm.cntOp === '<=' ? ' selected' : '') + '>><=(小於等於)</option>';
             aHtml += '</select>';
             aHtml += '<input type="number" id="ab-tm-cnt" value="'+(isNaN(tm.cnt) || tm.cnt === null ? '' : tm.cnt)+'" placeholder="留空不限" style="width:75px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:3px 6px;border-radius:4px;"/>';
             aHtml += '</div>';
@@ -1715,9 +1766,9 @@
             aHtml += '<option value="unit"' + (tm.priceType === 'unit' ? ' selected' : '') + '>單價</option>';
             aHtml += '</select>';
             aHtml += '<select id="ab-tm-price-op" style="background:#141210;color:#fcd34d;border:1px solid #5a4a36;padding:3px 4px;border-radius:4px;font-weight:bold;">';
-            aHtml += '<option value="<="' + (tm.priceOp === '<=' ? ' selected' : '') + '"><=(低於等於)</option>';
-            aHtml += '<option value="="' + (tm.priceOp === '=' ? ' selected' : '') + '">=(精確等於)</option>';
-            aHtml += '<option value=">="' + (tm.priceOp === '>=' ? ' selected' : '') + '>=(高於等於)</option>';
+            aHtml += '<option value="<="' + (tm.priceOp === '<=' ? ' selected' : '') + '>><=(低於等於)</option>';
+            aHtml += '<option value="="' + (tm.priceOp === '=' ? ' selected' : '') + '>>=(精確等於)</option>';
+            aHtml += '<option value=">="' + (tm.priceOp === '>=' ? ' selected' : '') + '>>=(高於等於)</option>';
             aHtml += '</select>';
             aHtml += '<input type="number" id="ab-tm-price" value="'+(isNaN(tm.price) || tm.price === null ? '' : tm.price)+'" placeholder="金額" style="width:75px;background:#141210;color:#fff;border:1px solid #5a4a36;padding:3px 6px;border-radius:4px;"/>';
             aHtml += '</div>';
@@ -1919,7 +1970,7 @@
                 { text: '鋼鐵', val: '鋼鐵' },
                 { text: '鋼鐵長靴', val: '鋼鐵長靴' },
                 { text: '鋼鐵手套', val: '鋼鐵手套' },
-                { text: '品質藍寶石', val: '品質綠寶石' },
+                { text: '品質藍寶石', val: '品質藍寶石' },
                 { text: '品質綠寶石', val: '品質綠寶石' },
                 { text: '龍鱗', val: '龍鱗' },
                 { text: '炎魔', val: '炎魔' },
