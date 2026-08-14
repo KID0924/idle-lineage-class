@@ -612,7 +612,7 @@
 
     <div class="container">
         <header>
-            <h1><span ondblclick="ALL_PLUGINS.forEach(p=>p.disabled=false); renderList(); this.innerText='✨'; this.style.cursor='default';" style="cursor:help; user-select:none;" title="快速點兩下解鎖所有隱藏模組">⚡</span> 放置產生器</h1>
+            <h1>⚡ 放置產生器</h1>
             <div class="subtitle">支援【瀏覽器書籤】與【竄改猴 Tampermonkey】雙重模式</div>
         </header>
 
@@ -631,6 +631,7 @@
                     <button class="btn-quick btn-preset" onclick="applyPreset('mobile')">📱 手機效能優化</button>
                     <button class="btn-quick btn-preset" onclick="applyPreset('game')">🎮 遊戲優化</button>
                     <button class="btn-quick btn-preset" onclick="applyPreset('pvp')">⚔️ 無界競技場</button>
+                    <button class="btn-quick btn-preset" onclick="applyPreset('recommend')">✨ 推薦優化</button>
                 </div>
 
                 <div class="files-container" id="files-list">
@@ -737,8 +738,7 @@
                 desc: 'JSONBlob / Firebase 雙引擎備份同步。', 
                 details: '支援 JSONBlob 與 Firebase 雙引擎雲端備份同步。提供本地與雲端雙備份引擎，確保多裝置同步時存檔資料的安全與隔離。', 
                 isCore: false, 
-                checked: false,
-                disabled: true
+                checked: false
             },
             { 
                 id: 'klh_GMShop.js', 
@@ -778,8 +778,7 @@
                 desc: '時光使者 NPC 轉生與回憶蠟燭點數保護。', 
                 details: '75等以上可前往象牙塔尋找「時光使者」轉生回 1 等並重置屬性配點，每次轉生可獲得依等級計算的永久屬性點（如：75等送 6 點，90等送 66 點；注意：只會給予這些轉生點數，不包含50等升級獲得的點數）。該點數永久累加且受回憶蠟燭保護。', 
                 isCore: false, 
-                checked: false,
-                disabled: true
+                checked: false
             },
             { 
                 id: 'klh_pk.js', 
@@ -895,6 +894,20 @@
                 });
             } else if (presetType === 'pvp') {
                 const targetIds = ['klh_mobile-perf.js', 'klh_pk.js'];
+                activePlugins.forEach(p => {
+                    p.checked = !p.disabled && targetIds.includes(p.id);
+                });
+            } else if (presetType === 'recommend' || presetType === 'cloud') {
+                const targetIds = [
+                    'klh_initial.js',
+                    'klh_database.js',
+                    'klh_mobile-perf.js',
+                    'klh_perf-monitor.js',
+                    'klh_Addition.js',
+                    'klh_pk.js',
+                    'klh_Pandora.js',
+                    'klh_remove-banner.js'
+                ];
                 activePlugins.forEach(p => {
                     p.checked = !p.disabled && targetIds.includes(p.id);
                 });
