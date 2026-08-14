@@ -50,7 +50,7 @@
     // (精簡版，僅包含 compressToBase64 / decompressFromBase64)
     // 來源: https://github.com/pieroxy/lz-string (MIT License)
     // ==========================================
-    var LZString = (function() {
+    var LZString = (function () {
         var f = String.fromCharCode;
         var keyStrBase64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
         var baseReverseDic = {};
@@ -275,7 +275,7 @@
             var dictionary = [],
                 next, enlargeIn = 4, dictSize = 4, numBits = 3,
                 entry = "", result = [], i, w, bits, resb, maxpower, power, c,
-                data = {val: getNextValue(0), position: resetValue, index: 1};
+                data = { val: getNextValue(0), position: resetValue, index: 1 };
             for (i = 0; i < 3; i++) { dictionary[i] = i; }
             bits = 0; maxpower = Math.pow(2, 2); power = 1;
             while (power != maxpower) {
@@ -318,15 +318,15 @@
         }
 
         return {
-            compressToBase64: function(input) {
+            compressToBase64: function (input) {
                 if (input == null) return "";
-                var res = _compress(input, 6, function(a) { return keyStrBase64.charAt(a); });
+                var res = _compress(input, 6, function (a) { return keyStrBase64.charAt(a); });
                 switch (res.length % 4) { default: case 0: return res; case 1: return res + "==="; case 2: return res + "=="; case 3: return res + "="; }
             },
-            decompressFromBase64: function(input) {
+            decompressFromBase64: function (input) {
                 if (input == null) return "";
                 if (input == "") return null;
-                return _decompress(input.length, 32, function(index) { return getBaseValue(keyStrBase64, input.charAt(index)); });
+                return _decompress(input.length, 32, function (index) { return getBaseValue(keyStrBase64, input.charAt(index)); });
             }
         };
     })();
@@ -486,7 +486,7 @@
     window.cleanUnusedCloudCaches = function () {
         const mode = localStorage.getItem('klh_storage_mode') || 'local';
         const activeKeys = new Set();
-        
+
         // 僅保留當前啟用的雲端儲存引擎之「目前登入金鑰/存檔」的快取，其他模式與其他金鑰的快取一律清除
         if (mode === 'supabase' && allowSupabase) {
             const sbKey = (localStorage.getItem('klh_supabase_key') || '').trim();
@@ -498,14 +498,14 @@
             const fbKey = (localStorage.getItem('klh_firebase_sync_id') || '').trim();
             if (fbKey) activeKeys.add(fbKey);
         }
-        
+
         let deleteCount = 0;
         const keysToRemove = [];
-        
+
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (!key) continue;
-            
+
             // 🔒 快取安全限制：僅清理特定前綴的雲端存檔與附屬檔案，避免誤刪 klh_storage_mode 等系統設定
             if (key.startsWith('klh_cloud_') || key.startsWith('klh_afk_')) {
                 let isOrphan = true;
@@ -520,12 +520,12 @@
                 }
             }
         }
-        
+
         keysToRemove.forEach(k => {
             originalRemoveItem.call(localStorage, k);
             deleteCount++;
         });
-        
+
         if (deleteCount > 0) {
             console.log(`[KLH Cache Sweeper] 已成功自動清理 ${deleteCount} 個與當前金鑰無關的快取檔案。`);
         }
@@ -536,33 +536,33 @@
     window.showStorageInspectorModal = function () {
         const oldBackdrop = document.getElementById('klh-inspector-backdrop');
         if (oldBackdrop) oldBackdrop.remove();
-        
+
         const backdrop = document.createElement('div');
         backdrop.id = 'klh-inspector-backdrop';
         backdrop.style.cssText = 'position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(2px); z-index: 100000; display: flex; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.2s ease-in-out;';
-        
+
         const content = document.createElement('div');
         content.style.cssText = 'background: #0f172a; border: 2px solid #334155; border-radius: 16px; width: 90%; max-width: 320px; padding: 20px; color: white; display: flex; flex-direction: column; gap: 10px; max-height: 80vh; overflow-y: auto; text-align: left; font-family: sans-serif; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);';
-        
+
         backdrop.onclick = function (e) {
             if (e.target === backdrop) backdrop.remove();
         };
-        
+
         const listItems = [];
         let totalSize = 0;
-        
+
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (!key) continue;
-            
+
             const isLocal = key.startsWith('lineage_idle_save_') || key === 'lineage_idle_warehouse';
             const isCloudCache = key.startsWith('klh_cloud_save_') || key.startsWith('klh_cloud_warehouse') || key.startsWith('afk_ts_') || key.startsWith('afk_map_') || key.startsWith('afk_pride_');
-            
+
             if (isLocal || isCloudCache) {
                 const val = localStorage.getItem(key) || '';
                 const sizeKB = (val.length / 1024).toFixed(1);
                 totalSize += val.length;
-                
+
                 let displayName = key;
                 let colorClass = 'color: #94a3b8;';
                 if (isLocal) {
@@ -576,7 +576,7 @@
                     const parts = key.split('_');
                     const suffix = parts[parts.length - 1] || '';
                     const shortSuffix = suffix.substring(0, 8);
-                    
+
                     if (key.includes('warehouse')) {
                         displayName = `[雲端] 倉庫數據 (${shortSuffix})`;
                     } else if (key.includes('empty_flag')) {
@@ -596,16 +596,16 @@
                     }
                     colorClass = 'color: #fb923c; font-weight: bold;';
                 }
-                
+
                 listItems.push(`<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #1e293b; padding: 6px 0; font-size: 11px;">
                     <span style="${colorClass}">${displayName}</span>
                     <span style="color: #64748b;">${sizeKB} KB</span>
                 </div>`);
             }
         }
-        
+
         const totalSizeKB = (totalSize / 1024).toFixed(1);
-        
+
         content.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 8px;">
                 <span style="font-size: 13px; font-weight: bold; color: #fbbf24; display: flex; align-items: center; gap: 4px;">🔍 本地快取監視器</span>
@@ -623,7 +623,7 @@
                 <button onclick="document.getElementById('klh-inspector-backdrop').remove()" style="flex: 1; padding: 8px; background: #334155; border: none; border-radius: 6px; color: #cbd5e1; font-size: 11px; font-weight: bold; cursor: pointer; text-align: center;" class="hover:opacity-90">關閉</button>
             </div>
         `;
-        
+
         backdrop.appendChild(content);
         document.body.appendChild(backdrop);
     };
@@ -650,8 +650,8 @@
                 </div>
             `;
             document.body.appendChild(overlay);
-            document.getElementById('klh-lock-reload-btn').addEventListener('click', function() { location.reload(); });
-            document.getElementById('klh-lock-local-btn').addEventListener('click', function() { localStorage.setItem('klh_storage_mode', 'local'); location.reload(); });
+            document.getElementById('klh-lock-reload-btn').addEventListener('click', function () { location.reload(); });
+            document.getElementById('klh-lock-local-btn').addEventListener('click', function () { localStorage.setItem('klh_storage_mode', 'local'); location.reload(); });
         };
     }
 
@@ -898,14 +898,14 @@
         console.log("[KLH] 已成功將本地存檔複製到雲端暫存區。後綴:", suffix);
     };
 
-    window.forceCopyLocalToCloud = async function(targetCloud) {
+    window.forceCopyLocalToCloud = async function (targetCloud) {
         // 檢查本地是否全空 (直接讀原生 Storage)
         let hasData = false;
         if (originalGetItem.call(localStorage, 'lineage_idle_warehouse')) hasData = true;
-        for(let i=1; i<=16; i++){
-            if(originalGetItem.call(localStorage, 'lineage_idle_save_'+i)) hasData = true;
+        for (let i = 1; i <= 16; i++) {
+            if (originalGetItem.call(localStorage, 'lineage_idle_save_' + i)) hasData = true;
         }
-        if(!hasData) {
+        if (!hasData) {
             window.showToast("本地沒有任何存檔進度，已取消複製！", "error");
             return;
         }
@@ -914,32 +914,32 @@
 
         const proxyGet = Storage.prototype.getItem;
         const oldSyncStatus = window.__klh_cloud_sync_success;
-        
+
         try {
             // 暫時解除 Proxy，讓上傳函式讀取到真正的本機存檔
-            Storage.prototype.getItem = function(k) { return originalGetItem.call(localStorage, k); };
+            Storage.prototype.getItem = function (k) { return originalGetItem.call(localStorage, k); };
             window.__klh_cloud_sync_success = true; // 強制允許上傳
-            
+
             let success = false;
             if (targetCloud === 'supabase') {
                 const key = originalGetItem.call(localStorage, 'klh_supabase_key') || originalGetItem.call(localStorage, 'klh_supabase_local_key');
-                if(!key) { window.showToast("請先設定 Supabase 金鑰！", "error"); return; }
-                if(typeof window.uploadToSupabase === 'function') success = await window.uploadToSupabase(true, true);
+                if (!key) { window.showToast("請先設定 Supabase 金鑰！", "error"); return; }
+                if (typeof window.uploadToSupabase === 'function') success = await window.uploadToSupabase(true, true);
             } else if (targetCloud === 'jsonblob') {
                 const url = (originalGetItem.call(localStorage, 'lineage_idle_jsonblob_url') || '').trim();
-                if(!url) { window.showToast("請先設定 JSONBlob 網址！", "error"); return; }
-                if(typeof window.saveJsonBlobConfig === 'function') window.saveJsonBlobConfig(url);
-                if(typeof window.uploadToCloud === 'function') success = await window.uploadToCloud(true, true);
+                if (!url) { window.showToast("請先設定 JSONBlob 網址！", "error"); return; }
+                if (typeof window.saveJsonBlobConfig === 'function') window.saveJsonBlobConfig(url);
+                if (typeof window.uploadToCloud === 'function') success = await window.uploadToCloud(true, true);
             } else if (targetCloud === 'firebase') {
                 const syncId = originalGetItem.call(localStorage, 'klh_firebase_sync_id');
-                if(!syncId) { window.showToast("請先設定 Firebase Sync ID！", "error"); return; }
-                if(typeof window.uploadToFirebase === 'function') success = await window.uploadToFirebase(true, true); // firebase 的 forceFullOverwrite 為 true
+                if (!syncId) { window.showToast("請先設定 Firebase Sync ID！", "error"); return; }
+                if (typeof window.uploadToFirebase === 'function') success = await window.uploadToFirebase(true, true); // firebase 的 forceFullOverwrite 為 true
             }
-            
-            if(success !== false) {
-                 window.showToast(`✅ 已成功將本地存檔複製到 ${targetCloud.toUpperCase()}！`, "success");
-                 if(typeof window.copyLocalSavesToCloudCache === 'function') window.copyLocalSavesToCloudCache();
-                 if(typeof window.cleanUnusedCloudCaches === 'function') window.cleanUnusedCloudCaches();
+
+            if (success !== false) {
+                window.showToast(`✅ 已成功將本地存檔複製到 ${targetCloud.toUpperCase()}！`, "success");
+                if (typeof window.copyLocalSavesToCloudCache === 'function') window.copyLocalSavesToCloudCache();
+                if (typeof window.cleanUnusedCloudCaches === 'function') window.cleanUnusedCloudCaches();
             }
         } finally {
             // 復原
@@ -954,7 +954,7 @@
             window.showToast('此功能僅支援雲端模式 (Supabase / JSONBlob / Firebase)！', 'warning');
             return;
         }
-        
+
         let activeKey = '';
         let modeName = '';
         if (mode === 'supabase') {
@@ -972,7 +972,7 @@
             window.showToast(`當前${modeName}金鑰不存在，無法複製！`, 'error');
             return;
         }
-        
+
         const suffix = '_' + activeKey.trim();
         const maxSlots = getMaxSaveSlot();
 
@@ -992,7 +992,7 @@
         }
 
         if (!confirm(`確定要把當前${modeName}存檔複製並覆蓋到本地嗎？本地原有的進度將會被覆蓋！`)) return;
-        
+
         let copyCount = 0;
         for (let n = 1; n <= maxSlots; n++) {
             const cloudVal = originalGetItem.call(localStorage, 'klh_cloud_save_' + n + suffix);
@@ -1017,7 +1017,7 @@
         }
         console.log(`[KLH] 已成功將 ${modeName} 存檔複製到本地進度。後綴:`, suffix);
         window.showToast(`複製成功！已將 ${copyCount} 個槽位的雲端進度同步至本地。`, 'success');
-        
+
         // 刷新 UI
         if (typeof refreshLoadBtnVisibility === 'function') refreshLoadBtnVisibility();
         const slotSelectPanel = document.getElementById('slot-select-panel');
@@ -1071,9 +1071,9 @@
     // API 請求封裝 (依據使用者要求全面改為直接連線，移除代理備援機制)
     async function fetchWithProxy(targetUrl, options = {}) {
         const res = await fetch(targetUrl, options);
-        if (res.ok || res.status === 200 || res.status === 201) { 
-            res.connectionMethod = "直接連線"; 
-            return res; 
+        if (res.ok || res.status === 200 || res.status === 201) {
+            res.connectionMethod = "直接連線";
+            return res;
         }
         throw new Error(`Direct connection returned status ${res.status}`);
     }
@@ -1188,7 +1188,8 @@
             }
             if (isManual) window.showToast('上傳雲端存檔失敗，狀態碼：' + res.status, 'error');
             return false;
-        } catch (err) { if (isManual) window.showToast('上傳雲端存檔失敗，請檢查網路連線。', 'error'); return false;
+        } catch (err) {
+            if (isManual) window.showToast('上傳雲端存檔失敗，請檢查網路連線。', 'error'); return false;
         } finally { if (isManual) window.hideLoadingOverlay(); }
     };
 
@@ -1261,16 +1262,16 @@
         serverUrl = (serverUrl || "").trim();
         syncId = (syncId || "").trim();
         if (serverUrl.endsWith('/')) serverUrl = serverUrl.slice(0, -1);
-        
+
         localStorage.setItem('klh_firebase_database_url', serverUrl);
         localStorage.setItem('klh_firebase_sync_id', syncId);
-        
+
         let localSyncId = localStorage.getItem('klh_firebase_local_sync_id') || '';
         if (!localSyncId && syncId) {
             localSyncId = syncId;
             localStorage.setItem('klh_firebase_local_sync_id', localSyncId);
         }
-        
+
         window.__klh_storage_cache.firebaseUrl = serverUrl;
         window.__klh_storage_cache.firebaseSyncId = syncId;
     };
@@ -1285,7 +1286,7 @@
             if (isManual) window.showToast('請先輸入並登入 Firebase 雲端帳號！', 'error');
             return false;
         }
-        
+
         const databaseURL = getFirebaseDatabaseURL();
         const maxSlots = getMaxSaveSlot();
         const extraKeysFB = _collectExtraKeys();
@@ -1296,7 +1297,7 @@
             updatedAt: Date.now(),
             clientInfo: 'Firebase-Sync-Module-v2'
         };
-        
+
         let hasAnyLocalData = false;
         for (let n = 1; n <= maxSlots; n++) {
             const saveVal = localStorage.getItem('lineage_idle_save_' + n);
@@ -1310,12 +1311,12 @@
             }
         }
         if (payload.warehouse) hasAnyLocalData = true;
-        
+
         if (!hasAnyLocalData) {
             if (isManual) window.showToast('上傳失敗：本地無任何存檔數據，已攔截以防清空雲端！', 'error');
             return false;
         }
-        
+
         if (!forceFullOverwrite) {
             const activeSlot = (typeof currentSlot !== 'undefined') ? parseInt(currentSlot, 10) : null;
             if (activeSlot && activeSlot >= 1 && activeSlot <= maxSlots) {
@@ -1326,7 +1327,7 @@
                 }
             }
         }
-        
+
         if (isManual) window.showLoadingOverlay('正在上傳存檔至 Firebase...');
         try {
             const targetUrl = `${databaseURL}/saves/${syncId}.json`;
@@ -1423,27 +1424,27 @@
         const syncInput = document.getElementById('firebase-sync-input');
         const serverUrl = serverInput ? serverInput.value.trim() : '';
         const syncId = syncInput ? syncInput.value.trim() : '';
-        
+
         if (!serverUrl || !syncId) {
             window.showToast('請先輸入伺服器網址與雲端帳號！', 'error');
             return;
         }
-        
+
         window.saveFirebaseConfig(serverUrl, syncId);
         window.updateStorageModeUI();
         await window.syncFromFirebase(true);
     };
- 
+
     window.restoreFirebaseLocalSyncId = async function () {
         const localSyncId = localStorage.getItem('klh_firebase_local_sync_id') || '';
         if (!localSyncId) { window.showToast('無本機存檔名稱！', 'error'); return; }
-        
+
         localStorage.setItem('klh_firebase_sync_id', localSyncId);
         window.__klh_storage_cache.firebaseSyncId = localSyncId;
-        
+
         const syncInput = document.getElementById('firebase-sync-input');
         if (syncInput) syncInput.value = localSyncId;
-        
+
         window.updateStorageModeUI();
         await window.syncFromFirebase(true);
     };
@@ -1475,7 +1476,7 @@
             let cleanServerUrl = serverUrl;
             if (cleanServerUrl.endsWith('/')) cleanServerUrl = cleanServerUrl.slice(0, -1);
             const targetUrl = `${cleanServerUrl}/saves/${cleanId}.json`;
-            
+
             const response = await fetch(targetUrl, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -1608,9 +1609,9 @@
             if (error) throw error;
             if (isManual) window.showToast('成功將本機進度同步至雲端！ ⚠️請勿跨裝置雙開遊戲。', 'success');
             return true;
-        } catch (err) { 
+        } catch (err) {
             console.error('Supabase upload error:', err);
-            if (isManual) window.showToast('上傳雲端存檔失敗：' + (err.message || err), 'error'); 
+            if (isManual) window.showToast('上傳雲端存檔失敗：' + (err.message || err), 'error');
             return false;
         } finally { if (isManual) window.hideLoadingOverlay(); }
     };
@@ -1756,7 +1757,8 @@
                 localStorage.setItem('klh_storage_mode', 'supabase');
                 if (typeof window.updateStorageModeUI === 'function') window.updateStorageModeUI();
                 await window.syncFromSupabase(true);
-            } catch (err) { window.showToast('登入驗證失敗', 'error');
+            } catch (err) {
+                window.showToast('登入驗證失敗', 'error');
             } finally { isSupabaseLoggingIn = false; window.hideLoadingOverlay(); }
         }
     };
@@ -1920,10 +1922,7 @@
             if (copyToCloudContainer) {
                 let showAny = false;
                 if (mode === 'local') {
-                    const inputVal = (inputEl ? inputEl.value : (localStorage.getItem('lineage_idle_jsonblob_url') || '')).trim().toLowerCase();
-                    const showSupabase = (mode === 'supabase') || (inputVal === 'lf2.net');
-
-                    if (allowSupabase && showSupabase) {
+                    if (allowSupabase) {
                         const hasKey = (localStorage.getItem('klh_supabase_key') || localStorage.getItem('klh_supabase_local_key'));
                         if (btnCopySupabase) { btnCopySupabase.style.display = hasKey ? '' : 'none'; if (hasKey) showAny = true; }
                     } else {
@@ -1941,11 +1940,8 @@
                 copyToCloudContainer.style.display = showAny ? '' : 'none';
             }
 
-            // 🔒 隱藏彩蛋：當 Supabase 啟用時，只有在 JSONBlob 輸入框輸入 "lf2.net" (不分大小寫) 或是目前已在 Supabase 模式，才會顯示 Supabase 按鈕
             if (btnSupabase) {
-                const inputVal = (inputEl ? inputEl.value : (localStorage.getItem('lineage_idle_jsonblob_url') || '')).trim().toLowerCase();
-                const showSupabase = (mode === 'supabase') || (inputVal === 'lf2.net');
-                btnSupabase.style.setProperty('display', (allowSupabase && showSupabase) ? '' : 'none', 'important');
+                btnSupabase.style.setProperty('display', allowSupabase ? '' : 'none', 'important');
             }
         }
 
@@ -1993,8 +1989,8 @@
             //     cloudKeys.forEach(k => { html += `<button onclick="handleFastKeyClick(this)" class="btn py-2.5 text-sm bg-slate-800 hover:bg-slate-700 ${k.color} font-normal w-full" style="position: relative; display: flex; justify-content: center; align-items: center;" data-key="${k.key}"><span style="position: absolute; left: 16px;">${k.idx}.</span><span class="font-bold">${k.name}</span><span style="position: absolute; right: 16px; font-size: 11px; opacity: 0.9;">${k.suffix}</span></button>`; });
             //     quickKeysList.innerHTML = html;
             // } else {
-                quickKeysHeader.style.display = 'none';
-                quickKeysList.style.display = 'none';
+            quickKeysHeader.style.display = 'none';
+            quickKeysList.style.display = 'none';
             // }
         }
 
@@ -2088,7 +2084,7 @@
             modalBackdrop = document.createElement('div');
             modalBackdrop.id = 'cloud-save-modal-backdrop';
             modalBackdrop.style.cssText = 'position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 9999; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.25s ease-in-out;';
-            
+
             // 點擊背景空白處自動關閉
             modalBackdrop.onclick = function (e) {
                 if (e.target === modalBackdrop) window.hideCloudSaveModal();
@@ -2096,25 +2092,25 @@
 
             const modalContent = document.createElement('div');
             modalContent.style.cssText = 'background: #0f172a padding-box, linear-gradient(135deg, #4a3613 0%, #b89243 20%, #6e5220 42%, #e6c474 60%, #5c4318 80%, #c9a14a 100%) border-box; border: 2px solid transparent; border-radius: 16px; width: 90%; max-width: 380px; padding: 24px; color: white; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8); position: relative; max-height: 90vh; overflow-y: auto; text-align: center;';
-            
+
             // 關閉按鈕 (x)
             const closeBtn = document.createElement('button');
             closeBtn.innerHTML = '&times;';
             closeBtn.style.cssText = 'position: absolute; top: 12px; right: 16px; color: #94a3b8; background: none; border: none; font-size: 24px; cursor: pointer; outline: none; transition: color 0.2s; z-index: 10;';
-            closeBtn.onmouseover = function() { this.style.color = '#f87171'; };
-            closeBtn.onmouseout = function() { this.style.color = '#94a3b8'; };
-            closeBtn.onclick = function() { window.hideCloudSaveModal(); };
+            closeBtn.onmouseover = function () { this.style.color = '#f87171'; };
+            closeBtn.onmouseout = function () { this.style.color = '#94a3b8'; };
+            closeBtn.onclick = function () { window.hideCloudSaveModal(); };
             modalContent.appendChild(closeBtn);
 
             const container = document.createElement('div');
             container.id = 'cloud-save-container';
             container.className = 'w-full flex flex-col gap-3 text-center';
-            
+
             let buttonsHtml = `<button id="btn-switch-local" onclick="switchToLocalMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">切回本地</button>`;
             if (allowSupabase) buttonsHtml += `<button id="btn-switch-supabase" onclick="switchToSupabaseMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">切回雲端</button>`;
             if (allowJsonBlob) buttonsHtml += `<button id="btn-switch-cloud" onclick="switchToCloudMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">Jsonblob</button>`;
             if (allowFirebase) buttonsHtml += `<button id="btn-switch-firebase" onclick="switchToFirebaseMode()" class="btn flex-1 py-2 text-[10px] bg-slate-800 hover:bg-slate-700 text-white font-bold whitespace-nowrap">Firebase</button>`;
-            
+
             container.innerHTML = `
                 <div class="text-sm font-bold text-yellow-500 flex justify-center items-center gap-1.5">
                     <span>存檔儲存模式</span>
@@ -2318,7 +2314,7 @@
                             delete d.p.klh_save_domain;
                         }
                         payloadStr = JSON.stringify(d);
-                    } catch (e) {}
+                    } catch (e) { }
                     return originalSaveWrap(payloadStr);
                 };
             }
@@ -2376,8 +2372,8 @@
                     return;
                 }
             }
-            try { if (window.__afk && window.__afk.stamp) window.__afk.stamp(); } catch (err) {}
-            setTimeout(() => { try { location.reload(); } catch (err) {} }, 350);
+            try { if (window.__afk && window.__afk.stamp) window.__afk.stamp(); } catch (err) { }
+            setTimeout(() => { try { location.reload(); } catch (err) { } }, 350);
         }
     }, true);
 
