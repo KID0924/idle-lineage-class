@@ -140,6 +140,12 @@
                 transform: translate(-50%, -100%) scale(calc(1.07 * var(--town-scale, 1))) !important;
             }
 
+            /* 確保名牌最少有 0.8 倍大小（避免 iPhone 字太小），但在 iPad 等大螢幕維持原比例不縮水 */
+            body.m-mobile .town-npc .tn-label {
+                transform: translateX(-50%) scale(calc(max(0.8, var(--town-scale, 1)) / var(--town-scale, 1))) !important;
+                transform-origin: bottom center !important;
+            }
+
             /* 登出確認視窗 */
             #m-logout-modal {
                 display: none;
@@ -1848,6 +1854,78 @@
             };
         })();
     }
+
+    // === 手機版重疊 NPC 選擇器 ===
+    (function initMobileNpcSelector() {
+        const modal = document.createElement('div');
+        modal.id = 'm-npc-select-modal';
+        modal.style.cssText = 'display: none; position: fixed; inset: 0; z-index: 999999; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; padding: 24px; font-family: sans-serif;';
+        modal.innerHTML = `
+           <div style="background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 20px; width: 100%; max-width: 320px; color: #fff; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.8);">
+               <h3 style="margin-top:0; margin-bottom: 16px; font-size: 18px; text-align: center; color: #fde68a;">請選擇你要互動的目標</h3>
+               <div id="m-npc-select-list" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 4px;"></div>
+               <button style="margin-top: 16px; width: 100%; padding: 12px; background: #334155; color: #e2e8f0; border: 1px solid #475569; border-radius: 8px; font-size: 16px; cursor: pointer;" onclick="document.getElementById('m-npc-select-modal').style.display='none'">取消</button>
+           </div>
+        `;
+        document.body.appendChild(modal);
+
+        document.addEventListener('click', function(e) {
+            // 只在手機版且點擊地圖時啟用
+            if (!document.body.classList.contains('m-mobile')) return;
+            const map = document.getElementById('town-npc-map');
+            if (!map || map.classList.contains('hidden') || !map.contains(e.target)) return;
+
+            // 避免在彈窗內點擊時觸發
+            if (e.target.closest('#m-npc-select-modal')) return;
+
+            const clickX = e.clientX;
+            const clickY = e.clientY;
+            const RADIUS = 30; // 容錯半徑，處理手指粗細與重疊
+
+            let nearbyNPCs = [];
+            const npcs = map.querySelectorAll('.town-npc');
+            npcs.forEach(npcEl => {
+                const rect = npcEl.getBoundingClientRect();
+                const closestX = Math.max(rect.left, Math.min(clickX, rect.right));
+                const closestY = Math.max(rect.top, Math.min(clickY, rect.bottom));
+                const distance = Math.sqrt((clickX - closestX)**2 + (clickY - closestY)**2);
+                
+                if (distance <= RADIUS) {
+                    nearbyNPCs.push(npcEl);
+                }
+            });
+
+            // 如果附近有多個 NPC，攔截原生點擊並彈出選擇器
+            if (nearbyNPCs.length > 1) {
+                e.stopPropagation();
+                e.preventDefault();
+
+                const list = document.getElementById('m-npc-select-list');
+                list.innerHTML = '';
+                nearbyNPCs.forEach(npcEl => {
+                    const nameEl = npcEl.querySelector('.tn-name');
+                    const titleEl = npcEl.querySelector('.tn-title');
+                    const name = nameEl ? nameEl.textContent : '未知 NPC';
+                    const title = titleEl ? titleEl.textContent : '';
+                    
+                    const btn = document.createElement('button');
+                    btn.style.cssText = 'padding: 12px 16px; background: rgba(30,41,59,0.8); border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 16px; text-align: left; display: flex; align-items: center; gap: 8px; cursor: pointer;';
+                    btn.innerHTML = `<span style="color: #fde68a; font-weight: bold;">${name}</span><span style="color: #94a3b8; font-size: 13px;">${title}</span>`;
+                    btn.onclick = function() {
+                        modal.style.display = 'none';
+                        if (typeof npcEl.onclick === 'function') {
+                            npcEl.onclick({ clientX: clickX, clientY: clickY });
+                        } else {
+                            npcEl.click();
+                        }
+                    };
+                    list.appendChild(btn);
+                });
+                
+                modal.style.display = 'flex';
+            }
+        }, true); // 使用 Capture 階段優先攔截
+    })();
 
     document.addEventListener('DOMContentLoaded', startupInitial);
     if (document.readyState === 'interactive' || document.readyState === 'complete') {
