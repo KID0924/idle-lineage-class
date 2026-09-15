@@ -535,7 +535,7 @@
             }
 
             // 🌟 下架權限判定 (GM 或者 原上架者可以下架)
-            const canDelete = isGM || (mySellerId && info.sellerId === mySellerId);
+            const canDelete = isGM || (myPlayerId && info.sellerId === myPlayerId);
 
             let actionHtml = '';
             if (isSoldOut) {
@@ -1308,78 +1308,87 @@
             
             const defaultId = selectedItem ? selectedItem.id : '';
             const defaultStock = selectedItem ? selectedItem.cnt : '';
+            const d = selectedItem ? DB.items[selectedItem.id] : null;
+            const glowClass = selectedItem && d ? (getGlowClass(selectedItem, d) || '') : '';
+            const maxStock = selectedItem ? selectedItem.cnt : 1;
             
             // 若為 GM，使用簡潔的 Checkbox 切換身分
             let gmSwitchHtml = '';
             if (isGM) {
                 const isGMChecked = window.reaperGMSellerType === 'gm' ? 'checked' : '';
                 gmSwitchHtml = `
-                    <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer mb-5 w-fit select-none">
-                        <input type="checkbox" ${isGMChecked} onchange="setReaperGMSellerType(this.checked ? 'gm' : 'player')" class="w-4 h-4 cursor-pointer accent-amber-500">
-                        <span class="text-amber-400 font-bold tracking-wide">👑 使用 GM 權限 (無限上架)</span>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;margin-bottom:16px;width:fit-content;">
+                        <input type="checkbox" ${isGMChecked} onchange="setReaperGMSellerType(this.checked ? 'gm' : 'player')" style="width:16px;height:16px;cursor:pointer;accent-color:#f59e0b;">
+                        <span style="color:#fbbf24;font-weight:bold;font-size:13px;">👑 使用 GM 權限 (無限上架)</span>
                     </label>
                 `;
             }
 
-            // 一行式設計：(背包按鈕) + (數量) + (單價)
-            const d = selectedItem ? DB.items[selectedItem.id] : null;
-            const itemDisplay = selectedItem && d
-                ? `<div class="flex items-center gap-2 min-w-0 flex-1 px-2 py-1">
-                       <div class="w-8 h-8 bg-slate-950 rounded flex items-center justify-center shrink-0 border border-slate-700">
-                           <img src="${getIconUrl(d)}" class="w-6 h-6 object-contain">
+            // 物品圖示區塊 (點擊可選取/更換)
+            const itemPreviewHtml = selectedItem && d
+                ? `<div onclick="toggleReaperModalView()" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px 0 8px;">
+                       <div style="width:72px;height:72px;background:rgba(15,23,42,0.8);border:2px solid #475569;border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+                           <img src="${getIconUrl(d)}" style="width:56px;height:56px;object-fit:contain;" class="${glowClass}">
                        </div>
-                       <div class="flex flex-col min-w-0 flex-1 justify-center">
-                           <span class="truncate ${getItemColor(selectedItem)} font-bold text-[13px] text-left leading-tight w-full">${getItemFullName(selectedItem)}</span>
-                           <span class="text-[10px] text-slate-400 text-left leading-none mt-1">庫存: ${selectedItem.cnt}</span>
+                       <div style="text-align:center;">
+                           <div class="${getItemColor(selectedItem)}" style="font-weight:bold;font-size:16px;line-height:1.3;">${getItemFullName(selectedItem)}</div>
+                           <div style="color:#64748b;font-size:11px;margin-top:2px;">點擊可更換物品</div>
                        </div>
                    </div>`
-                : `<div class="flex items-center gap-2 min-w-0 flex-1 px-2 py-1 justify-center">
-                       <span class="text-lg shrink-0 text-slate-400">🎒</span>
-                       <span class="truncate text-slate-400 font-bold text-[13px]">點此選取背包物品</span>
+                : `<div onclick="toggleReaperModalView()" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px 0 8px;">
+                       <div style="width:72px;height:72px;background:rgba(15,23,42,0.8);border:2px dashed #475569;border-radius:12px;display:flex;align-items:center;justify-content:center;">
+                           <span style="font-size:32px;opacity:0.5;">🎒</span>
+                       </div>
+                       <div style="text-align:center;">
+                           <div style="color:#94a3b8;font-weight:bold;font-size:14px;">點擊選取背包物品</div>
+                       </div>
                    </div>`;
 
-            // Hidden input for item ID
-            const hiddenId = `<input type="hidden" id="gm-reaper-item-id" value="${defaultId}">`;
+            // 表單行樣式
+            const rowStyle = 'display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(71,85,105,0.4);';
+            const labelStyle = 'color:#94a3b8;font-weight:bold;font-size:14px;white-space:nowrap;';
+            const inputStyle = 'width:120px;background:#0f172a;border:1px solid #475569;color:#fff;border-radius:8px;padding:8px 12px;font-size:15px;text-align:center;outline:none;font-weight:bold;';
+            const hintStyle = 'color:#64748b;font-size:12px;margin-left:8px;white-space:nowrap;';
 
-            // One-liner layout:
-            const oneLinerHtml = `
-                ${hiddenId}
-                <div class="flex gap-2 items-stretch w-full mt-2 h-11">
-                    <!-- 選取按鈕 (充當預覽) -->
-                    <button type="button" onclick="toggleReaperModalView()" class="flex-1 bg-slate-900 border border-slate-600 hover:bg-slate-800 rounded flex items-center shadow-inner transition-colors min-w-0 overflow-hidden outline-none">
-                        ${itemDisplay}
-                    </button>
-                    
-                    <!-- 數量 -->
-                    <div class="shrink-0">
-                        <input type="number" id="gm-reaper-stock" value="${defaultStock}" placeholder="數量" min="1" max="999" class="w-[60px] h-full bg-slate-900 border border-slate-600 text-white rounded px-1 text-sm text-center focus:outline-none focus:border-amber-500 shadow-inner placeholder-slate-500 font-bold">
+            // 表單欄位
+            const formFieldsHtml = `
+                <input type="hidden" id="gm-reaper-item-id" value="${defaultId}">
+                <div style="padding:0 8px;">
+                    <div style="${rowStyle}">
+                        <span style="${labelStyle}">數量</span>
+                        <div style="display:flex;align-items:center;">
+                            <input type="number" id="gm-reaper-stock" value="${defaultStock}" placeholder="1" min="1" max="${isGM && window.reaperGMSellerType === 'gm' ? 999 : maxStock}" style="${inputStyle}">
+                            <span style="${hintStyle}">(最多 ${isGM && window.reaperGMSellerType === 'gm' ? '∞' : maxStock})</span>
+                        </div>
                     </div>
-                    
-                    <!-- 單價 -->
-                    <div class="shrink-0">
-                        <input type="number" id="gm-reaper-price" placeholder="單價" min="0" class="w-[84px] h-full bg-slate-900 border border-slate-600 text-white rounded px-1 text-sm text-center focus:outline-none focus:border-amber-500 shadow-inner placeholder-slate-500 font-bold">
+                    <div style="${rowStyle}border-bottom:none;">
+                        <span style="${labelStyle}">售價</span>
+                        <div style="display:flex;align-items:center;">
+                            <input type="number" id="gm-reaper-price" placeholder="留空用原價" min="0" style="${inputStyle}">
+                            <span style="${hintStyle}">金幣</span>
+                        </div>
                     </div>
                 </div>
             `;
 
+            // 按鈕區
+            const buttonsHtml = `
+                <div style="padding:16px 16px 20px;display:flex;flex-direction:column;gap:10px;">
+                    <button type="button" onclick="submitGMReaperItem()" style="width:100%;padding:14px 0;border:2px solid #b8860b;border-radius:10px;font-size:18px;font-weight:900;color:#fff;cursor:pointer;letter-spacing:4px;background:linear-gradient(180deg, #c5993e 0%, #8b6914 50%, #a07c28 100%);box-shadow:0 4px 12px rgba(184,134,11,0.4);transition:all 0.2s;">
+                        上　架
+                    </button>
+                    <button type="button" onclick="closeReaperListingModal()" style="width:100%;padding:12px 0;border:2px solid #475569;border-radius:10px;font-size:15px;font-weight:bold;color:#94a3b8;cursor:pointer;background:linear-gradient(180deg, #334155 0%, #1e293b 100%);transition:all 0.2s;">
+                        取消
+                    </button>
+                </div>
+            `;
+
             contentHtml = `
-                <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl relative overflow-hidden flex flex-col w-full h-full">
-                    <div class="bg-slate-950 p-4 border-b border-slate-800 shrink-0">
-                        <h3 class="text-lg font-black text-amber-400 flex items-center gap-2">
-                            <span>📦</span> 新增寄售商品
-                        </h3>
-                    </div>
-                    ${closeBtnHtml}
-                    <div class="px-5 pt-4 pb-5 overflow-y-auto custom-scrollbar flex-1 flex flex-col justify-center">
-                        ${gmSwitchHtml}
-                        ${oneLinerHtml}
-                        
-                        <div class="mt-6 pt-5 border-t border-slate-800 border-dashed">
-                            <button type="button" onclick="submitGMReaperItem()" class="w-full btn bg-amber-700 hover:bg-amber-600 border border-amber-500 py-3 font-bold shadow text-white rounded-lg text-sm transition-all shadow-amber-900/50 flex items-center justify-center gap-2">
-                                <span>🚀</span> 確認上架
-                            </button>
-                        </div>
-                    </div>
+                <div style="background:linear-gradient(180deg, #111827 0%, #0f172a 100%);border:2px solid #475569;border-radius:16px;box-shadow:0 0 40px rgba(0,0,0,0.6);overflow:hidden;display:flex;flex-direction:column;width:100%;max-height:90vh;">
+                    ${gmSwitchHtml ? '<div style="padding:16px 20px 0;">' + gmSwitchHtml + '</div>' : ''}
+                    ${itemPreviewHtml}
+                    ${formFieldsHtml}
+                    ${buttonsHtml}
                 </div>
             `;
 
