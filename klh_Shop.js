@@ -153,6 +153,107 @@
         'Content-Type': 'application/json'
     };
 
+    // ==========================================
+    // 屬性清理與規範化輔助函數 (防止資料庫字串 'false' / 'null' / '\r\n' 污染)
+    // ==========================================
+    function isEquipment(itemOrId) {
+        if (!itemOrId) return false;
+        const itemId = typeof itemOrId === 'string' ? itemOrId : itemOrId.id;
+        const d = (typeof DB !== 'undefined' && DB.items) ? DB.items[itemId] : null;
+        if (!d) return false;
+        return !!(d.slot || d.type === 'wpn' || d.type === 'arm' || d.type === 'acc');
+    }
+
+    function parseBlessVal(val, itemId) {
+        if (itemId && !isEquipment(itemId)) return false;
+        if (val === undefined || val === null) return false;
+        if (val === true) return true;
+        const str = String(val).trim();
+        const low = str.toLowerCase();
+        if (!str || low === 'false' || low === 'null' || low === 'undefined') return false;
+        if (low === 'true') return true;
+        return str;
+    }
+
+    function parseAncVal(val, itemId) {
+        if (itemId && !isEquipment(itemId)) return false;
+        if (val === undefined || val === null) return false;
+        if (val === true) return true;
+        const str = String(val).trim();
+        const low = str.toLowerCase();
+        if (!str || low === 'false' || low === 'null' || low === 'undefined') return false;
+        if (low === 'true') return true;
+        return str;
+    }
+
+    function parseAttrVal(val, itemId) {
+        if (itemId && !isEquipment(itemId)) return false;
+        if (val === undefined || val === null) return false;
+        const str = String(val).trim();
+        const low = str.toLowerCase();
+        if (!str || low === 'false' || low === 'null' || low === 'undefined') return false;
+        return str;
+    }
+
+    function parseSeteffVal(val, itemId) {
+        if (itemId && !isEquipment(itemId)) return false;
+        if (val === undefined || val === null) return false;
+        const str = String(val).trim();
+        const low = str.toLowerCase();
+        if (!str || low === 'false' || low === 'null' || low === 'undefined') return false;
+        return str;
+    }
+
+    function sanitizePlayerItems() {
+        if (typeof player === 'undefined' || !player) return;
+        let modified = false;
+        const cleanItem = (item) => {
+            if (!item) return;
+            const isEq = isEquipment(item.id);
+            if (!isEq) {
+                // 非裝備道具 (如對武器施法的卷軸、藥水、材料) 絕對不能有任何裝備強化與詞綴
+                if (item.en) { item.en = 0; modified = true; }
+                if (item.bless) { item.bless = false; modified = true; }
+                if (item.anc) { item.anc = false; modified = true; }
+                if (item.attr) { item.attr = false; modified = true; }
+                if (item.seteff) { item.seteff = false; modified = true; }
+                return;
+            }
+
+            const cleanStr = (v) => {
+                if (v === undefined || v === null) return false;
+                if (v === true) return true;
+                const s = String(v).trim().toLowerCase();
+                if (!s || s === 'false' || s === 'null' || s === 'undefined') return false;
+                if (s === 'true') return true;
+                return String(v).trim();
+            };
+
+            const b = cleanStr(item.bless);
+            if (item.bless !== b) { item.bless = b; modified = true; }
+
+            const a = cleanStr(item.anc);
+            if (item.anc !== a) { item.anc = a; modified = true; }
+
+            const at = cleanStr(item.attr);
+            if (item.attr !== at) { item.attr = at; modified = true; }
+
+            const se = cleanStr(item.seteff);
+            if (item.seteff !== se) { item.seteff = se; modified = true; }
+        };
+        if (Array.isArray(player.inv)) {
+            player.inv.forEach(cleanItem);
+        }
+        if (player.eq && typeof player.eq === 'object') {
+            Object.values(player.eq).forEach(cleanItem);
+        }
+        if (modified) {
+            if (typeof calcStats === 'function') calcStats();
+            if (typeof updateUI === 'function') updateUI();
+            if (typeof saveGame === 'function') saveGame();
+        }
+    }
+
     // 取得所有商品庫存
     async function fetchShopStock() {
         const res = await fetch(`${SUPA_URL}/rest/v1/reaper_shop_listings?select=*`, { headers: SUPA_HEADERS });
@@ -160,11 +261,17 @@
         const rows = await res.json();
         const stock = {};
         for (let r of rows) {
+            const itId = r.item_id;
             stock[r.id] = {
-                itemId: r.item_id, stock: r.stock, price: r.price,
-                en: r.en, bless: r.bless, anc: r.anc, attr: r.attr, seteff: r.seteff,
+                itemId: itId, stock: Math.max(0, parseInt(r.stock, 10) || 0), price: (r.price !== undefined && r.price !== null) ? Math.max(0, parseInt(r.price, 10)) : null,
+                en: isEquipment(itId) ? (parseInt(r.en, 10) || 0) : 0,
+                bless: parseBlessVal(r.bless, itId),
+                anc: parseAncVal(r.anc, itId),
+                attr: parseAttrVal(r.attr, itId),
+                seteff: parseSeteffVal(r.seteff, itId),
                 sellerId: r.seller_id, sellerName: r.seller_name,
-                earned: r.earned, soldOutTime: r.sold_out_time ? parseInt(r.sold_out_time, 10) : undefined
+                earned: Math.max(0, parseInt(r.earned, 10) || 0),
+                soldOutTime: r.sold_out_time ? parseInt(r.sold_out_time, 10) : undefined
             };
         }
         return stock;
@@ -473,11 +580,11 @@
             const d = DB.items[itemId];
             if (!d) return; // 🌟 1. 第一關防護：本版查無此物品則安全跳過不渲染
 
-            const en = listingId.startsWith('list_') ? (parseInt(info.en, 10) || 0) : 0;
-            const bless = listingId.startsWith('list_') && info.bless && info.bless !== 'false' ? info.bless : false;
-            const anc = listingId.startsWith('list_') && info.anc && info.anc !== 'false' ? info.anc : false;
-            const attr = listingId.startsWith('list_') && info.attr && info.attr !== 'false' ? info.attr : false;
-            const seteff = listingId.startsWith('list_') && info.seteff && info.seteff !== 'false' ? info.seteff : false;
+            const en = listingId.startsWith('list_') && isEquipment(itemId) ? (parseInt(info.en, 10) || 0) : 0;
+            const bless = listingId.startsWith('list_') ? parseBlessVal(info.bless, itemId) : false;
+            const anc = listingId.startsWith('list_') ? parseAncVal(info.anc, itemId) : false;
+            const attr = listingId.startsWith('list_') ? parseAttrVal(info.attr, itemId) : false;
+            const seteff = listingId.startsWith('list_') ? parseSeteffVal(info.seteff, itemId) : false;
 
             const mockItem = {
                 id: itemId,
@@ -615,11 +722,11 @@
             return;
         }
 
-        const en = listingId.startsWith('list_') ? (info.en || 0) : 0;
-        const bless = listingId.startsWith('list_') ? (info.bless || false) : false;
-        const anc = listingId.startsWith('list_') ? (info.anc || false) : false;
-        const attr = listingId.startsWith('list_') ? (info.attr || false) : false;
-        const seteff = listingId.startsWith('list_') ? (info.seteff || false) : false;
+        const en = listingId.startsWith('list_') && isEquipment(itemId) ? (parseInt(info.en, 10) || 0) : 0;
+        const bless = listingId.startsWith('list_') ? parseBlessVal(info.bless, itemId) : false;
+        const anc = listingId.startsWith('list_') ? parseAncVal(info.anc, itemId) : false;
+        const attr = listingId.startsWith('list_') ? parseAttrVal(info.attr, itemId) : false;
+        const seteff = listingId.startsWith('list_') ? parseSeteffVal(info.seteff, itemId) : false;
 
         const customPrice = listingId.startsWith('list_') ? info.price : (typeof info === 'object' ? info.price : null);
         const price = (customPrice !== undefined && customPrice !== null) ? Math.max(0, parseInt(customPrice, 10)) : shopPrice(DB.items[itemId].p || 0);
@@ -682,16 +789,22 @@
                     // 扣除玩家金幣並給予道具
                     player.gold -= cost;
 
-                    // 🌟 核心：直接複製屬性建立 purchased 物件給予玩家，避免 gainItem 造成屬性隨機擲骰
+                    // 🌟 核心：直接複製屬性建立 purchased 物件給予玩家，使用正規化後的屬性避免 'false' 字串
+                    const finalEn = listingId.startsWith('list_') && isEquipment(itemId) ? (parseInt(cloudRaw.en !== undefined ? cloudRaw.en : en, 10) || 0) : 0;
+                    const finalBless = listingId.startsWith('list_') ? parseBlessVal(cloudRaw.bless !== undefined ? cloudRaw.bless : bless, itemId) : false;
+                    const finalAnc = listingId.startsWith('list_') ? parseAncVal(cloudRaw.anc !== undefined ? cloudRaw.anc : anc, itemId) : false;
+                    const finalAttr = listingId.startsWith('list_') ? parseAttrVal(cloudRaw.attr !== undefined ? cloudRaw.attr : attr, itemId) : false;
+                    const finalSeteff = listingId.startsWith('list_') ? parseSeteffVal(cloudRaw.seteff !== undefined ? cloudRaw.seteff : seteff, itemId) : false;
+
                     const purchased = {
                         id: itemId,
                         uid: uid(),
                         cnt: qty,
-                        en: en,
-                        bless: bless,
-                        anc: anc,
-                        attr: attr,
-                        seteff: seteff,
+                        en: finalEn,
+                        bless: finalBless,
+                        anc: finalAnc,
+                        attr: finalAttr,
+                        seteff: finalSeteff,
                         lock: false,
                         junk: false
                     };
@@ -703,6 +816,8 @@
                     } else {
                         player.inv.push(purchased);
                     }
+
+                    sanitizePlayerItems();
 
                     if (typeof logSys === 'function') {
                         logSys(`在黃金交易所購買了 ${getItemFullName(purchased)} ×${qty}。`);
@@ -847,19 +962,20 @@
             // 生成獨立唯一的上架 ID：防止相同物品因價格不同而覆蓋合併
             const listingId = 'list_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
 
-            const hasMatchedStats = selectedItem && selectedItem.id === id;
+            const isEq = isEquipment(id);
+            const hasMatchedStats = selectedItem && selectedItem.id === id && isEq;
 
-            // 上架結構 (加入特殊裝備屬性與賣家識別資訊)
+            // 上架結構 (加入特殊裝備屬性與賣家識別資訊，非裝備絕不附加裝備詞綴)
             const newListing = {
                 id: listingId,
                 item_id: id,
                 stock: stock,
                 price: price,
-                en: hasMatchedStats ? (selectedItem.en || 0) : 0,
-                bless: hasMatchedStats ? (selectedItem.bless || false) : false,
-                anc: hasMatchedStats ? (selectedItem.anc || false) : false,
-                attr: hasMatchedStats ? (selectedItem.attr || false) : false,
-                seteff: hasMatchedStats ? (selectedItem.seteff || false) : false,
+                en: hasMatchedStats ? (parseInt(selectedItem.en, 10) || 0) : 0,
+                bless: hasMatchedStats ? parseBlessVal(selectedItem.bless, id) : false,
+                anc: hasMatchedStats ? parseAncVal(selectedItem.anc, id) : false,
+                attr: hasMatchedStats ? parseAttrVal(selectedItem.attr, id) : false,
+                seteff: hasMatchedStats ? parseSeteffVal(selectedItem.seteff, id) : false,
                 seller_id: mySellerId,
                 seller_name: mySellerName,
                 earned: 0 // 🌟 初始化已售出金額為 0
@@ -934,7 +1050,7 @@
 
             // 下架權限判定 (GM 或者 原上架者可以下架)
             const isGM = typeof window.openGMShop === 'function';
-            const mySellerId = isGM ? "F123456789" : getSavePlayerId();
+            const mySellerId = getSavePlayerId();
             const canDelete = isGM || (cloudItem && cloudItem.sellerId && cloudItem.sellerId === mySellerId);
 
             if (!canDelete) {
@@ -966,11 +1082,11 @@
                             id: cloudItem.itemId,
                             uid: uid(),
                             cnt: stockCount,
-                            en: cloudItem.en || 0,
-                            bless: cloudItem.bless || false,
-                            anc: cloudItem.anc || false,
-                            attr: cloudItem.attr || false,
-                            seteff: cloudItem.seteff || false,
+                            en: isEquipment(cloudItem.itemId) ? (parseInt(cloudItem.en, 10) || 0) : 0,
+                            bless: parseBlessVal(cloudItem.bless, cloudItem.itemId),
+                            anc: parseAncVal(cloudItem.anc, cloudItem.itemId),
+                            attr: parseAttrVal(cloudItem.attr, cloudItem.itemId),
+                            seteff: parseSeteffVal(cloudItem.seteff, cloudItem.itemId),
                             lock: false,
                             junk: false
                         };
@@ -1066,6 +1182,7 @@
             if (true) {
                 player.gold += totalEarned;
                 wealthReaperStock = latestStock;
+                lastNotifiedClaimableGold = 0;
 
                 showToast(`成功提領金幣共 ${totalEarned.toLocaleString()} 元！`, "success");
                 if (typeof logSys === 'function') {
@@ -1146,11 +1263,11 @@
                         id: cloudItem.itemId,
                         uid: uid(),
                         cnt: stockCount,
-                        en: cloudItem.en || 0,
-                        bless: cloudItem.bless || false,
-                        anc: cloudItem.anc || false,
-                        attr: cloudItem.attr || false,
-                        seteff: cloudItem.seteff || false,
+                        en: isEquipment(cloudItem.itemId) ? (parseInt(cloudItem.en, 10) || 0) : 0,
+                        bless: parseBlessVal(cloudItem.bless, cloudItem.itemId),
+                        anc: parseAncVal(cloudItem.anc, cloudItem.itemId),
+                        attr: parseAttrVal(cloudItem.attr, cloudItem.itemId),
+                        seteff: parseSeteffVal(cloudItem.seteff, cloudItem.itemId),
                         lock: false,
                         junk: false
                     };
@@ -1496,11 +1613,11 @@
                     // 🌟 Tooltip 防護：若本版沒有此物品，不進行 mock 避免 buildItemDescHTML 崩潰
                     if (!DB.items[itemId]) return;
 
-                    const en = uidv.startsWith('list_') ? (info.en || 0) : 0;
-                    const bless = uidv.startsWith('list_') ? (info.bless || false) : false;
-                    const anc = uidv.startsWith('list_') ? (info.anc || false) : false;
-                    const attr = uidv.startsWith('list_') ? (info.attr || false) : false;
-                    const seteff = uidv.startsWith('list_') ? (info.seteff || false) : false;
+                    const en = uidv.startsWith('list_') && isEquipment(itemId) ? (parseInt(info.en, 10) || 0) : 0;
+                    const bless = uidv.startsWith('list_') ? parseBlessVal(info.bless, itemId) : false;
+                    const anc = uidv.startsWith('list_') ? parseAncVal(info.anc, itemId) : false;
+                    const attr = uidv.startsWith('list_') ? parseAttrVal(info.attr, itemId) : false;
+                    const seteff = uidv.startsWith('list_') ? parseSeteffVal(info.seteff, itemId) : false;
 
                     const mockItem = {
                         id: itemId,
@@ -1590,43 +1707,47 @@
     }
 
     // ==========================================
-    // 雲端交易所售出進帳自動通知機制
+    // 雲端交易所售出進帳自動通知機制 (僅於登入後檢查一次)
     // ==========================================
     async function checkReaperSalesPeriodically() {
         if (typeof player === 'undefined' || !player) return;
         const isGM = typeof window.openGMShop === 'function';
-        const mySellerId = isGM ? "F123456789" : getSavePlayerId();
-        if (!mySellerId) return;
+        const mySellerId = getSavePlayerId();
+        if (!mySellerId && !isGM) return;
 
         try {
-            const res = await fetchWithProxy(WEALTH_REAPER_BLOB_URL);
-            if (res.ok) {
-                const latestStock = await res.json();
-                if (latestStock) {
-                    wealthReaperStock = latestStock;
-                    
-                    let claimableGold = 0;
-                    for (let lid in latestStock) {
-                        const info = latestStock[lid];
-                        if (info && info.sellerId === mySellerId) {
-                            if (info.earned > 0) {
-                                claimableGold += parseInt(info.earned, 10) || 0;
-                            }
+            // 呼叫 fetchShopStock() 讀取最新 Supabase 庫存
+            const latestStock = await fetchShopStock();
+            if (latestStock) {
+                wealthReaperStock = latestStock;
+                
+                let claimableGold = 0;
+                for (let lid in latestStock) {
+                    const info = latestStock[lid];
+                    if (!info) continue;
+
+                    const isMineAsGM = isGM && info.sellerId === "F123456789";
+                    const isMineAsPlayer = mySellerId && info.sellerId === mySellerId;
+
+                    if (isMineAsGM || isMineAsPlayer) {
+                        const earned = parseInt(info.earned, 10) || 0;
+                        if (earned > 0) {
+                            claimableGold += earned;
                         }
                     }
+                }
 
-                    if (claimableGold > 0) {
-                        if (typeof logSys === 'function') {
-                            logSys(`<span class="text-emerald-400 font-bold">💰【交易所通知】</span>您有寄售的商品已成功售出，金幣已存入交易所！請抽空前往奇岩尋找「財富收割者」進行提領。`);
-                        }
-                        if (typeof showToast === 'function') {
-                            showToast(`💰 寄售商品已售出，有金幣可提領！`, "success");
-                        }
+                if (claimableGold > 0) {
+                    if (typeof logSys === 'function') {
+                        logSys(`<span class="text-emerald-400 font-bold">💰【交易所通知】</span>您有寄售的商品已成功售出，待領收益共 <span class="text-yellow-400 font-bold">${claimableGold.toLocaleString()} G</span>！請抽空前往奇岩尋找「財富收割者」進行提領。`);
+                    }
+                    if (typeof showToast === 'function') {
+                        showToast(`💰 寄售商品已售出，有 ${claimableGold.toLocaleString()} G 可提領！`, "success");
                     }
                 }
             }
         } catch (err) {
-            console.warn("[klh_Shop] 定時檢查交易所進帳失敗:", err);
+            console.warn("[klh_Shop] 檢查交易所進帳失敗:", err);
         }
     }
 
@@ -1638,13 +1759,15 @@
     function triggerReaperSalesCheck() {
         if (reaperCheckTimeout) clearTimeout(reaperCheckTimeout);
 
-        // 登入後 10 秒檢查一次
+        // 登入後延遲 10 秒執行檢查 (僅於登入時執行一次，不進行背景輪詢)
         reaperCheckTimeout = setTimeout(() => {
             checkReaperSalesPeriodically();
+            reaperCheckTimeout = null;
         }, 10000);
     }
 
     function startup() {
+        sanitizePlayerItems();
         registerWealthReaperNPC();
         injectMobileInputStyle();
         
@@ -1653,6 +1776,7 @@
             const originalLoadGame = window.loadGame;
             window.loadGame = function () {
                 originalLoadGame.apply(this, arguments);
+                sanitizePlayerItems();
                 triggerReaperSalesCheck();
             };
             window.loadGame._reaperHooked = true;
@@ -1662,6 +1786,7 @@
             const originalStartGame = window.startGame;
             window.startGame = function () {
                 originalStartGame.apply(this, arguments);
+                sanitizePlayerItems();
                 triggerReaperSalesCheck();
             };
             window.startGame._reaperHooked = true;
