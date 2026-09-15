@@ -34,7 +34,18 @@
 
 (function () {
     // 內建遊戲加速器：與 main.user.js 同原理，直接累加 _tickDebt 再呼叫 gameLoop()
-    window.__gmGameSpeed = 1.0; // 每次開啟頁面一律重置為預設 1.0 倍速（不記憶）
+    // 速度記憶規則：僅記憶 1x 或 2x；若設定為其他倍率（如 3x~100x）或超出範圍，重新開啟時自動回退至預設 2.0 倍
+    function getStartupGameSpeed() {
+        try {
+            let saved = parseFloat(localStorage.getItem('klh_gm_game_speed'));
+            if (saved === 1.0 || saved === 2.0) {
+                return saved;
+            }
+        } catch (e) {}
+        return 2.0; // 超過或未記憶一律回預設 2.0
+    }
+    window.__gmGetStartupGameSpeed = getStartupGameSpeed;
+    window.__gmGameSpeed = getStartupGameSpeed();
     (function () {
         if (typeof window === 'undefined') return;
 
@@ -116,7 +127,7 @@
                 typeof player !== 'undefined' && player && !player.dead &&
                 typeof window.gameLoop === 'function' && typeof _tickDebt !== 'undefined';
 
-            let rate = (window.__gmGameSpeed !== undefined) ? window.__gmGameSpeed : 1.0;
+            let rate = (window.__gmGameSpeed !== undefined) ? window.__gmGameSpeed : 2.0;
 
             if (rate <= 1.0 || !canRun) {
                 tickCredit = 0;
@@ -222,6 +233,7 @@
     window.gmShopMainCategory = 'all';
     window.gmShopSubCategory = 'all';
     window.gmShopSearchQuery = '';
+    window.gmShopSearchScope = localStorage.getItem('klh_gm_search_scope') || 'name';
     window.gmShopCurrentPage = 1;
     let lastBtnState = null;
 
@@ -377,6 +389,8 @@
                 padding: 4px !important;
                 border-radius: 12px !important;
                 border: 1px solid rgba(148, 163, 184, 0.1) !important;
+                overflow-x: auto !important;
+                white-space: nowrap !important;
             }
             .gm-shop-tab-btn {
                 background: transparent !important;
@@ -927,6 +941,270 @@
                 border-color: #34d399 !important;
                 color: #ffffff !important;
             }
+
+            /* 🪄 GM 技能分頁與卡片專屬樣式 */
+            .gm-shop-skill-container {
+                display: flex !important;
+                flex-direction: column !important;
+                height: 100% !important;
+                gap: 12px !important;
+                padding: 12px !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+            }
+            .gm-shop-skill-header-bar {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 10px !important;
+                background: rgba(15, 23, 42, 0.5) !important;
+                border: 1px solid rgba(124, 58, 237, 0.25) !important;
+                border-radius: 12px !important;
+                padding: 10px 14px !important;
+                flex-shrink: 0 !important;
+            }
+            .gm-shop-skill-cats {
+                display: flex !important;
+                gap: 6px !important;
+                flex-wrap: wrap !important;
+                align-items: center !important;
+            }
+            .gm-shop-skill-actions {
+                display: flex !important;
+                gap: 6px !important;
+                flex-wrap: wrap !important;
+                align-items: center !important;
+            }
+            .gm-skill-action-btn {
+                padding: 6px 12px !important;
+                border-radius: 8px !important;
+                font-size: 12px !important;
+                font-weight: 700 !important;
+                cursor: pointer !important;
+                transition: all 0.2s ease !important;
+                border: 1px solid transparent !important;
+                white-space: nowrap !important;
+            }
+            .gm-btn-learn-class {
+                background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+                color: #fff !important;
+            }
+            .gm-btn-learn-class:hover {
+                transform: translateY(-1px) !important;
+                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
+            }
+            .gm-btn-learn-all {
+                background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%) !important;
+                color: #fff !important;
+            }
+            .gm-btn-learn-all:hover {
+                transform: translateY(-1px) !important;
+                box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4) !important;
+            }
+            .gm-btn-forget-all {
+                background: rgba(239, 68, 68, 0.15) !important;
+                border-color: rgba(239, 68, 68, 0.4) !important;
+                color: #f87171 !important;
+            }
+            .gm-btn-forget-all:hover {
+                background: rgba(239, 68, 68, 0.3) !important;
+                color: #fff !important;
+            }
+
+            .gm-shop-skill-grid {
+                flex: 1 !important;
+                display: grid !important;
+                grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)) !important;
+                grid-auto-rows: min-content !important;
+                gap: 12px !important;
+                overflow-y: auto !important;
+                padding-right: 6px !important;
+                padding-bottom: 20px !important;
+                align-content: start !important;
+            }
+            .gm-skill-card {
+                background: rgba(30, 41, 59, 0.4) !important;
+                border: 1px solid rgba(148, 163, 184, 0.18) !important;
+                border-radius: 12px !important;
+                padding: 10px 12px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: space-between !important;
+                cursor: pointer !important;
+                user-select: none !important;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                position: relative !important;
+                min-height: 108px !important;
+            }
+            .gm-skill-card:hover {
+                background: rgba(30, 41, 59, 0.65) !important;
+                border-color: rgba(124, 58, 237, 0.55) !important;
+                transform: translateY(-2px) !important;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+            }
+            .gm-skill-card.learned {
+                background: rgba(16, 185, 129, 0.12) !important;
+                border-color: rgba(16, 185, 129, 0.55) !important;
+                box-shadow: 0 0 12px rgba(16, 185, 129, 0.15) !important;
+            }
+            .gm-skill-card.learned:hover {
+                border-color: rgba(16, 185, 129, 0.85) !important;
+                box-shadow: 0 0 18px rgba(16, 185, 129, 0.3) !important;
+            }
+            .gm-skill-card-top {
+                display: flex !important;
+                gap: 10px !important;
+                align-items: center !important;
+            }
+            .gm-skill-icon-box {
+                width: 42px !important;
+                height: 42px !important;
+                background: rgba(15, 23, 42, 0.8) !important;
+                border: 1px solid rgba(124, 58, 237, 0.3) !important;
+                border-radius: 8px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                flex-shrink: 0 !important;
+                overflow: hidden !important;
+            }
+            .gm-skill-card.learned .gm-skill-icon-box {
+                border-color: rgba(16, 185, 129, 0.6) !important;
+            }
+            .gm-skill-icon {
+                width: 36px !important;
+                height: 36px !important;
+                object-fit: contain !important;
+            }
+            .gm-skill-info {
+                flex: 1 !important;
+                min-width: 0 !important;
+            }
+            .gm-skill-name {
+                font-size: 14px !important;
+                font-weight: 700 !important;
+                color: #f8fafc !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+            .gm-skill-card.learned .gm-skill-name {
+                color: #34d399 !important;
+            }
+            .gm-skill-meta {
+                display: flex !important;
+                gap: 6px !important;
+                align-items: center !important;
+                margin-top: 2px !important;
+                font-size: 11px !important;
+            }
+            .gm-skill-cat-tag {
+                color: #cbd5e1 !important;
+                font-size: 10px !important;
+                background: rgba(255, 255, 255, 0.08) !important;
+                padding: 1px 5px !important;
+                border-radius: 4px !important;
+            }
+            .gm-skill-cost {
+                color: #38bdf8 !important;
+                font-size: 10px !important;
+                font-weight: 600 !important;
+            }
+            .gm-skill-desc {
+                font-size: 11px !important;
+                color: #64748b !important;
+                line-height: 1.35 !important;
+                margin-top: 6px !important;
+                display: -webkit-box !important;
+                -webkit-line-clamp: 2 !important;
+                -webkit-box-orient: vertical !important;
+                overflow: hidden !important;
+            }
+            .gm-skill-card.learned .gm-skill-desc {
+                color: #94a3b8 !important;
+            }
+            .gm-skill-card-bottom {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                margin-top: 8px !important;
+                padding-top: 6px !important;
+                border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+            }
+            .gm-skill-status-badge {
+                font-size: 11px !important;
+                font-weight: 700 !important;
+                padding: 2px 8px !important;
+                border-radius: 6px !important;
+            }
+            .gm-skill-status-badge.learned {
+                background: rgba(16, 185, 129, 0.2) !important;
+                color: #34d399 !important;
+                border: 1px solid rgba(16, 185, 129, 0.4) !important;
+            }
+            .gm-skill-status-badge.unlearned {
+                background: rgba(148, 163, 184, 0.1) !important;
+                color: #94a3b8 !important;
+                border: 1px solid rgba(148, 163, 184, 0.2) !important;
+            }
+            .gm-skill-click-hint {
+                font-size: 10px !important;
+                color: #64748b !important;
+            }
+            .gm-skill-card:hover .gm-skill-click-hint {
+                color: #cbd5e1 !important;
+            }
+
+            /* 裝備商品卡片中的技能學習切換按鈕 */
+            .gm-shop-skill-toggle-btn {
+                border: none !important;
+                font-weight: 700 !important;
+                font-size: 11px !important;
+                padding: 6px 10px !important;
+                border-radius: 8px !important;
+                cursor: pointer !important;
+                transition: all 0.2s ease !important;
+                white-space: nowrap !important;
+            }
+            .gm-skill-btn-learned {
+                background: rgba(16, 185, 129, 0.25) !important;
+                border: 1px solid #10b981 !important;
+                color: #34d399 !important;
+            }
+            .gm-skill-btn-learned:hover {
+                background: rgba(239, 68, 68, 0.25) !important;
+                border-color: #ef4444 !important;
+                color: #f87171 !important;
+            }
+            .gm-skill-btn-unlearned {
+                background: rgba(56, 189, 248, 0.15) !important;
+                border: 1px solid rgba(56, 189, 248, 0.4) !important;
+                color: #38bdf8 !important;
+            }
+            .gm-skill-btn-unlearned:hover {
+                background: rgba(56, 189, 248, 0.3) !important;
+                border-color: #38bdf8 !important;
+                color: #fff !important;
+                box-shadow: 0 0 10px rgba(56, 189, 248, 0.3) !important;
+            }
+
+            /* 📖 經典技能書面板 (原版魔法書) 點擊直接學習樣式 */
+            #tab-skill .classic-skill-cell:not(.classic-skill-empty) {
+                cursor: pointer !important;
+                transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease !important;
+            }
+            #tab-skill .classic-skill-cell:not(.classic-skill-empty):hover {
+                border-color: #38bdf8 !important;
+                box-shadow: inset 0 0 10px rgba(56, 189, 248, 0.4), 0 0 8px rgba(56, 189, 248, 0.5) !important;
+                transform: scale(1.04) !important;
+                z-index: 10 !important;
+            }
+            #tab-skill .classic-skill-cell.classic-skill-unlearned:hover img {
+                opacity: 0.65 !important;
+                filter: grayscale(0.2) brightness(0.9) !important;
+            }
+            #tab-skill .classic-skill-cell:active:not(.classic-skill-empty) {
+                transform: scale(0.96) !important;
+            }
         `;
         let style = document.createElement('style');
         style.textContent = css;
@@ -989,6 +1267,91 @@
         }
 
         return { isFree, isLegendOnly, enhanceVal, blessVal, ancVal, attrVal, attrMagicVal, attrMagicStar, seteffVal };
+    }
+
+    // 裝備能力與資訊檢索文字提取
+    function getItemSearchableText(item) {
+        if (item._searchStr) return item._searchStr;
+        let d = (typeof DB !== 'undefined' && DB.items) ? DB.items[item.id] : item;
+        let parts = [
+            item.n || '',
+            item.id || '',
+            item.d || '',
+            (d && d.d) || '',
+            item.type || '',
+            item.slot || ''
+        ];
+
+        // 提取裝備能力文字 (透過 buildItemDescHTML 模擬裝備屬性)
+        if (typeof buildItemDescHTML === 'function') {
+            try {
+                let descHtml = buildItemDescHTML({ id: item.id, en: 0, bless: false, anc: false, attr: false });
+                if (descHtml) {
+                    let plain = descHtml.replace(/<[^>]+>/g, ' ');
+                    parts.push(plain);
+                }
+            } catch (e) {}
+        }
+
+        // 魔法書/技能書：補充技能名稱與說明
+        let targetSkId = (d && d.sk) || item.sk;
+        if (targetSkId && typeof DB !== 'undefined' && DB.skills && DB.skills[targetSkId]) {
+            let sk = DB.skills[targetSkId];
+            parts.push(sk.n || '', sk.d || '', sk.desc || '');
+        }
+
+        // 補充常用同義詞與能力關鍵字
+        let extraKeywords = [];
+        let rawD = d || item;
+        if (rawD.mpR || rawD.mpROverSafe) extraKeywords.push('mp恢復', 'mp回復', '回魔', '魔力恢復', 'mp自然恢復');
+        if (rawD.mpOnHit || rawD.eff === 'mp_drain') extraKeywords.push('吸魔', '回魔', '命中恢復mp', '奪魔');
+        if (rawD.hpR) extraKeywords.push('hp恢復', 'hp回復', '回血', '體力恢復', 'hp自然恢復');
+        if (rawD.vampPct || rawD.redSpecter) extraKeywords.push('吸血', '吸取hp');
+        if (rawD.dr || rawD.procDmgReduce) extraKeywords.push('減傷', '傷害減免');
+        if (rawD.ac !== undefined) extraKeywords.push('防禦', '防禦力', 'ac');
+        if (rawD.mr || rawD.mrPerEn) extraKeywords.push('魔防', '魔法防禦', 'mr');
+        if (rawD.mdmg || rawD.magicHit) extraKeywords.push('魔攻', '魔法傷害', '魔法命中');
+        if (rawD.hit || rawD.meleeHit || rawD.rangedHit) extraKeywords.push('命中');
+        if (rawD.dmgBonus || rawD.meleeDmg || rawD.rangedDmg) extraKeywords.push('傷害', '額外傷害');
+        if (rawD.mhp) extraKeywords.push('hp上限', '最大hp', '血量');
+        if (rawD.mmp) extraKeywords.push('mp上限', '最大mp', '魔力');
+
+        parts.push(extraKeywords.join(' '));
+
+        let fullStr = parts.join(' ').toLowerCase().replace(/\s+/g, ' ');
+        item._searchStr = fullStr;
+        return fullStr;
+    }
+
+    function isItemMatchSearch(item, search) {
+        if (!search) return true;
+        let searchStr = getItemSearchableText(item);
+        let cleanSearch = search.toLowerCase().trim();
+        if (searchStr.includes(cleanSearch)) return true;
+
+        let terms = cleanSearch.split(/\s+/).filter(Boolean);
+        if (terms.length > 1) {
+            let allMatch = terms.every(term => {
+                if (searchStr.includes(term)) return true;
+                if (term === 'mp恢復' || term === 'mp回復') {
+                    return searchStr.includes('mp') && (searchStr.includes('恢復') || searchStr.includes('回復'));
+                }
+                if (term === 'hp恢復' || term === 'hp回復') {
+                    return searchStr.includes('hp') && (searchStr.includes('恢復') || searchStr.includes('回復'));
+                }
+                return false;
+            });
+            if (allMatch) return true;
+        } else if (terms.length === 1) {
+            let term = terms[0];
+            if (term === 'mp恢復' || term === 'mp回復') {
+                return searchStr.includes('mp') && (searchStr.includes('恢復') || searchStr.includes('回復'));
+            }
+            if (term === 'hp恢復' || term === 'hp回復') {
+                return searchStr.includes('hp') && (searchStr.includes('恢復') || searchStr.includes('回復'));
+            }
+        }
+        return false;
     }
 
     // 3. 渲染裝備網格
@@ -1084,9 +1447,28 @@
             }
 
             // 3. 搜尋過濾
-            if (search && !item.n.toLowerCase().includes(search)) return false;
+            let scope = window.gmShopSearchScope || 'name';
+            if (search) {
+                if (scope === 'name') {
+                    if (!item.n || !item.n.toLowerCase().includes(search)) return false;
+                } else {
+                    if (!isItemMatchSearch(item, search)) return false;
+                }
+            }
             return true;
         });
+
+        // 搜尋排序優化：若在「名稱+能力」模式下，優先將「裝備名稱符合」者排在最前面
+        let currentScope = window.gmShopSearchScope || 'name';
+        if (search && currentScope === 'all') {
+            filtered.sort((a, b) => {
+                let aNameMatch = a.n && a.n.toLowerCase().includes(search);
+                let bNameMatch = b.n && b.n.toLowerCase().includes(search);
+                if (aNameMatch && !bNameMatch) return -1;
+                if (!aNameMatch && bNameMatch) return 1;
+                return 0;
+            });
+        }
 
         // 分頁處理
         let pageSize = 24; // 每頁顯示 24 筆
@@ -1141,6 +1523,20 @@
             let price = opts.isFree ? 0 : (d.p || 0);
             let displayPrice = opts.isFree ? '免費' : `${price.toLocaleString()} 金幣`;
 
+            // 檢查是否為技能書/魔法書
+            let isSkillBk = (d.type === 'skillbk' || !!d.sk || (eq.id && (eq.id.startsWith('bk_') || (d.n && (d.n.includes('魔法書') || d.n.includes('技術書') || d.n.includes('水晶') || d.n.includes('印記'))))));
+            let targetSkId = d.sk;
+            if (!targetSkId && isSkillBk && typeof DB !== 'undefined' && DB.items && DB.items[eq.id] && DB.items[eq.id].sk) {
+                targetSkId = DB.items[eq.id].sk;
+            }
+            let skillToggleBtnHtml = '';
+            if (targetSkId && typeof DB !== 'undefined' && DB.skills && DB.skills[targetSkId]) {
+                let isLearned = (typeof player !== 'undefined' && Array.isArray(player.skills) && player.skills.includes(targetSkId));
+                let btnCls = isLearned ? 'gm-skill-btn-learned' : 'gm-skill-btn-unlearned';
+                let btnTxt = isLearned ? '✅ 已學(點擊取消)' : '📖 學習技能';
+                skillToggleBtnHtml = `<button type="button" class="gm-shop-skill-toggle-btn ${btnCls}" data-skid="${targetSkId}" onclick="toggleGMSkillLearn('${targetSkId}', this, event)">${btnTxt}</button>`;
+            }
+
             html += `
                 <div class="gm-shop-card">
                     <div class="gm-shop-card-header">
@@ -1151,7 +1547,10 @@
                             <div class="gm-shop-card-name">${fullName}</div>
                             <div class="gm-shop-card-meta-action">
                                 <div class="gm-shop-card-price">${displayPrice}</div>
-                                <button class="gm-shop-buy-btn" onclick="buyGMShopItem('${eq.id}')">🛒 購買</button>
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    ${skillToggleBtnHtml}
+                                    <button class="gm-shop-buy-btn" onclick="buyGMShopItem('${eq.id}')">🛒 購買</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1161,7 +1560,25 @@
         });
 
         if (filtered.length === 0) {
-            html = '<div class="col-span-full py-20 text-center text-slate-500 font-bold">找不到相符的裝備。</div>';
+            let scope = window.gmShopSearchScope || 'name';
+            if (search && scope === 'name') {
+                let abilityMatches = equipments.filter(item => isItemMatchSearch(item, search));
+                if (abilityMatches.length > 0) {
+                    html = `
+                        <div class="col-span-full py-16 text-center">
+                            <div class="text-slate-400 font-bold mb-2">找不到名稱含「${search}」的裝備。</div>
+                            <div class="text-amber-400 text-sm mb-4">但在【能力屬性】中找到 ${abilityMatches.length} 件相關裝備！</div>
+                            <button type="button" class="gm-rate-pill px-4 py-2 font-bold" style="background:#7c3aed !important; color:#fff !important; border-color:#a78bfa !important; font-size:13px; cursor:pointer;" onclick="setGMShopSearchScope('all')">
+                                ⚡ 點此切換為【名稱+能力】搜尋 (${abilityMatches.length} 筆)
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    html = '<div class="col-span-full py-20 text-center text-slate-500 font-bold">找不到相符的裝備。</div>';
+                }
+            } else {
+                html = '<div class="col-span-full py-20 text-center text-slate-500 font-bold">找不到相符的裝備。</div>';
+            }
         }
 
         container.innerHTML = html;
@@ -2020,7 +2437,7 @@
                         <button id="gm-shop-tab-btn-shop" class="gm-shop-tab-btn active" onclick="switchGMShopTab('shop')">裝備商品</button>
                         <button id="gm-shop-tab-btn-char" class="gm-shop-tab-btn" onclick="switchGMShopTab('char')">角色修改</button>
                         <button id="gm-shop-tab-btn-pet" class="gm-shop-tab-btn" onclick="switchGMShopTab('pet')">寵物修改</button>
-                        <button id="gm-shop-tab-btn-collect" class="gm-shop-tab-btn" onclick="switchGMShopTab('collect')">收藏修改</button>
+                        <button id="gm-shop-tab-btn-collect" class="gm-shop-tab-btn" onclick="switchGMShopTab('collect')">其他修改</button>
                         <button id="gm-shop-tab-btn-rate" class="gm-shop-tab-btn" onclick="switchGMShopTab('rate')">倍率設定</button>
                     </div>
                     <button class="gm-shop-close-btn" onclick="closeGMShop()">&times;</button>
@@ -2114,7 +2531,13 @@
                         <!-- 裝備展示面板 -->
                         <div class="gm-shop-content">
                             <div class="gm-shop-filter-bar" style="gap: 8px !important; margin-bottom: 12px !important;">
-                                <input type="text" id="gm-shop-search" placeholder="🔍 搜尋裝備名稱..." class="gm-shop-search-input" style="height: 38px !important; padding: 8px 12px !important;" oninput="onGMShopSearchInput(this.value)">
+                                <input type="text" id="gm-shop-search" placeholder="${(window.gmShopSearchScope === 'all') ? '⚡ 搜尋名稱+能力屬性（例：MP恢復、吸血、防禦）...' : '🔍 僅搜尋裝備名稱（例：水晶、短劍）...'}" class="gm-shop-search-input" style="height: 38px !important; padding: 8px 12px !important;" oninput="onGMShopSearchInput(this.value)">
+                                
+                                <!-- 搜尋模式切換 -->
+                                <select id="gm-search-scope-select" class="gm-shop-select" style="width: 125px !important; flex-shrink: 0 !important; padding: 6px 8px !important; height: 38px !important; line-height: 1.2 !important;" onchange="setGMShopSearchScope(this.value)" title="切換搜尋範圍">
+                                    <option value="name" ${(window.gmShopSearchScope !== 'all') ? 'selected' : ''}>🔤 僅搜名稱</option>
+                                    <option value="all" ${(window.gmShopSearchScope === 'all') ? 'selected' : ''}>⚡ 名稱+能力</option>
+                                </select>
                                 
                                 <!-- 主分類選擇 -->
                                 <select id="gm-main-cat-select" class="gm-shop-select" style="width: 105px !important; flex-shrink: 0 !important; padding: 6px 8px !important; height: 38px !important; line-height: 1.2 !important;" onchange="setGMShopMainCategory(this.value)">
@@ -2189,6 +2612,28 @@
                                             <button type="button" class="gm-rate-pill" onclick="setGMCharDiamond(100000)">10萬顆</button>
                                         </div>
                                         <div id="gm-wanderers-list-container" style="margin-top: 10px;"></div>
+                                    </div>
+
+                                    <!-- 性向值 (正義/邪惡) -->
+                                    <div class="gm-shop-char-input-group" style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed #334155;">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="gm-shop-control-label font-bold text-sky-400">⚖️ 性向值 (正義值 / 邪惡值)</span>
+                                            <span id="gm-char-align-preview" class="text-xs font-bold px-2 py-0.5 rounded" style="background:#1e3a8a; color:#93c5fd;">正義 32,767</span>
+                                        </div>
+                                        <div class="gm-shop-char-input-row" style="margin-top: 6px;">
+                                            <button type="button" class="gm-shop-char-btn-adj" onclick="adjustGMCharAlign(-1000)">-1000</button>
+                                            <button type="button" class="gm-shop-char-btn-adj" onclick="adjustGMCharAlign(-100)">-100</button>
+                                            <input type="number" id="gm-char-align-input" class="gm-shop-char-input text-center font-bold" min="-32767" max="32767" style="max-width: 120px;" oninput="updateGMAlignPreview(this.value)">
+                                            <button type="button" class="gm-shop-char-btn-adj" onclick="adjustGMCharAlign(100)">+100</button>
+                                            <button type="button" class="gm-shop-char-btn-adj" onclick="adjustGMCharAlign(1000)">+1000</button>
+                                        </div>
+                                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
+                                            <button type="button" class="gm-rate-pill" style="color:#60a5fa !important; border-color:#2563eb !important; background:rgba(37,99,235,0.15) !important;" onclick="setGMCharAlign(32767)">🌟 滿正義 (+32767)</button>
+                                            <button type="button" class="gm-rate-pill" style="color:#93c5fd !important;" onclick="setGMCharAlign(1000)">正義門檻 (+1000)</button>
+                                            <button type="button" class="gm-rate-pill" style="color:#e2e8f0 !important;" onclick="setGMCharAlign(0)">中立 (0)</button>
+                                            <button type="button" class="gm-rate-pill" style="color:#fca5a5 !important;" onclick="setGMCharAlign(-1000)">邪惡門檻 (-1000)</button>
+                                            <button type="button" class="gm-rate-pill" style="color:#f87171 !important; border-color:#dc2626 !important; background:rgba(220,38,38,0.15) !important;" onclick="setGMCharAlign(-32767)">💀 滿邪惡 (-32767)</button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -2541,10 +2986,29 @@
                         </div>
                     </div>
 
-                    <!-- 收藏修改分頁 -->
+                    <!-- 其他修改分頁 (含技能點選說明 & 收藏圖鑑修改) -->
                     <div id="gm-shop-tab-content-collect" class="gm-shop-tab-content" style="display: none;">
                         <div class="gm-shop-char-container" style="flex-direction: column !important; padding: 24px !important; overflow-y: auto !important; height: 100% !important; box-sizing: border-box !important;">
-                            <div class="gm-shop-char-grid">
+                            
+                            <!-- 頂部：技能點選模式說明卡片 -->
+                            <div class="gm-shop-char-section" style="border-left: 4px solid #a855f7; background: linear-gradient(135deg, rgba(88, 28, 135, 0.25) 0%, rgba(30, 41, 59, 0.6) 100%); border-color: #a855f7;">
+                                <div class="gm-shop-char-section-title flex items-center justify-between" style="color: #d8b4fe; font-size: 14px;">
+                                    <span class="flex items-center gap-2">📖 技能修改：魔法書直接點選模式（已啟用）</span>
+                                    <button type="button" class="gm-rate-pill" style="font-size: 11px; padding: 3px 10px; background: #7c3aed !important; color: #fff !important; border-color: #a78bfa !important; cursor: pointer;" onclick="closeGMShop(); if (typeof switchTab === 'function') switchTab('skill', document.querySelector('.tab-bar button:nth-child(3)'));">
+                                        ⚡ 打開遊戲【技能】魔法書
+                                    </button>
+                                </div>
+                                <div class="text-xs text-slate-300 leading-relaxed mt-2 flex flex-col gap-1.5">
+                                    <p>您無需在 GM 商店繁瑣搜尋，<strong>直接點擊遊戲下方功能列的【技能】魔法書面板</strong>即可自由學習或遺忘：</p>
+                                    <ul class="list-disc pl-5 flex flex-col gap-1 text-slate-300">
+                                        <li><strong class="text-emerald-400">點擊未學會的技能圖案：</strong>直接【✨ 免費學會】，並立即注入角色技能清單。</li>
+                                        <li><strong class="text-rose-400">點擊已學會的技能圖案：</strong>直接跳出確認提示，可一鍵【🗑️ 取消學習 / 遺忘技能】。</li>
+                                        <li><strong class="text-sky-300">支援全系魔法：</strong>包含法師 1~10 級魔法、騎士技術、精靈魔法、黑妖、龍騎、幻術、戰士印記等所有職業技能。</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="gm-shop-char-grid" style="margin-top: 4px;">
                                 <!-- 第一欄：直接打開原版收藏冊進行編輯 -->
                                 <div class="flex flex-col gap-4">
                                     <div class="gm-shop-char-section">
@@ -2592,14 +3056,14 @@
                                     </div>
                                     
                                     <div class="gm-shop-char-input-group">
-                                        <span class="gm-shop-control-label">遊戲運行速度 (1.0 ~ 100.0 倍, 預設 1.0) <span id="gm-actual-speed-text" style="color: #38bdf8; font-weight: bold; margin-left: 6px;"></span></span>
+                                        <span class="gm-shop-control-label">遊戲運行速度 (1.0 ~ 100.0 倍, 預設 2.0, 僅記憶 1x/2x) <span id="gm-actual-speed-text" style="color: #38bdf8; font-weight: bold; margin-left: 6px;"></span></span>
                                         <div style="display: flex; align-items: center; gap: 8px;">
-                                            <input type="range" id="gm-game-speed-range" min="1.0" max="100.0" step="0.1" value="1.0" list="gm-speed-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('game-speed', this.value)">
-                                            <input type="number" id="gm-game-speed-input" class="gm-shop-char-input text-center" min="1.0" max="100.0" step="0.1" value="1.0" style="max-width: 80px;" oninput="updateGMRate('game-speed', this.value)">
+                                            <input type="range" id="gm-game-speed-range" min="1.0" max="100.0" step="0.1" value="2.0" list="gm-speed-ticks" style="flex: 1; accent-color: #7c3aed;" oninput="updateGMRate('game-speed', this.value)">
+                                            <input type="number" id="gm-game-speed-input" class="gm-shop-char-input text-center" min="1.0" max="100.0" step="0.1" value="2.0" style="max-width: 80px;" oninput="updateGMRate('game-speed', this.value)">
                                         </div>
                                         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;" id="gm-speed-pills">
-                                            <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('game-speed', 1)">1x (預設)</button>
-                                            <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 2)">2x</button>
+                                            <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 1)">1x</button>
+                                            <button class="gm-rate-pill gm-rate-pill-default" onclick="updateGMRate('game-speed', 2)">2x (預設)</button>
                                             <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 3)">3x</button>
                                             <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 5)">5x</button>
                                             <button class="gm-rate-pill" onclick="updateGMRate('game-speed', 10)">10x</button>
@@ -2809,6 +3273,272 @@
         }
     };
 
+    // ==========================================
+    // 🪄 GM 技能修改輔助函數與邏輯
+    // ==========================================
+    window.__gmSkillCurrentCategory = 'all';
+    window.__gmSkillSearchQuery = '';
+
+    function getSkillClassCategory(skId, sk) {
+        if (!sk) return 'etc';
+        if (sk.reqRoy !== undefined || sk.cat === 'royal' || skId.startsWith('sk_royal_')) return 'royal';
+        if (sk.reqK !== undefined || ['sk_solid_shield', 'sk_reduction_armor', 'sk_shock_stun', 'sk_spike_armor', 'sk_counter_barrier'].includes(skId)) return 'knight';
+        if (sk.reqE !== undefined || sk.reqEle || sk.reqEleAny || skId.startsWith('sk_elf_')) return 'elf';
+        if (sk.reqD !== undefined || skId.startsWith('sk_dark_')) return 'dark';
+        if (sk.reqDk !== undefined || skId.startsWith('sk_dragon_')) return 'dragon';
+        if (sk.reqI !== undefined || skId.startsWith('sk_illu_')) return 'illusion';
+        if (sk.reqW !== undefined || skId.startsWith('sk_warrior_')) return 'warrior';
+        if (sk.reqM !== undefined || (sk.tier && sk.tier >= 1 && sk.tier <= 10)) return 'mage';
+        return 'etc';
+    }
+
+    function isSkillAvailableForPlayer(skId, sk) {
+        if (typeof player === 'undefined' || !player || !player.cls) return true;
+        if (typeof skillReqLv === 'function') {
+            let req = skillReqLv(sk, skId);
+            if (req !== undefined) return true;
+        }
+        let cat = getSkillClassCategory(skId, sk);
+        return cat === player.cls;
+    }
+
+    window.toggleGMSkillLearn = function (skId, el, event) {
+        if (event) event.stopPropagation();
+        if (typeof player === 'undefined' || !player) {
+            alert('請先建立或載入角色存檔！');
+            return;
+        }
+        if (!Array.isArray(player.skills)) {
+            player.skills = [];
+        }
+
+        let sk = (typeof DB !== 'undefined' && DB.skills) ? DB.skills[skId] : null;
+        let skName = sk ? sk.n : skId;
+        let idx = player.skills.indexOf(skId);
+        let isNowLearned = false;
+
+        if (idx !== -1) {
+            // 忘記技能
+            player.skills.splice(idx, 1);
+            isNowLearned = false;
+            if (player.buffs && player.buffs[skId] !== undefined) {
+                delete player.buffs[skId];
+            }
+            if (typeof logSys === 'function') {
+                logSys(`【GM 技能】已取消學習技能：<span class="text-slate-400 font-bold">「${skName}」</span>`);
+            }
+        } else {
+            // 學習技能
+            player.skills.push(skId);
+            isNowLearned = true;
+            if (typeof logSys === 'function') {
+                logSys(`【GM 技能】已成功學習技能：<span class="text-emerald-400 font-bold">「${skName}」</span>`);
+            }
+        }
+
+        try {
+            if (typeof renderTabs === 'function') renderTabs();
+            if (typeof renderSkillSelects === 'function') renderSkillSelects();
+            if (typeof calcStats === 'function') calcStats();
+            if (typeof updateUI === 'function') updateUI();
+            if (typeof saveGame === 'function') saveGame();
+        } catch (err) {
+            console.warn('[GMShop] 更新介面出錯:', err);
+        }
+
+        // 即時更新所有在 DOM 中的此技能卡片外觀
+        document.querySelectorAll(`.gm-skill-card[data-skid="${skId}"]`).forEach(card => {
+            if (isNowLearned) card.classList.add('learned');
+            else card.classList.remove('learned');
+            let badge = card.querySelector('.gm-skill-status-badge');
+            if (badge) {
+                badge.className = `gm-skill-status-badge ${isNowLearned ? 'learned' : 'unlearned'}`;
+                badge.innerHTML = isNowLearned ? '✅ 已學習' : '＋ 點擊學習';
+            }
+            let hint = card.querySelector('.gm-skill-click-hint');
+            if (hint) {
+                hint.innerText = isNowLearned ? '點擊取消' : '點擊學習';
+            }
+        });
+
+        // 即時更新裝備商品卡片中的按鈕
+        document.querySelectorAll(`.gm-shop-skill-toggle-btn[data-skid="${skId}"]`).forEach(btn => {
+            btn.className = `gm-shop-skill-toggle-btn ${isNowLearned ? 'gm-skill-btn-learned' : 'gm-skill-btn-unlearned'}`;
+            btn.innerText = isNowLearned ? '✅ 已學(點擊取消)' : '📖 學習技能';
+        });
+    };
+
+    window.filterGMSkills = function (cat, btn) {
+        window.__gmSkillCurrentCategory = cat;
+        let pills = document.querySelectorAll('#gm-skill-cat-pills .gm-rate-pill');
+        pills.forEach(p => p.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        window.renderGMShopSkillList();
+    };
+
+    window.onGMSkillSearchChange = function (val) {
+        window.__gmSkillSearchQuery = val;
+        window.renderGMShopSkillList();
+    };
+
+    window.batchLearnGMSkills = function (mode) {
+        if (typeof player === 'undefined' || !player) return;
+        if (!Array.isArray(player.skills)) player.skills = [];
+        if (typeof DB === 'undefined' || !DB.skills) return;
+
+        if (mode === 'clear') {
+            if (!confirm('確定要忘記所有已學習的技能嗎？')) return;
+            player.skills = [];
+            if (typeof logSys === 'function') {
+                logSys('<span class="text-amber-400 font-bold">【GM 技能】已全部取消學習所有技能！</span>');
+            }
+        } else if (mode === 'current') {
+            let count = 0;
+            for (let skId in DB.skills) {
+                let sk = DB.skills[skId];
+                if (sk && !sk.procOnly && isSkillAvailableForPlayer(skId, sk)) {
+                    if (!player.skills.includes(skId)) {
+                        player.skills.push(skId);
+                        count++;
+                    }
+                }
+            }
+            if (typeof logSys === 'function') {
+                logSys(`<span class="text-emerald-400 font-bold">【GM 技能】當前職業全技能已習得（新學會 ${count} 個技能）！</span>`);
+            }
+        } else if (mode === 'all') {
+            let count = 0;
+            for (let skId in DB.skills) {
+                let sk = DB.skills[skId];
+                if (sk && !sk.procOnly) {
+                    if (!player.skills.includes(skId)) {
+                        player.skills.push(skId);
+                        count++;
+                    }
+                }
+            }
+            if (typeof logSys === 'function') {
+                logSys(`<span class="text-purple-400 font-bold">【GM 技能】全職業所有技能已全數習得（新學會 ${count} 個技能）！</span>`);
+            }
+        }
+
+        try {
+            if (typeof renderTabs === 'function') renderTabs();
+            if (typeof renderSkillSelects === 'function') renderSkillSelects();
+            if (typeof calcStats === 'function') calcStats();
+            if (typeof updateUI === 'function') updateUI();
+            if (typeof saveGame === 'function') saveGame();
+        } catch (e) {}
+
+        window.renderGMShopSkillList();
+    };
+
+    window.renderGMShopSkillList = function () {
+        let grid = document.getElementById('gm-shop-skill-grid');
+        if (!grid) return;
+        if (typeof DB === 'undefined' || !DB.skills) {
+            grid.innerHTML = '<div class="col-span-full py-16 text-center text-slate-500 font-bold">尚未載入技能資料庫。</div>';
+            return;
+        }
+
+        let filterCat = window.__gmSkillCurrentCategory || 'all';
+        let searchQuery = (window.__gmSkillSearchQuery || '').trim().toLowerCase();
+        let playerSkills = (typeof player !== 'undefined' && Array.isArray(player.skills)) ? player.skills : [];
+
+        let skillList = [];
+        for (let skId in DB.skills) {
+            let sk = DB.skills[skId];
+            if (!sk || sk.procOnly) continue;
+
+            let cat = getSkillClassCategory(skId, sk);
+            let isCurrent = isSkillAvailableForPlayer(skId, sk);
+
+            if (filterCat === 'current') {
+                if (!isCurrent) continue;
+            } else if (filterCat !== 'all') {
+                if (cat !== filterCat) continue;
+            }
+
+            if (searchQuery) {
+                let n = (sk.n || '').toLowerCase();
+                let desc = (sk.desc || sk.msg || '').toLowerCase();
+                if (!n.includes(searchQuery) && !desc.includes(searchQuery) && !skId.toLowerCase().includes(searchQuery)) {
+                    continue;
+                }
+            }
+
+            skillList.push({ id: skId, ...sk, _cat: cat, _isCurrent: isCurrent });
+        }
+
+        skillList.sort((a, b) => {
+            let aTier = a.tier || 0;
+            let bTier = b.tier || 0;
+            if (aTier !== bTier) return aTier - bTier;
+            return a.n.localeCompare(b.n, 'zh-Hant');
+        });
+
+        if (skillList.length === 0) {
+            grid.innerHTML = '<div class="col-span-full py-20 text-center text-slate-500 font-bold">找不到相符的技能。</div>';
+            return;
+        }
+
+        const catNameMap = {
+            'royal': '👑 王族',
+            'knight': '⚔️ 騎士',
+            'elf': '🏹 妖精',
+            'mage': '🧙 法師',
+            'dark': '🗡️ 黑妖',
+            'dragon': '🐉 龍騎',
+            'illusion': '🔮 幻術',
+            'warrior': '🪓 戰士',
+            'etc': '✨ 特殊'
+        };
+
+        let html = '';
+        skillList.forEach(sk => {
+            let isLearned = playerSkills.includes(sk.id);
+            let iconUrl = (typeof getIconUrl === 'function') ? getIconUrl(sk, true) : `assets/icons/skills/${sk.n}.png`;
+            let catBadge = catNameMap[sk._cat] || '一般';
+            let costText = [];
+            if (sk.mp) costText.push(`MP ${sk.mp}`);
+            if (sk.hpCost) costText.push(`HP ${sk.hpCost}`);
+            let costStr = costText.length > 0 ? costText.join(' / ') : (sk.type === 'passive' ? '被動' : '無消耗');
+
+            let desc = sk.desc || sk.msg || '';
+            if (sk.d) {
+                let stats = [];
+                for (let k in sk.d) stats.push(`${k}: +${sk.d[k]}`);
+                if (stats.length > 0) desc += (desc ? ' ' : '') + stats.join(', ');
+            }
+
+            html += `
+                <div class="gm-skill-card ${isLearned ? 'learned' : ''}" data-skid="${sk.id}" onclick="toggleGMSkillLearn('${sk.id}', this, event)">
+                    <div class="gm-skill-card-top">
+                        <div class="gm-skill-icon-box">
+                            <img src="${iconUrl}" onerror="this.onerror=null; this.src='assets/icons/items/魔法書.png';" class="gm-skill-icon">
+                        </div>
+                        <div class="gm-skill-info">
+                            <div class="gm-skill-name" title="${sk.n}">${sk.n}</div>
+                            <div class="gm-skill-meta">
+                                <span class="gm-skill-cat-tag">${catBadge}</span>
+                                <span class="gm-skill-cost">${costStr}</span>
+                            </div>
+                        </div>
+                    </div>
+                    ${desc ? `<div class="gm-skill-desc" title="${desc}">${desc}</div>` : ''}
+                    <div class="gm-skill-card-bottom">
+                        <span class="gm-skill-status-badge ${isLearned ? 'learned' : 'unlearned'}">
+                            ${isLearned ? '✅ 已學習' : '＋ 點擊學習'}
+                        </span>
+                        <span class="gm-skill-click-hint">${isLearned ? '點擊取消' : '點擊學習'}</span>
+                    </div>
+                </div>
+            `;
+        });
+
+        grid.innerHTML = html;
+    };
+
     function updateRatePillActiveState(type, val) {
         let containerIdMap = {
             'game-speed': 'gm-speed-pills',
@@ -2844,6 +3574,15 @@
         if (lvlInput) lvlInput.value = player.lv || 1;
         if (bonusInput) bonusInput.value = player.bonus || 0;
 
+        let alignInput = document.getElementById('gm-char-align-input');
+        let curAlign = (typeof pvpClampAlignment === 'function') 
+            ? pvpClampAlignment(player.alignmentValue) 
+            : Math.max(-32767, Math.min(32767, Math.round(Number(player.alignmentValue) || 0)));
+        if (alignInput) {
+            alignInput.value = curAlign;
+            if (typeof updateGMAlignPreview === 'function') updateGMAlignPreview(curAlign);
+        }
+
         let diamondInput = document.getElementById('gm-char-diamond-input');
         if (diamondInput && typeof _lzGet === 'function' && typeof _saveUnwrap === 'function') {
             let raw = _lzGet('fb5_pandora_relic_market_v1');
@@ -2858,13 +3597,15 @@
             }
         }
 
-        // 載入遊戲倍率調整數值（遊戲速度每次開啟都重置為預設 1.0）
-        window.__gmGameSpeed = 1.0;
-        let currentSpeed = 1.0;
+        // 載入遊戲倍率調整數值（遊戲速度僅記憶 1 或 2 倍，其他倍率或未記憶自動回退預設 2.0）
+        let currentSpeed = (window.__gmGameSpeed !== undefined)
+            ? window.__gmGameSpeed
+            : ((typeof getStartupGameSpeed === 'function') ? getStartupGameSpeed() : 2.0);
+        window.__gmGameSpeed = currentSpeed;
         let gsR = document.getElementById('gm-game-speed-range');
         let gsI = document.getElementById('gm-game-speed-input');
-        if (gsR) gsR.value = 1.0;
-        if (gsI) gsI.value = 1.0;
+        if (gsR) gsR.value = currentSpeed;
+        if (gsI) gsI.value = currentSpeed;
 
         let msR = document.getElementById('gm-monster-strength-range');
         let msI = document.getElementById('gm-monster-strength-input');
@@ -3074,13 +3815,20 @@
         if (isNaN(val)) return;
 
         if (type === 'game-speed') {
-            val = Math.min(100.0, Math.max(1.0, val));
+            val = Math.min(100.0, Math.max(1.0, parseFloat(val) || 2.0));
             let rEl = document.getElementById('gm-game-speed-range');
             let iEl = document.getElementById('gm-game-speed-input');
             if (rEl) rEl.value = val;
             if (iEl) iEl.value = val;
             window.__gmGameSpeed = val;
-            // 不存入 localStorage，每次開啟頁面一律重置為預設 1.0
+            try {
+                // 僅記憶 1x 或 2x；若設定為更高倍率（如 3x、5x、10x 等），下次開啟頁面時自動回到預設 2 倍
+                if (val === 1.0 || val === 2.0) {
+                    localStorage.setItem('klh_gm_game_speed', val);
+                } else {
+                    localStorage.setItem('klh_gm_game_speed', 2.0);
+                }
+            } catch (e) {}
             updateRatePillActiveState('game-speed', val);
         } else if (type === 'monster-strength') {
             val = Math.min(10.0, Math.max(0.1, val));
@@ -3125,13 +3873,13 @@
     };
 
     window.resetAllGMRatesToDefault = function () {
-        window.updateGMRate('game-speed', 1.0);
+        window.updateGMRate('game-speed', 2.0);
         window.updateGMRate('monster-strength', 1.0);
         window.updateGMRate('drop-rate', 1.0);
         window.updateGMRate('gold', 1.0);
         window.updateGMRate('potion', 1.0);
         if (typeof showToast === 'function') {
-            showToast("已將所有遊戲倍率重置為 1.0 預設值！", 'success');
+            showToast("已將所有遊戲倍率重置為預設值（運行速度 2.0x）！", 'success');
         }
     };
 
@@ -3642,17 +4390,55 @@
         window.setAllBaseStatsToVal(60);
     };
 
+    window.updateGMAlignPreview = function (val) {
+        let n = parseInt(val);
+        if (isNaN(n)) n = 0;
+        let preview = document.getElementById('gm-char-align-preview');
+        if (!preview) return;
+        if (n >= 1000) {
+            preview.style.background = '#1e3a8a';
+            preview.style.color = '#93c5fd';
+            preview.innerText = `正義 ${n.toLocaleString()} (藍名)`;
+        } else if (n <= -1000) {
+            preview.style.background = '#7f1d1d';
+            preview.style.color = '#fca5a5';
+            preview.innerText = `邪惡 ${n.toLocaleString()} (紅名)`;
+        } else {
+            preview.style.background = '#334155';
+            preview.style.color = '#e2e8f0';
+            preview.innerText = `中立 ${n.toLocaleString()} (白名)`;
+        }
+    };
+
+    window.adjustGMCharAlign = function (delta) {
+        let input = document.getElementById('gm-char-align-input');
+        if (!input) return;
+        let cur = parseInt(input.value) || 0;
+        let next = Math.max(-32767, Math.min(32767, cur + delta));
+        input.value = next;
+        window.updateGMAlignPreview(next);
+    };
+
+    window.setGMCharAlign = function (val) {
+        let input = document.getElementById('gm-char-align-input');
+        if (!input) return;
+        let next = Math.max(-32767, Math.min(32767, parseInt(val) || 0));
+        input.value = next;
+        window.updateGMAlignPreview(next);
+    };
+
     window.adjustGMCharAttr = function (id, amount) {
         let input = document.getElementById(id);
         if (!input) return;
         let val = parseInt(input.value) || 0;
         val += amount;
-        let min = (id === 'gm-char-lvl-input' || id.includes('base-input')) ? 1 : 0;
-        let max = (id === 'gm-char-lvl-input') ? 999 : (id === 'gm-char-gold-input' ? 999999999999 : 9999);
+        let min = (id === 'gm-char-lvl-input' || id.includes('base-input')) ? 1 : (id === 'gm-char-align-input' ? -32767 : 0);
+        let max = (id === 'gm-char-lvl-input') ? 999 : (id === 'gm-char-gold-input' ? 999999999999 : (id === 'gm-char-align-input' ? 32767 : 9999));
 
         if (val < min) val = min;
         if (val > max) val = max;
         input.value = val;
+        if (id === 'gm-char-align-input') window.updateGMAlignPreview(val);
     };
 
     window.saveGMShopCharChanges = function () {
@@ -3663,6 +4449,8 @@
         let bonusVal = parseInt(document.getElementById('gm-char-bonus-input').value);
         let diamondInput = document.getElementById('gm-char-diamond-input');
         let diamondVal = diamondInput ? parseInt(diamondInput.value) : NaN;
+        let alignInput = document.getElementById('gm-char-align-input');
+        let alignVal = alignInput ? parseInt(alignInput.value) : NaN;
 
         if (isNaN(goldVal) || goldVal < 0 || goldVal > 999999999999) {
             alert("請輸入有效的金幣數量 (0 ~ 999,999,999,999)！");
@@ -3670,6 +4458,10 @@
         }
         if (diamondInput && (isNaN(diamondVal) || diamondVal < 0 || diamondVal > 99999999)) {
             alert("請輸入有效的龍之鑽石數量 (0 ~ 99,999,999)！");
+            return;
+        }
+        if (alignInput && !isNaN(alignVal) && (alignVal < -32767 || alignVal > 32767)) {
+            alert("請輸入有效的性向值 (-32,767 ~ 32,767)！");
             return;
         }
         if (isNaN(lvlVal) || lvlVal < 1 || lvlVal > 999) {
@@ -3742,6 +4534,13 @@
         });
         player.panaceaUsed = totalUsed;
 
+        // 套用性向值修改
+        if (alignInput && !isNaN(alignVal)) {
+            player.alignmentValue = Math.max(-32767, Math.min(32767, alignVal));
+            if (typeof updatePvpButtonTone === 'function') updatePvpButtonTone();
+            if (typeof renderPvpTab === 'function') renderPvpTab();
+        }
+
         // 重新計算屬性與 UI 刷新
         if (typeof calcStats === 'function') calcStats();
         if (typeof updateUI === 'function') updateUI();
@@ -3781,6 +4580,9 @@
         }
 
         // 更新資訊
+        let scopeSel = document.getElementById('gm-search-scope-select');
+        if (scopeSel) scopeSel.value = window.gmShopSearchScope || 'name';
+
         document.getElementById('gm-shop-player-gold').innerText = (player.gold || 0).toLocaleString();
         if (player.d) {
             let loadTier = player.d.loadTier || 0;
@@ -3850,6 +4652,21 @@
 
     window.onGMShopSearchInput = function (val) {
         window.gmShopSearchQuery = val;
+        window.gmShopCurrentPage = 1;
+        renderGMShopGrid();
+    };
+
+    window.setGMShopSearchScope = function (scope) {
+        window.gmShopSearchScope = scope;
+        try { localStorage.setItem('klh_gm_search_scope', scope); } catch (e) {}
+        let sel = document.getElementById('gm-search-scope-select');
+        if (sel) sel.value = scope;
+        let searchInput = document.getElementById('gm-shop-search');
+        if (searchInput) {
+            searchInput.placeholder = (scope === 'all')
+                ? '⚡ 搜尋名稱+能力屬性（例：MP恢復、吸血、防禦）...'
+                : '🔍 僅搜尋裝備名稱（例：水晶、短劍）...';
+        }
         window.gmShopCurrentPage = 1;
         renderGMShopGrid();
     };
@@ -4230,4 +5047,317 @@
         document.body.appendChild(script);
         console.log('[klh_GMShop] 偵測到 Chaos 站域，已自動掛載 klh_remove-banner.js');
     }
+
+    // ============================================================================
+    // 📖 經典技能書面板 (原版魔法書) 直接點擊圖案「學習 / 不學習」外掛模組
+    // ============================================================================
+    (function initClassicSkillBookDirectClick() {
+        let isToggling = false;
+        window.__gmIsChangingTier = false;
+
+        // 1. 攔截使用者主動切換階級/分類，允許正常位移
+        if (typeof window.classicSkillChooseTier === 'function' && !window.classicSkillChooseTier._gmPatched) {
+            let origChooseTier = window.classicSkillChooseTier;
+            window.classicSkillChooseTier = function (tier) {
+                window.__gmIsChangingTier = true;
+                try {
+                    return origChooseTier.apply(this, arguments);
+                } finally {
+                    setTimeout(() => { window.__gmIsChangingTier = false; }, 120);
+                }
+            };
+            window.classicSkillChooseTier._gmPatched = true;
+        }
+
+        if (typeof window.classicSkillChooseMode === 'function' && !window.classicSkillChooseMode._gmPatched) {
+            let origChooseMode = window.classicSkillChooseMode;
+            window.classicSkillChooseMode = function (mode) {
+                window.__gmIsChangingTier = true;
+                try {
+                    return origChooseMode.apply(this, arguments);
+                } finally {
+                    setTimeout(() => { window.__gmIsChangingTier = false; }, 120);
+                }
+            };
+            window.classicSkillChooseMode._gmPatched = true;
+        }
+
+        // 2. 全局防回彈核心補丁：直接 Hook 最底層的 renderClassicSkillBook，無論被誰呼叫 (renderTabs 或 refreshClassicSkillBookOnly) 都絕不跳回頂部
+        if (typeof window.renderClassicSkillBook === 'function' && !window.renderClassicSkillBook._gmScrollPatched) {
+            let origRenderBook = window.renderClassicSkillBook;
+            window.renderClassicSkillBook = function (sDiv) {
+                // 如果是使用者主動點擊 Tier 按鈕或分類切換，放行由原版位移
+                if (window.__gmIsChangingTier) {
+                    return origRenderBook.apply(this, arguments);
+                }
+
+                let targetDiv = sDiv || document.getElementById('tab-skill');
+                let g = targetDiv ? targetDiv.querySelector('.classic-skill-grid-scroll') : document.querySelector('#tab-skill .classic-skill-grid-scroll');
+                let savedGridTop = g ? g.scrollTop : null;
+                let savedTabTop = targetDiv ? targetDiv.scrollTop : null;
+                let p = document.getElementById('tab-content-panel');
+                let savedPanelTop = p ? p.scrollTop : null;
+                let winX = window.scrollX || 0;
+                let winY = window.scrollY || 0;
+                let savedTier = window.classicSkillBookState ? window.classicSkillBookState.tier : null;
+
+                origRenderBook.apply(this, arguments);
+
+                let restore = function () {
+                    if (window.__gmIsChangingTier) return;
+                    let currentDiv = sDiv || document.getElementById('tab-skill');
+                    let newG = currentDiv ? currentDiv.querySelector('.classic-skill-grid-scroll') : document.querySelector('#tab-skill .classic-skill-grid-scroll');
+                    if (newG && savedGridTop !== null) {
+                        newG.scrollTop = savedGridTop;
+                        if (typeof classicSkillSyncTierFromScroll === 'function') {
+                            classicSkillSyncTierFromScroll(newG);
+                        } else if (savedTier && typeof classicSkillSelectTier === 'function') {
+                            classicSkillSelectTier(savedTier);
+                        }
+                    }
+                    if (currentDiv && savedTabTop !== null) currentDiv.scrollTop = savedTabTop;
+                    if (p && savedPanelTop !== null) p.scrollTop = savedPanelTop;
+                    if (winY || winX) window.scrollTo(winX, winY);
+                };
+
+                restore();
+                requestAnimationFrame(restore);
+                setTimeout(restore, 20);
+                setTimeout(restore, 60);
+            };
+            window.renderClassicSkillBook._gmScrollPatched = true;
+        }
+
+        // 3. 原版 refreshClassicSkillBookOnly 雙重防護
+        if (typeof window.refreshClassicSkillBookOnly === 'function' && !window.refreshClassicSkillBookOnly._scrollPatched) {
+            let origRefresh = window.refreshClassicSkillBookOnly;
+            window.refreshClassicSkillBookOnly = function () {
+                if (window.__gmIsChangingTier) return origRefresh.apply(this, arguments);
+
+                let g = document.querySelector('#tab-skill .classic-skill-grid-scroll');
+                let savedTop = g ? g.scrollTop : null;
+                let t = document.getElementById('tab-skill');
+                let savedTabTop = t ? t.scrollTop : null;
+                let p = document.getElementById('tab-content-panel');
+                let savedPanelTop = p ? p.scrollTop : null;
+                let winX = window.scrollX || 0;
+                let winY = window.scrollY || 0;
+                let savedTier = window.classicSkillBookState ? window.classicSkillBookState.tier : null;
+
+                origRefresh.apply(this, arguments);
+
+                let restore = function () {
+                    if (window.__gmIsChangingTier) return;
+                    let newG = document.querySelector('#tab-skill .classic-skill-grid-scroll');
+                    if (newG && savedTop !== null) {
+                        newG.scrollTop = savedTop;
+                        if (typeof classicSkillSyncTierFromScroll === 'function') {
+                            classicSkillSyncTierFromScroll(newG);
+                        } else if (savedTier && typeof classicSkillSelectTier === 'function') {
+                            classicSkillSelectTier(savedTier);
+                        }
+                    }
+                    if (t && savedTabTop !== null) t.scrollTop = savedTabTop;
+                    if (p && savedPanelTop !== null) p.scrollTop = savedPanelTop;
+                    if (winY || winX) window.scrollTo(winX, winY);
+                };
+
+                restore();
+                requestAnimationFrame(restore);
+                setTimeout(restore, 20);
+                setTimeout(restore, 60);
+            };
+            window.refreshClassicSkillBookOnly._scrollPatched = true;
+        }
+
+        function doToggleSkill(cell, e, forceForget) {
+            if (isToggling) return;
+            if (!cell || typeof player === 'undefined' || !player) return;
+
+            let skId = cell.getAttribute('data-tip-skill');
+            if (!skId || typeof DB === 'undefined' || !DB.skills || !DB.skills[skId]) return;
+
+            let sk = DB.skills[skId];
+            if (!Array.isArray(player.skills)) player.skills = [];
+            let isLearned = player.skills.includes(skId);
+
+            if (e) {
+                if (typeof e.preventDefault === 'function') e.preventDefault();
+                if (typeof e.stopPropagation === 'function') e.stopPropagation();
+            }
+
+            // 🔒 點擊前記錄所有 4 個層級的滾動位置
+            let gridScroll = document.querySelector('#tab-skill .classic-skill-grid-scroll');
+            let savedGridScroll = gridScroll ? gridScroll.scrollTop : null;
+
+            let tabSkill = document.getElementById('tab-skill');
+            let savedTabScroll = tabSkill ? tabSkill.scrollTop : null;
+
+            let panel = document.getElementById('tab-content-panel');
+            let savedPanelScroll = panel ? panel.scrollTop : null;
+
+            let winX = window.scrollX || window.pageXOffset || 0;
+            let winY = window.scrollY || window.pageYOffset || 0;
+            let savedTier = window.classicSkillBookState ? window.classicSkillBookState.tier : null;
+
+            let restoreAllScrolls = function () {
+                let g = document.querySelector('#tab-skill .classic-skill-grid-scroll');
+                if (g && savedGridScroll !== null) {
+                    g.scrollTop = savedGridScroll;
+                    if (typeof classicSkillSyncTierFromScroll === 'function') {
+                        classicSkillSyncTierFromScroll(g);
+                    } else if (savedTier && typeof classicSkillSelectTier === 'function') {
+                        classicSkillSelectTier(savedTier);
+                    }
+                }
+                let t = document.getElementById('tab-skill');
+                if (t && savedTabScroll !== null) t.scrollTop = savedTabScroll;
+                let p = document.getElementById('tab-content-panel');
+                if (p && savedPanelScroll !== null) p.scrollTop = savedPanelScroll;
+                window.scrollTo(winX, winY);
+            };
+
+            isToggling = true;
+            try {
+                // 4. 原地立即更新 DOM (In-place Update)，提供毫秒級零閃爍反饋，且完全不重構捲動容器
+                let lockSpan = cell.querySelector('.classic-skill-lock');
+                if (!isLearned) {
+                    // 學習技能
+                    player.skills.push(skId);
+                    cell.classList.remove('classic-skill-unlearned');
+                    cell.classList.remove('classic-skill-unavailable');
+                    if (lockSpan) lockSpan.remove();
+
+                    if (typeof logSys === 'function') {
+                        logSys(`【技能書】點擊圖案學會：<span class="text-emerald-400 font-bold">「${sk.n}」</span>`);
+                    }
+                } else {
+                    // 取消學習 (遺忘)
+                    player.skills = player.skills.filter(s => s !== skId);
+                    if (player.buffs && player.buffs[skId] !== undefined) {
+                        delete player.buffs[skId];
+                    }
+                    cell.classList.add('classic-skill-unlearned');
+                    if (!lockSpan) {
+                        let lk = document.createElement('span');
+                        lk.className = 'classic-skill-lock';
+                        lk.textContent = '◆';
+                        cell.appendChild(lk);
+                    }
+
+                    if (typeof logSys === 'function') {
+                        logSys(`【技能書】點擊圖案取消學習：<span class="text-slate-400 font-bold">「${sk.n}」</span>`);
+                    }
+                }
+
+                // 立即更新懸停 Tooltip 文字 (如果當前開著)
+                let tip = document.getElementById('item-tooltip');
+                if (tip && !tip.classList.contains('hidden')) {
+                    let actionSpan = tip.querySelector('.gm-skill-tip-action');
+                    if (actionSpan) {
+                        actionSpan.innerHTML = !isLearned
+                            ? '<span style="color: #f87171;">💡 點擊圖案：【取消學習 (遺忘)】</span>'
+                            : '<span style="color: #34d399;">💡 點擊圖案：【立即學習】</span>';
+                    }
+                }
+
+                // 重新計算屬性數值與狀態
+                if (typeof renderSkillSelects === 'function') renderSkillSelects();
+                if (typeof calcStats === 'function') calcStats();
+                if (typeof updateUI === 'function') updateUI();
+
+                // 原地更新技能視窗底部的 SP 與 MR 數值
+                let _spv = (player.d && player.d.magicDmg != null) ? Math.round(player.d.magicDmg) : 0;
+                let _mrv = (player.d && player.d.mr != null) ? Math.round(player.d.mr) : 0;
+                let spEl = document.querySelector('#tab-skill .classic-skill-stat-sp');
+                if (spEl) spEl.textContent = _spv;
+                let mrEl = document.querySelector('#tab-skill .classic-skill-stat-mr');
+                if (mrEl) mrEl.textContent = _mrv;
+
+                // 立即鎖定並還原滾動位置，確保視角保持在原處不跳動
+                restoreAllScrolls();
+                requestAnimationFrame(restoreAllScrolls);
+                setTimeout(restoreAllScrolls, 20);
+                setTimeout(restoreAllScrolls, 60);
+
+                if (typeof saveGame === 'function') saveGame();
+
+            } finally {
+                setTimeout(() => { isToggling = false; }, 80);
+            }
+        }
+
+        // 滑鼠左鍵點擊 (捕獲階段，優先於原本的 onclick 執行)
+        document.addEventListener('click', function (e) {
+            let cell = e.target && e.target.closest ? e.target.closest('#tab-skill .classic-skill-cell') : null;
+            if (!cell || cell.classList.contains('classic-skill-empty')) return;
+            doToggleSkill(cell, e, false);
+        }, true);
+
+        // 滑鼠右鍵點擊 (contextmenu)：直接取消學習 (忘記)，避免彈出右鍵選單
+        document.addEventListener('contextmenu', function (e) {
+            let cell = e.target && e.target.closest ? e.target.closest('#tab-skill .classic-skill-cell') : null;
+            if (!cell || cell.classList.contains('classic-skill-empty')) return;
+            let skId = cell.getAttribute('data-tip-skill');
+            if (skId && player && Array.isArray(player.skills) && player.skills.includes(skId)) {
+                doToggleSkill(cell, e, true);
+            }
+        }, true);
+
+        // 雙擊 (dblclick)：連點兩下直接切換
+        document.addEventListener('dblclick', function (e) {
+            let cell = e.target && e.target.closest ? e.target.closest('#tab-skill .classic-skill-cell') : null;
+            if (!cell || cell.classList.contains('classic-skill-empty')) return;
+            doToggleSkill(cell, e, true);
+        }, true);
+
+        // 手機觸控長按支援 (長按 450ms 視為取消學習)
+        let pressTimer = null;
+        let pressCell = null;
+        document.addEventListener('touchstart', function (e) {
+            let cell = e.target && e.target.closest ? e.target.closest('#tab-skill .classic-skill-cell') : null;
+            if (!cell || cell.classList.contains('classic-skill-empty')) return;
+            pressCell = cell;
+            pressTimer = setTimeout(function () {
+                if (pressCell) {
+                    doToggleSkill(pressCell, e, true);
+                    pressCell = null;
+                }
+            }, 450);
+        }, { passive: true });
+
+        document.addEventListener('touchend', function () {
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+            pressCell = null;
+        }, { passive: true });
+
+        document.addEventListener('touchcancel', function () {
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+            pressCell = null;
+        }, { passive: true });
+
+        // 浮動提示 Tooltip 注入「點擊圖案直接學習/取消學習」提示文字
+        document.addEventListener('mouseover', function (e) {
+            let cell = e.target && e.target.closest ? e.target.closest('#tab-skill .classic-skill-cell') : null;
+            if (!cell || cell.classList.contains('classic-skill-empty')) return;
+            let skId = cell.getAttribute('data-tip-skill');
+            if (!skId || typeof DB === 'undefined' || !DB.skills || !DB.skills[skId]) return;
+
+            setTimeout(function () {
+                let tip = document.getElementById('item-tooltip');
+                if (tip && !tip.classList.contains('hidden') && !tip.querySelector('.gm-skill-tip-action')) {
+                    let isLearned = Array.isArray(player.skills) && player.skills.includes(skId);
+                    let actionDiv = document.createElement('div');
+                    actionDiv.className = 'gm-skill-tip-action';
+                    actionDiv.style.cssText = 'margin-top: 6px; padding-top: 4px; border-top: 1px dashed rgba(148, 163, 184, 0.3); font-size: 11px; font-weight: bold; display: flex; align-items: center; gap: 4px;';
+                    if (isLearned) {
+                        actionDiv.innerHTML = '<span style="color: #f87171;">💡 點擊圖案：【取消學習 (遺忘)】</span>';
+                    } else {
+                        actionDiv.innerHTML = '<span style="color: #34d399;">💡 點擊圖案：【立即學習】</span>';
+                    }
+                    tip.appendChild(actionDiv);
+                }
+            }, 30);
+        }, true);
+    })();
 })();

@@ -34,7 +34,7 @@
 
     // 🔒 控制開關：設為 true 時，點擊「刷新對手列表」100% 走本機 NPC 模式，不向 Supabase 發出任何請求 (0 流量損耗)
     // 🔓 未來若想開啟雲端刷新對手，只需改為 false 即可：
-    const DISABLE_CLOUD_REFRESH = true;
+    const DISABLE_CLOUD_REFRESH = false;
 
     const SUPABASE_URL = 'https://onsqosmlmkfgjevryxek.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc3Fvc21sbWtmZ2pldnJ5eGVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3MTI4NjIsImV4cCI6MjEwMDI4ODg2Mn0.WMZnonxgqkE67AUZAg9-RCPBmC9Cu2-_xqYBkfvpOpo';
@@ -130,7 +130,7 @@
                     }
                 }, 1000);
             }
-            try { logSys('<span class="text-sky-300 font-bold">☁️ 雲端競技場：</span>已成功更新你的對戰名片「' + _pvpEsc(pName) + '」（戰力 ' + power.toLocaleString() + '）'); } catch(e){}
+            try { logSys('<span class="text-sky-300 font-bold">☁️ 雲端競技場：</span>已成功更新你的對戰名片「' + _pvpEsc(pName) + '」（戰力 ' + power.toLocaleString() + '）'); } catch (e) { }
             refreshCloudOpponents();
 
         } catch (err) {
@@ -156,7 +156,7 @@
         let isTaunt = false;
         try {
             isTaunt = localStorage.getItem('klh_pvp_taunt') === 'true';
-        } catch (e) {}
+        } catch (e) { }
 
         let localCheck = (btn && btn.closest) ? btn.closest('#cloud-arena-container') : null;
         if (localCheck) {
@@ -180,7 +180,7 @@
                     wpnNoun = w;
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
 
         let copyText = pName;
         if (isTaunt) {
@@ -225,7 +225,7 @@
                 if (typeof logSys === 'function') {
                     logSys('<span class="text-sky-300 font-bold">' + (isTaunt ? '😈 複製嘲諷：' : '📋 複製名字：') + '</span>已複製「' + _pvpEsc(copyText) + '」至剪貼簿');
                 }
-            } catch (e) {}
+            } catch (e) { }
         };
 
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -244,7 +244,7 @@
                 if (typeof uploadCloudCard === 'function') {
                     uploadCloudCard(null);
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
     };
 
@@ -328,8 +328,8 @@
         }
 
         resBox.classList.remove('hidden');
-        let searchNotice = (queryName !== rawInput) 
-            ? '已自戰書解析名稱「<b class="text-amber-300">' + _pvpEsc(queryName) + '</b>」，正在雲端尋找...' 
+        let searchNotice = (queryName !== rawInput)
+            ? '已自戰書解析名稱「<b class="text-amber-300">' + _pvpEsc(queryName) + '</b>」，正在雲端尋找...'
             : '正在雲端尋找「' + _pvpEsc(queryName) + '」...';
         resBox.innerHTML = '<div class="text-xs text-slate-400 py-2 text-center">' + searchNotice + '</div>';
 
@@ -368,14 +368,14 @@
                 let sumText = displayDesc ? ('<div class="text-xs text-slate-400">' + _pvpEsc(displayDesc) + '</div>') : '';
 
                 html += '<div class="bg-amber-950/40 border border-amber-700/60 rounded p-2.5 flex items-center justify-between gap-3 hover:bg-amber-900/40 transition-colors">' +
-                            '<div class="flex flex-col gap-1">' +
-                                '<div class="font-bold text-sm text-slate-200 flex items-center gap-2 flex-wrap">' +
-                                    '<span>' + _pvpEsc(opponent.player_name) + '</span>' + clsTag +
-                                '</div>' +
-                                sumText +
-                            '</div>' +
-                            '<button type="button" class="btn px-4 py-1.5 text-xs font-bold shrink-0 bg-amber-700 hover:bg-amber-600 text-amber-100" onclick="pvpSearchChallenge(\'' + _pvpEsc(seed) + '\', \'' + _pvpEsc(opponent.player_name) + '\', this)">⚔️ 挑戰</button>' +
-                        '</div>';
+                    '<div class="flex flex-col gap-1">' +
+                    '<div class="font-bold text-sm text-slate-200 flex items-center gap-2 flex-wrap">' +
+                    '<span>' + _pvpEsc(opponent.player_name) + '</span>' + clsTag +
+                    '</div>' +
+                    sumText +
+                    '</div>' +
+                    '<button type="button" class="btn px-4 py-1.5 text-xs font-bold shrink-0 bg-amber-700 hover:bg-amber-600 text-amber-100" onclick="pvpSearchChallenge(\'' + _pvpEsc(seed) + '\', \'' + _pvpEsc(opponent.player_name) + '\', this)">⚔️ 挑戰</button>' +
+                    '</div>';
             });
             html += '</div>';
             resBox.innerHTML = html;
@@ -485,53 +485,75 @@
             let sb = await getSupabaseClient();
             if (!sb) throw new Error('Supabase Client 未初始化');
 
-            // ⚔️ 1. 先呼叫 RPC 查詢雲端實力相近對手
-            const { data: matchData, error } = await sb.rpc('get_random_opponents', {
-                p_my_seed: player.enSeed,
-                p_min_power: minPower,
-                p_max_power: maxPower
-            });
-
-            if (error) throw error;
-
-            // ⛔ 若雲端回傳空資料 (如 SQL 設為 WHERE FALSE 關閉刷新)，則連頂尖卡片都不查詢，直接進入純本機 10 名 NPC 模式省流量
-            if (!matchData || !Array.isArray(matchData) || matchData.length === 0) {
-                console.log('雲端匹配已關閉或無資料，自動切換為純本機 10 名 NPC 模式 (0 雲端流量)');
-                startBtnCooldown(btn);
-                let localBots = generateLocalBots(myPower, 10);
-                cachedOpponents = localBots;
-                renderOpponentList(listContainer, cachedOpponents, myPower);
-                return;
-            }
-
-            // 🏆 2. 確定雲端開啟且有對手時，才查詢全服前 5 名的頂尖代表玩家
-            let topCloudCard = null;
+            // 🏆 1. 無論自身戰力高低，必定查詢全服頂尖 10% 代表名片 (全服前 6 名)
+            let topCloudCards = [];
             try {
                 const { data: topData } = await sb.from('arena_cards')
                     .select('en_seed, player_name, power, card_data, class_name, level, weapon_name')
                     .neq('en_seed', player.enSeed || '')
                     .order('power', { ascending: false })
-                    .limit(5);
+                    .limit(6);
 
                 if (topData && topData.length > 0) {
-                    topCloudCard = topData[Math.floor(Math.random() * topData.length)];
+                    // 隨機挑選 1 ~ 2 位全服頂尖 10% 代表玩家
+                    let shuffledTop = topData.slice().sort(() => 0.5 - Math.random());
+                    topCloudCards = shuffledTop.slice(0, Math.min(2, topData.length));
+                    topCloudCards.forEach(c => { c.is_top10 = true; c.is_cloud = true; });
                 }
-            } catch (e) { console.warn('抓取全服頂尖卡片失敗:', e); }
+            } catch (e) {
+                console.warn('抓取全服頂尖卡片失敗:', e);
+            }
 
-            startBtnCooldown(btn);
+            // ⚔️ 2. 呼叫 RPC 查詢實力相近雲端對手 (0.7x ~ 1.5x 戰力)
+            let matchData = [];
+            try {
+                const { data, error } = await sb.rpc('get_random_opponents', {
+                    p_my_seed: player.enSeed,
+                    p_min_power: minPower,
+                    p_max_power: maxPower
+                });
+                if (!error && Array.isArray(data)) {
+                    matchData = data;
+                }
+            } catch (e) {
+                console.warn('RPC 查詢相近對手失敗:', e);
+            }
 
-            let cloudList = [];
-            if (topCloudCard) cloudList.push(topCloudCard);
+            let cloudList = [...topCloudCards];
 
-            if (matchData && Array.isArray(matchData)) {
+            // ⚔️ 3. 若相近戰力有找到雲端對手，加入名單
+            if (matchData && matchData.length > 0) {
                 matchData.forEach(item => {
-                    if (cloudList.length < 4 && (!topCloudCard || item.en_seed !== topCloudCard.en_seed)) {
+                    if (cloudList.length < 4 && !cloudList.some(c => c.en_seed === item.en_seed)) {
+                        item.is_cloud = true;
                         cloudList.push(item);
                     }
                 });
+            } else {
+                // 🛡️ 4. 低戰力 / 低等級兜底保護：若相近區間無人，從雲端拉取相對親民的真實名片，絕不讓雲端玩家掛零
+                try {
+                    let needed = 4 - cloudList.length;
+                    if (needed > 0) {
+                        const { data: fallbackData } = await sb.from('arena_cards')
+                            .select('en_seed, player_name, power, card_data, class_name, level, weapon_name')
+                            .neq('en_seed', player.enSeed || '')
+                            .order('power', { ascending: true })
+                            .limit(10);
+                        if (fallbackData && fallbackData.length > 0) {
+                            let available = fallbackData.filter(f => !cloudList.some(c => c.en_seed === f.en_seed));
+                            let picked = available.sort(() => 0.5 - Math.random()).slice(0, needed);
+                            picked.forEach(p => { p.is_cloud = true; cloudList.push(p); });
+                        }
+                    }
+                } catch (e) {
+                    console.warn('抓取親民雲端名片失敗:', e);
+                }
             }
 
-            let needLocalCount = 10 - cloudList.length; // 補滿至 10 個名額
+            startBtnCooldown(btn);
+
+            // 🤖 5. 補滿至 10 個名額（其餘由本地 NPC 補齊，確保有同戰力新手對手可練功）
+            let needLocalCount = Math.max(0, 10 - cloudList.length);
             let localBots = generateLocalBots(myPower, needLocalCount);
             let combined = cloudList.concat(localBots);
             cachedOpponents = combined.sort(() => 0.5 - Math.random());
@@ -581,16 +603,18 @@
             let details = getCardFullDetails(opponent.card_data, opponent);
 
             let isBoss = !!opponent.is_boss;
-            // 只有開啟雲端時才顯示頂尖 10% 標籤
-            let isTop10 = (hasCloudCards && !isBoss && pwr >= top10Threshold);
+            // 頂尖 10% 判斷：被標記為頂尖或戰力達到門檻
+            let isTop10 = opponent.is_top10 || (hasCloudCards && !isBoss && pwr >= top10Threshold);
 
-            // 標籤樣式對齊 NPC 純淨黑底素雅風格
+            // 標籤樣式
             let highlightBadge = '';
 
             if (isBoss) {
                 highlightBadge = '<span class="text-[10px] bg-rose-950 text-rose-300 border border-rose-800 px-1 rounded ml-0.5 font-bold shrink-0">NPC首領</span>';
             } else if (isTop10) {
-                highlightBadge = '<span class="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-1 rounded ml-0.5 font-bold shrink-0">頂尖 10%</span>';
+                highlightBadge = '<span class="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-1 rounded ml-0.5 font-bold shrink-0">👑 頂尖 10%</span>';
+            } else if (opponent.is_cloud || !opponent.is_bot) {
+                highlightBadge = '<span class="text-[10px] bg-sky-950 text-sky-300 border border-sky-800 px-1 rounded ml-0.5 font-bold shrink-0">雲端玩家</span>';
             } else if (opponent.is_bot) {
                 highlightBadge = '<span class="text-[10px] bg-slate-700 text-sky-300 px-1 rounded ml-0.5 shrink-0">NPC</span>';
             }
@@ -608,15 +632,15 @@
             }
 
             html += '<div class="bg-slate-900/70 border border-slate-700/80 rounded p-2 flex items-center justify-between gap-2 hover:bg-slate-800 transition-colors' + (count >= 3 ? ' opacity-50' : '') + '">' +
-                        '<div class="flex flex-col gap-0.5 min-w-0 flex-1">' +
-                            '<div class="font-bold text-xs sm:text-sm text-slate-200 flex items-center gap-1.5 flex-nowrap overflow-hidden">' +
-                                '<span class="truncate max-w-[130px] sm:max-w-none shrink">' + _pvpEsc(opponent.player_name) + '</span>' + highlightBadge +
-                                '<span class="text-[10px] font-semibold text-amber-300 bg-amber-950/50 border border-amber-700/50 px-1 py-0.2 rounded shrink-0 ml-auto sm:ml-0">' + _pvpEsc(details.className) + '</span>' +
-                            '</div>' +
-                            '<div class="text-[11px] text-slate-400 truncate">' + _pvpEsc(details.summaryText) + '</div>' +
-                        '</div>' +
-                        '<div class="shrink-0">' + btnHtml + '</div>' +
-                    '</div>';
+                '<div class="flex flex-col gap-0.5 min-w-0 flex-1">' +
+                '<div class="font-bold text-xs sm:text-sm text-slate-200 flex items-center gap-1.5 flex-nowrap overflow-hidden">' +
+                '<span class="truncate max-w-[130px] sm:max-w-none shrink">' + _pvpEsc(opponent.player_name) + '</span>' + highlightBadge +
+                '<span class="text-[10px] font-semibold text-amber-300 bg-amber-950/50 border border-amber-700/50 px-1 py-0.2 rounded shrink-0 ml-auto sm:ml-0">' + _pvpEsc(details.className) + '</span>' +
+                '</div>' +
+                '<div class="text-[11px] text-slate-400 truncate">' + _pvpEsc(details.summaryText) + '</div>' +
+                '</div>' +
+                '<div class="shrink-0">' + btnHtml + '</div>' +
+                '</div>';
         });
         html += '</div>';
 
@@ -693,7 +717,7 @@
                     summaryText = 'Lv.' + lv + '・手持 ' + wpnDesc;
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
 
         if (botObj && botObj.is_bot) {
             if (botObj.clsName) className = botObj.clsName;
@@ -871,13 +895,13 @@
 
             let allocPts = Math.floor(lv * (isSuperBoss ? 2.5 : 1.8));
             let allocObj = { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 };
-            
+
             // 🐛 修正 2：依據職業優先分配，並限制單項最多分配 70 點（避免相加後超過 100 上限而被浪費）
             let attrPriority = ['str', 'con', 'dex', 'wis', 'int', 'cha'];
             if (cls === 'mage' || cls === 'illusion') attrPriority = ['int', 'wis', 'con', 'dex', 'str', 'cha'];
             else if (cls === 'elf') attrPriority = ['dex', 'con', 'wis', 'str', 'int', 'cha'];
             else if (cls === 'dark') attrPriority = ['str', 'dex', 'con', 'wis', 'int', 'cha'];
-            
+
             for (let pts = 0; pts < allocPts; pts++) {
                 for (let attr of attrPriority) {
                     if (allocObj[attr] < 70) { // base 30 + panacea 10 + alloc 70 = 110 (安全覆蓋 100 上限)
@@ -891,7 +915,7 @@
             let avatarSprite = options[Math.floor(Math.random() * options.length)];
 
             let alignVal = Math.floor(Math.random() * 65535) - 32768;
-            
+
             // 根據對手戰力與玩家差距分配不同等級血盟
             let highClanPool = ['奇岩城主盟 [Lv.10]', '亞丁帝國 [Lv.10]', '肯特霸皇盟 [Lv.9]', '象牙塔大導師會 [Lv.9]', '黑暗帝國 [Lv.8]'];
             let midClanPool = ['風木血盟 [Lv.6]', '海音同盟 [Lv.6]', '邊境之狼 [Lv.5]', '沉默誓約 [Lv.5]', '古魯丁榮耀 [Lv.4]'];
@@ -971,29 +995,29 @@
         let savedTaunt = false;
         try {
             savedTaunt = localStorage.getItem('klh_pvp_taunt') === 'true';
-        } catch (e) {}
+        } catch (e) { }
 
         let html =
             '<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pr-7">' +
-                '<div class="font-bold text-sky-300 text-xs sm:text-sm flex items-center gap-1">' +
-                    '<span>⚔️ 無界競技場</span>' +
-                    '<span class="text-[10px] font-normal text-slate-400">(配對實力相近玩家)</span>' +
-                '</div>' +
-                '<div class="flex items-center gap-1.5 shrink-0 self-start sm:self-auto flex-wrap">' +
-                    '<button type="button" id="pvp-btn-upload" class="btn px-2.5 py-1 text-xs bg-sky-800 hover:bg-sky-700 border-sky-500 font-bold shrink-0" onclick="uploadCloudCard(this)">📤 上傳我的名片</button>' +
-                    '<button type="button" class="btn px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 border-slate-500 font-bold shrink-0" onclick="copyMyPlayerName(this)">📋 複製名字</button>' +
-                    '<label class="flex items-center gap-1 text-xs text-amber-300 cursor-pointer select-none shrink-0" title="勾選後複製名字會隨機附加叫陣嘲諷台詞">' +
-                        '<input type="checkbox" id="pvp-taunt-toggle" ' + (savedTaunt ? 'checked' : '') + ' onchange="try{localStorage.setItem(\'klh_pvp_taunt\',this.checked);document.querySelectorAll(\'#pvp-taunt-toggle\').forEach(c=>c.checked=this.checked);}catch(e){}" class="rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-0 cursor-pointer">' +
-                        '<span>😈 嘲諷</span>' +
-                    '</label>' +
-                '</div>' +
+            '<div class="font-bold text-sky-300 text-xs sm:text-sm flex items-center gap-1">' +
+            '<span>⚔️ 無界競技場</span>' +
+            '<span class="text-[10px] font-normal text-slate-400">(配對實力相近玩家)</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-1.5 shrink-0 self-start sm:self-auto flex-wrap">' +
+            '<button type="button" id="pvp-btn-upload" class="btn px-2.5 py-1 text-xs bg-sky-800 hover:bg-sky-700 border-sky-500 font-bold shrink-0" onclick="uploadCloudCard(this)">📤 上傳我的名片</button>' +
+            '<button type="button" class="btn px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 border-slate-500 font-bold shrink-0" onclick="copyMyPlayerName(this)">📋 複製名字</button>' +
+            '<label class="flex items-center gap-1 text-xs text-amber-300 cursor-pointer select-none shrink-0" title="勾選後複製名字會隨機附加叫陣嘲諷台詞">' +
+            '<input type="checkbox" id="pvp-taunt-toggle" ' + (savedTaunt ? 'checked' : '') + ' onchange="try{localStorage.setItem(\'klh_pvp_taunt\',this.checked);document.querySelectorAll(\'#pvp-taunt-toggle\').forEach(c=>c.checked=this.checked);}catch(e){}" class="rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-0 cursor-pointer">' +
+            '<span>😈 嘲諷</span>' +
+            '</label>' +
+            '</div>' +
             '</div>' +
             '<div class="text-[11px] text-slate-400 leading-tight mb-2.5">上傳後其他玩家可挑戰你的分身。點擊「複製名字」即自動上傳名片並複製。</div>' +
 
             '<!-- 🔍 搜尋指定玩家列 -->' +
             '<div class="flex items-center gap-1.5 mb-2.5">' +
-                '<input type="text" id="pvp-search-name" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-slate-100 flex-1 min-w-0 placeholder-slate-500" placeholder="輸入雲端玩家名字搜尋..." onkeydown="if(event.key===\'Enter\') searchCloudPlayer();">' +
-                '<button type="button" id="pvp-btn-search" class="btn px-2.5 py-1 text-xs bg-amber-800 hover:bg-amber-700 text-amber-200 border border-amber-600 font-bold shrink-0" onclick="searchCloudPlayer(this)">🔍 尋找玩家</button>' +
+            '<input type="text" id="pvp-search-name" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-slate-100 flex-1 min-w-0 placeholder-slate-500" placeholder="輸入雲端玩家名字搜尋..." onkeydown="if(event.key===\'Enter\') searchCloudPlayer();">' +
+            '<button type="button" id="pvp-btn-search" class="btn px-2.5 py-1 text-xs bg-amber-800 hover:bg-amber-700 text-amber-200 border border-amber-600 font-bold shrink-0" onclick="searchCloudPlayer(this)">🔍 尋找玩家</button>' +
             '</div>' +
             '<div id="pvp-search-result" class="hidden"></div>' +
 
@@ -1029,27 +1053,27 @@
                     if (typeof lootRng === 'function' && typeof DB !== 'undefined') {
                         let myCard = (typeof pvpCardBuild === 'function') ? pvpCardBuild() : null;
                         let myPower = (myCard && typeof pvpCardDerive === 'function' && typeof pvpCardPower === 'function') ? pvpCardPower(pvpCardDerive(myCard)) : 2000;
-                        
+
                         let foeNameText = '';
                         let foeEl = resultModal.querySelector('.text-sm.text-slate-200');
                         if (foeEl) foeNameText = foeEl.textContent.replace('對手：', '').trim();
-                        
+
                         let isTop10 = false;
                         let isBoss = false;
                         let isRealPlayer = false;
                         let foePower = myPower;
                         let foeLv = 99;
-                        
+
                         if (typeof cachedOpponents !== 'undefined' && cachedOpponents) {
                             let hasCloudCards = cachedOpponents.some(o => !o.is_bot);
                             let powers = cachedOpponents.map(o => Number(o.power) || 0).sort((a, b) => b - a);
                             let top10Threshold = powers[Math.max(0, Math.floor(powers.length * 0.1))] || 0;
-                            
+
                             let opponent = cachedOpponents.find(o => o.player_name === foeNameText);
                             if (opponent) {
                                 isBoss = !!opponent.is_boss;
                                 isRealPlayer = !opponent.is_bot && !isBoss;
-                                
+
                                 let opPower = Number(opponent.power);
                                 let opLv = 99; // 預設為高等等級以免誤判
                                 if (opponent.card_data && typeof pvpCardDecode === 'function') {
@@ -1059,7 +1083,7 @@
                                             if (!opPower) opPower = pvpCardPower(pvpCardDerive(dec.card));
                                             if (dec.card.lv) opLv = Number(dec.card.lv);
                                         }
-                                    } catch(e) {}
+                                    } catch (e) { }
                                 }
                                 foePower = opPower || myPower;
                                 foeLv = opLv;
@@ -1075,7 +1099,7 @@
                         let pool = [];
                         for (let id in DB.items) {
                             let item = DB.items[id];
-                            if (item.eff === 'card') continue; 
+                            if (item.eff === 'card') continue;
                             let baseWeight = item.gachaWeight !== undefined ? item.gachaWeight : 0;
                             if (baseWeight > 0) {
                                 let weight = baseWeight;
@@ -1100,12 +1124,12 @@
                         let d = (typeof DB !== 'undefined' && DB.items && DB.items[rewardId]) ? DB.items[rewardId] : { n: rewardId };
                         let isBlessed = (typeof pandoraStockBless === 'function') ? pandoraStockBless(rewardId) : false;
                         let inst = { id: rewardId, cnt: 1, bless: isBlessed };
-                        
+
                         let rewardColor = (typeof getItemColor === 'function') ? getItemColor(inst) : 'text-amber-300';
                         let rewardName = (typeof getItemFullName === 'function') ? getItemFullName(inst) : (d.n || rewardId);
                         let rewardIcon = (typeof getIconUrl === 'function') ? getIconUrl(d) : '';
                         let glow = (typeof getGlowClass === 'function') ? getGlowClass(inst, d) : '';
-                        
+
                         let winQuotes = [
                             '卓越的戰術！這是屬於勝者的戰利品！',
                             '實力碾壓！你展現了絕對的強者風範！',
@@ -1116,23 +1140,23 @@
                             '無懈可擊的勝利！帶著戰利品繼續征戰吧！'
                         ];
                         let winQuote = winQuotes[Math.floor(Math.random() * winQuotes.length)];
-                        
+
                         let rewardDiv = document.createElement('div');
                         rewardDiv.className = 'mt-4 mb-4 p-3 bg-slate-900/80 border border-amber-500/50 rounded-lg flex flex-col items-center justify-center gap-1.5';
                         rewardDiv.innerHTML = '<div class="text-sm font-bold text-amber-400 drop-shadow-md">🎁 勝場獎勵</div>' +
                             '<div class="text-xs text-amber-200/90 italic font-semibold">「' + winQuote + '」</div>' +
                             '<div class="flex items-center justify-center gap-3 mt-1">' +
-                                '<img src="' + rewardIcon + '" class="w-10 h-10 object-contain drop-shadow ' + glow + '">' +
-                                '<div class="font-bold text-lg drop-shadow-md ' + rewardColor + '">' + rewardName + '</div>' +
+                            '<img src="' + rewardIcon + '" class="w-10 h-10 object-contain drop-shadow ' + glow + '">' +
+                            '<div class="font-bold text-lg drop-shadow-md ' + rewardColor + '">' + rewardName + '</div>' +
                             '</div>';
-                            
+
                         let recordDiv = resultModal.querySelector('.text-xs.text-slate-400.mb-4');
                         if (recordDiv && recordDiv.parentNode) {
                             recordDiv.parentNode.insertBefore(rewardDiv, recordDiv.nextSibling);
                         } else {
                             titleEl.parentNode.appendChild(rewardDiv);
                         }
-                        
+
                         if (typeof gainItem === 'function') {
                             gainItem(rewardId, 1, false, false, false, false, { bless: isBlessed, attr: false, anc: false });
                         } else if (typeof player !== 'undefined' && player && player.inv) {
@@ -1154,11 +1178,11 @@
                                 });
                             }
                         }
-                        try { if (typeof renderTabs === 'function') renderTabs(); } catch(e){}
-                        try { if (typeof updateUI === 'function') updateUI(); } catch(e){}
-                        try { if (typeof saveGame === 'function') saveGame(); } catch(e){}
+                        try { if (typeof renderTabs === 'function') renderTabs(); } catch (e) { }
+                        try { if (typeof updateUI === 'function') updateUI(); } catch (e) { }
+                        try { if (typeof saveGame === 'function') saveGame(); } catch (e) { }
                     }
-                } catch(err) {
+                } catch (err) {
                     console.error('PvP 勝場獎勵發放失敗', err);
                 }
             } else if (titleEl && (titleEl.textContent === '挑戰者獲勝' || titleEl.textContent === '玩家戰敗')) {
@@ -1166,11 +1190,11 @@
                     let potions = ['potion_heal', 'potion_strong', 'potion_ult'];
                     let rewardId = potions[Math.floor(Math.random() * potions.length)];
                     let d = (typeof DB !== 'undefined' && DB.items && DB.items[rewardId]) ? DB.items[rewardId] : { n: rewardId };
-                    
-                    let rewardColor = (typeof getItemColor === 'function') ? getItemColor({id: rewardId}) : 'text-amber-300';
-                    let rewardName = (typeof getItemFullName === 'function') ? getItemFullName({id: rewardId}) : (d.n || rewardId);
+
+                    let rewardColor = (typeof getItemColor === 'function') ? getItemColor({ id: rewardId }) : 'text-amber-300';
+                    let rewardName = (typeof getItemFullName === 'function') ? getItemFullName({ id: rewardId }) : (d.n || rewardId);
                     let rewardIcon = (typeof getIconUrl === 'function') ? getIconUrl(d) : '';
-                    
+
                     let comfortQuotes = [
                         '勝敗乃兵家常事，喝完這瓶再接再厲！',
                         '雖然輸了，但經驗是你的！補血再出發！',
@@ -1187,17 +1211,17 @@
                     rewardDiv.innerHTML = '<div class="text-sm font-bold text-slate-400 drop-shadow-md">🩹 安慰獎</div>' +
                         '<div class="text-xs text-amber-200/90 italic font-semibold">「' + quote + '」</div>' +
                         '<div class="flex items-center justify-center gap-3 mt-1">' +
-                            '<img src="' + rewardIcon + '" class="w-10 h-10 object-contain drop-shadow grayscale-[30%]">' +
-                            '<div class="font-bold text-lg drop-shadow-md ' + rewardColor + '">' + rewardName + '</div>' +
+                        '<img src="' + rewardIcon + '" class="w-10 h-10 object-contain drop-shadow grayscale-[30%]">' +
+                        '<div class="font-bold text-lg drop-shadow-md ' + rewardColor + '">' + rewardName + '</div>' +
                         '</div>';
-                        
+
                     let recordDiv = resultModal.querySelector('.text-xs.text-slate-400.mb-4');
                     if (recordDiv && recordDiv.parentNode) {
                         recordDiv.parentNode.insertBefore(rewardDiv, recordDiv.nextSibling);
                     } else {
                         titleEl.parentNode.appendChild(rewardDiv);
                     }
-                    
+
                     if (typeof gainItem === 'function') {
                         gainItem(rewardId, 1, false, false, false, false, { bless: false, attr: false, anc: false });
                     } else if (typeof player !== 'undefined' && player && player.inv) {
@@ -1213,10 +1237,10 @@
                             });
                         }
                     }
-                    try { if (typeof renderTabs === 'function') renderTabs(); } catch(e){}
-                    try { if (typeof updateUI === 'function') updateUI(); } catch(e){}
-                    try { if (typeof saveGame === 'function') saveGame(); } catch(e){}
-                } catch(err) {
+                    try { if (typeof renderTabs === 'function') renderTabs(); } catch (e) { }
+                    try { if (typeof updateUI === 'function') updateUI(); } catch (e) { }
+                    try { if (typeof saveGame === 'function') saveGame(); } catch (e) { }
+                } catch (err) {
                     console.error('PvP 安慰獎發放失敗', err);
                 }
             }
@@ -1238,7 +1262,7 @@
     // Hook openPvpArena：開啟面板時自動嵌入雲端 UI
     const origOpenPvpArena = window.openPvpArena;
     if (typeof origOpenPvpArena === 'function') {
-        window.openPvpArena = function() {
+        window.openPvpArena = function () {
             let res = origOpenPvpArena.apply(this, arguments);
             setTimeout(injectCloudUI, 30);
             return res;
@@ -1248,7 +1272,7 @@
     // Hook renderPvpArenaNPC：NPC 面板渲染後自動嵌入雲端 UI
     const origRenderPvpArenaNPC = window.renderPvpArenaNPC;
     if (typeof origRenderPvpArenaNPC === 'function') {
-        window.renderPvpArenaNPC = function(contentDiv) {
+        window.renderPvpArenaNPC = function (contentDiv) {
             let res = origRenderPvpArenaNPC.apply(this, arguments);
             setTimeout(injectCloudUI, 30);
             return res;
@@ -1258,7 +1282,7 @@
     // Hook renderPvpTab：PvP 分頁切換時自動嵌入雲端 UI
     const origRenderPvpTab = window.renderPvpTab;
     if (typeof origRenderPvpTab === 'function') {
-        window.renderPvpTab = function() {
+        window.renderPvpTab = function () {
             let res = origRenderPvpTab.apply(this, arguments);
             setTimeout(injectCloudUI, 30);
             return res;
@@ -1268,7 +1292,7 @@
     // Hook pvpArenaStart：決鬥開始時記錄啟動時間（供加速按鈕判定用）
     const origPvpArenaStart = window.pvpArenaStart;
     if (typeof origPvpArenaStart === 'function') {
-        window.pvpArenaStart = function() {
+        window.pvpArenaStart = function () {
             window._klhDuelStartedAt = Date.now();
             window._klhSpeedUpClicked = false;
             let result = origPvpArenaStart.apply(this, arguments);
@@ -1327,7 +1351,7 @@
                         mob.mag2 = { skn: '王者光輝', type: 'self_heal', cd: 40, healDice: [80, 120] };
                     }
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             return result;
         };
@@ -1373,8 +1397,8 @@
             if (!isActive || !player || player.dead) {
                 clearInterval(window._klhSpeedTimer);
                 window._klhSpeedTimer = null;
-                try { if (typeof renderMobs === 'function') renderMobs(); } catch (e) {}
-                try { if (typeof updateUI === 'function') updateUI(); } catch (e) {}
+                try { if (typeof renderMobs === 'function') renderMobs(); } catch (e) { }
+                try { if (typeof updateUI === 'function') updateUI(); } catch (e) { }
                 return;
             }
 
@@ -1391,8 +1415,8 @@
                 }
             }
 
-            try { if (typeof renderMobs === 'function') renderMobs(); } catch (e) {}
-            try { if (typeof updateUI === 'function') updateUI(); } catch (e) {}
+            try { if (typeof renderMobs === 'function') renderMobs(); } catch (e) { }
+            try { if (typeof updateUI === 'function') updateUI(); } catch (e) { }
 
             batchCount++;
         }, 100);
@@ -1401,11 +1425,11 @@
     // Hook pvpResultContinue：點擊「繼續」整備時，將畫面上殘留對手的視覺血條補滿
     const origPvpResultContinue = window.pvpResultContinue;
     if (typeof origPvpResultContinue === 'function') {
-        window.pvpResultContinue = function() {
+        window.pvpResultContinue = function () {
             let res = origPvpResultContinue.apply(this, arguments);
             if (typeof mapState !== 'undefined' && mapState && mapState.mobs && mapState.mobs[0]) {
                 mapState.mobs[0].curHp = mapState.mobs[0].hp;
-                try { if (typeof renderMobs === 'function') renderMobs(); } catch (e) {}
+                try { if (typeof renderMobs === 'function') renderMobs(); } catch (e) { }
             }
             return res;
         };
