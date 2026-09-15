@@ -441,9 +441,9 @@
 
         if (isGM) {
             rightActions.innerHTML += `
-                <div class="h-4 w-px bg-slate-700 mx-1 hidden sm:block"></div>
-                <label class="hidden sm:flex items-center gap-1 cursor-pointer text-slate-300 font-bold select-none hover:text-white transition-colors">
-                    <input type="checkbox" id="reaper-select-all" class="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800" onchange="toggleSelectAllReaperItems(this.checked)"> 全選
+                <div style="width:1px;height:16px;background:#334155;margin:0 4px;"></div>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#cbd5e1;font-weight:bold;user-select:none;font-size:12px;">
+                    <input type="checkbox" id="reaper-select-all" onchange="toggleSelectAllReaperItems(this.checked)" style="width:14px;height:14px;cursor:pointer;"> 全選
                 </label>
                 <button onclick="deleteSelectedReaperListings()" class="btn bg-red-700 hover:bg-red-600 border border-red-500 py-1 px-3 font-bold shadow text-white rounded">🗑️ 下架</button>
             `;
@@ -490,11 +490,6 @@
 
             const customPrice = listingId.startsWith('list_') ? info.price : (typeof info === 'object' ? info.price : null);
             const price = (customPrice !== undefined && customPrice !== null) ? Math.max(0, parseInt(customPrice, 10)) : shopPrice(d.p || 0);
-            const priceDisp = price.toLocaleString();
-
-            const el = document.createElement('div');
-            el.className = 'list-item bg-slate-800 rounded mb-2 border border-slate-700 p-3 hover:bg-slate-750 transition-colors';
-            el.style.cssText = 'display:flex !important; justify-content:space-between !important; align-items:center !important; width:100% !important; box-sizing:border-box !important;';
 
             const imgUrl = getIconUrl(d);
             const glowClass = getGlowClass(mockItem, d) || '';
@@ -503,91 +498,100 @@
 
             const stockCount = listingId.startsWith('list_') ? (parseInt(info.stock, 10) || 0) : (typeof info === 'object' ? (parseInt(info.stock, 10) || 0) : (parseInt(info, 10) || 0));
             const isSoldOut = stockCount <= 0;
-            const opacityClass = isSoldOut ? 'opacity-50' : '';
 
-            // 🌟 販售者隱私識別 ID (頭兩碼 + *)
-            const sellerIdVal = info.sellerId || '';
-            const maskedId = sellerIdVal.length >= 2 ? (sellerIdVal.substring(0, 2) + '*') : '*';
+            // 🌟 販售者隱私識別 ID (顯示5碼，第2和第4碼用*替代)
+            const sellerIdVal = info.sellerId || '?????';
+            const maskedId = sellerIdVal.length >= 5 ? `${sellerIdVal[0]}*${sellerIdVal[2]}*${sellerIdVal[4]}` : '*';
             const sellerNameVal = info.sellerName || '未知';
-            const sellerInfoStr = `${maskedId} ${sellerNameVal} 販售`;
-
-            // 🌟 格式化售完時間
-            let soldOutTipHtml = '';
-            if (isSoldOut) {
-                let timeStr = '';
-                if (info && info.soldOutTime) {
-                    try {
-                        const dObj = new Date(info.soldOutTime);
-                        if (!isNaN(dObj.getTime())) {
-                            const m = dObj.getMonth() + 1;
-                            const date = dObj.getDate();
-                            const hours = String(dObj.getHours()).padStart(2, '0');
-                            const minutes = String(dObj.getMinutes()).padStart(2, '0');
-                            timeStr = `最後一件已經在 ${m}月${date}日 ${hours}:${minutes} 被買走囉～ `;
-                        }
-                    } catch (e) {
-                        console.warn("[klh_Shop] 格式化售出時間失敗:", e);
-                    }
-                }
-                soldOutTipHtml = `<div class="text-[10px] text-slate-500 mt-0.5 text-right font-medium tracking-tight" style="white-space: normal !important; max-width: 180px !important; word-break: break-all !important; text-align: right !important;">${timeStr}${sellerInfoStr}</div>`;
-            } else {
-                soldOutTipHtml = `<div class="text-[10px] text-slate-500 mt-0.5 text-right font-medium tracking-tight" style="white-space: normal !important; max-width: 180px !important; word-break: break-all !important; text-align: right !important;">${sellerInfoStr}</div>`;
-            }
 
             // 🌟 下架權限判定 (GM 或者 原上架者可以下架)
             const canDelete = isGM || (myPlayerId && info.sellerId === myPlayerId);
 
+            // 🌟 價格精確值
+            const priceExact = price.toLocaleString();
+
+            // 數量標記 (庫存>1時顯示 x數量)
+            const qtyTag = stockCount > 1 ? `<span style="color:#94a3b8;font-size:12px;font-weight:normal;margin-left:6px;">x${stockCount}</span>` : '';
+
+            // 售罄標記
+            const soldOutTag = isSoldOut ? `<span style="color:#ef4444;font-size:11px;font-weight:bold;margin-left:6px;">已售罄</span>` : '';
+
+            // 🌟 右側操作區
             let actionHtml = '';
             if (isSoldOut) {
                 actionHtml = `
-                    ${isGM ? `
-                    <div class="flex flex-col items-center justify-center shrink-0" style="width: 48px;">
-                        <input type="checkbox" class="reaper-select-chk w-4 h-4 cursor-pointer" data-id="${listingId}" onchange="checkReaperSelectAllState()">
-                    </div>
-                    ` : ''}
-                    <div class="flex flex-col gap-1 shrink-0">
-                        <button class="btn bg-slate-700 border-slate-600 text-slate-500 py-1 px-3 text-xs font-bold shrink-0 cursor-not-allowed opacity-60 rounded" style="min-width: 52px;" disabled>已售罄</button>
-                        ${canDelete ? `<button class="btn bg-red-700 hover:bg-red-600 border-red-500 py-1 px-3 text-xs font-bold shadow text-white rounded shrink-0" style="min-width: 52px;" onclick="deleteGMReaperListing('${listingId}')">下架</button>` : ''}
-                    </div>
+                    ${canDelete ? `<button onclick="event.stopPropagation();deleteGMReaperListing('${listingId}')" style="padding:3px 10px;background:#7f1d1d;border:1px solid #dc2626;color:#fff;border-radius:5px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;">下架</button>` : ''}
+                    ${isGM ? `<input type="checkbox" class="reaper-select-chk" data-id="${listingId}" onclick="event.stopPropagation()" onchange="checkReaperSelectAllState()" style="width:14px;height:14px;cursor:pointer;">` : ''}
                 `;
             } else {
                 actionHtml = `
-                    <div class="flex flex-col items-center gap-1.5 shrink-0">
-                        ${isGM ? `<input type="checkbox" class="reaper-select-chk w-4 h-4 cursor-pointer" data-id="${listingId}" onchange="checkReaperSelectAllState()">` : ''}
-                        <input type="number" id="shop-qty-${listingId}" value="1" min="1" max="${stockCount}" class="w-12 bg-slate-900 border border-slate-600 text-center text-white rounded py-1 outline-none text-xs shrink-0" style="height: 26px;">
-                    </div>
-                    <div class="flex flex-col gap-1 shrink-0">
-                        <button class="btn bg-blue-700 hover:bg-blue-600 border-blue-500 py-1 px-3 text-xs font-bold shadow text-white rounded shrink-0" style="min-width: 52px;" onclick="buyWealthReaperItem('${listingId}', document.getElementById('shop-qty-${listingId}').value)">購買</button>
-                        ${canDelete ? `<button class="btn bg-red-700 hover:bg-red-600 border-red-500 py-1 px-3 text-xs font-bold shadow text-white rounded shrink-0" style="min-width: 52px;" onclick="deleteGMReaperListing('${listingId}')">下架</button>` : ''}
-                    </div>
+                    <input type="number" id="shop-qty-${listingId}" value="1" min="1" max="${stockCount}" onclick="event.stopPropagation()" style="width:40px;background:#0f172a;border:1px solid #475569;color:#fff;border-radius:5px;padding:3px;font-size:11px;text-align:center;outline:none;">
+                    <button onclick="event.stopPropagation();buyWealthReaperItem('${listingId}', document.getElementById('shop-qty-${listingId}').value)" style="padding:3px 10px;background:#1d4ed8;border:1px solid #3b82f6;color:#fff;border-radius:5px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;">購買</button>
+                    ${canDelete ? `<button onclick="event.stopPropagation();deleteGMReaperListing('${listingId}')" style="padding:3px 10px;background:#7f1d1d;border:1px solid #dc2626;color:#fff;border-radius:5px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;">下架</button>` : ''}
+                    ${isGM ? `<input type="checkbox" class="reaper-select-chk" data-id="${listingId}" onclick="event.stopPropagation()" onchange="checkReaperSelectAllState()" style="width:14px;height:14px;cursor:pointer;">` : ''}
                 `;
             }
 
+            const el = document.createElement('div');
+            el.style.cssText = `display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid rgba(51,65,85,0.5);transition:background 0.15s;${isSoldOut ? 'opacity:0.45;' : ''}`;
+            el.onmouseenter = function() { this.style.background = 'rgba(51,65,85,0.3)'; };
+            el.onmouseleave = function() { this.style.background = ''; };
+
             el.innerHTML = `
-                <div class="flex items-center gap-2.5 min-w-0 flex-1 ${opacityClass}">
-                    <div class="w-12 h-12 bg-slate-900 rounded border border-slate-600 flex items-center justify-center shrink-0 tip-host" data-tip-src="reaper" data-tip-uid="${listingId}">
-                        <img src="${imgUrl}" onerror="this.style.display='none';" class="w-10 h-10 object-contain pointer-events-none ${glowClass}">
+                <div class="tip-host" data-tip-src="reaper" data-tip-uid="${listingId}" style="width:44px;height:44px;background:rgba(15,23,42,0.6);border:1px solid #334155;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <img src="${imgUrl}" onerror="this.style.display='none';" class="${glowClass}" style="width:36px;height:36px;object-fit:contain;pointer-events:none;">
+                </div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                    <div style="display:flex;align-items:baseline;flex-wrap:wrap;">
+                        <span class="${itemColorClass}" style="font-weight:bold;font-size:14px;line-height:1.2;">${fullName}</span>${qtyTag}${soldOutTag}
                     </div>
-                    <div class="flex flex-col items-start gap-1.5 min-w-0 flex-1">
-                        <span class="${itemColorClass} font-bold text-base md:text-lg leading-none truncate">
-                            ${fullName} <span class="text-slate-400 text-xs font-normal">(庫存: ${stockCount})${customPrice !== null && customPrice !== undefined ? ' <span class="text-amber-400 text-xs font-normal">[自訂價格]</span>' : ''}</span>
-                        </span>
-                        <div class="flex items-center gap-2">
-                            <span class="text-yellow-400 font-bold text-base leading-none">${priceDisp} 金幣</span>
-                            <span class="text-slate-400 text-xs hidden md:block leading-none truncate" style="max-width: 200px !important;">${d.d || ''}</span>
-                        </div>
+                    <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                        <span style="color:#facc15;font-size:13px;font-weight:bold;">💰 ${priceExact}</span>
+                        <span onclick="event.stopPropagation();toggleReaperItemDetail('${listingId}')" style="color:#94a3b8;font-size:11px;cursor:pointer;margin-left:4px;white-space:nowrap;">▶詳情</span>
                     </div>
                 </div>
-                <div class="flex flex-col items-end gap-1 shrink-0">
-                    <div class="flex items-center gap-1.5">
-                        ${actionHtml}
-                    </div>
-                    ${soldOutTipHtml}
+                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                    ${actionHtml}
                 </div>
             `;
+
+            // 🌟 詳情面板 (僅賣家資訊與售出時間)
+            const detailDiv = document.createElement('div');
+            detailDiv.id = `reaper-detail-${listingId}`;
+            detailDiv.style.cssText = 'display:none;padding:6px 10px 8px 64px;border-bottom:1px solid rgba(51,65,85,0.5);background:rgba(15,23,42,0.4);';
+
+            let detailHtml = `<div style="color:#64748b;font-size:10px;">${maskedId} ${sellerNameVal} 販售</div>`;
+            if (isSoldOut && info && info.soldOutTime) {
+                try {
+                    const dObj = new Date(info.soldOutTime);
+                    if (!isNaN(dObj.getTime())) {
+                        const m = dObj.getMonth() + 1;
+                        const date = dObj.getDate();
+                        const hours = String(dObj.getHours()).padStart(2, '0');
+                        const minutes = String(dObj.getMinutes()).padStart(2, '0');
+                        detailHtml += `<div style="color:#64748b;font-size:10px;margin-top:2px;">售出時間: ${m}月${date}日 ${hours}:${minutes}</div>`;
+                    }
+                } catch (e) {}
+            }
+            detailDiv.innerHTML = detailHtml;
+
             listDiv.appendChild(el);
+            listDiv.appendChild(detailDiv);
         });
     }
+
+    // ==========================================
+    // 展開/收合商品詳情面板
+    // ==========================================
+    window.toggleReaperItemDetail = function (listingId) {
+        const detailDiv = document.getElementById(`reaper-detail-${listingId}`);
+        if (!detailDiv) return;
+        if (detailDiv.style.display === 'none') {
+            detailDiv.style.display = 'block';
+        } else {
+            detailDiv.style.display = 'none';
+        }
+    };
 
     // ==========================================
     // 購買並同步雲端庫存
