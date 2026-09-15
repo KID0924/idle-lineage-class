@@ -749,12 +749,20 @@
                 checked: false 
             },
             { 
+                id: 'klh_Shop.js', 
+                name: '黃金交易所', 
+                desc: '跨裝置的全球玩家雲端交易平台。', 
+                details: '允許玩家將背包內的裝備、道具掛單至雲端伺服器進行拍賣。支援自訂價格上架、全域玩家即時購買、售後金幣提領與自動退庫功能。', 
+                isCore: false, 
+                checked: false 
+            },
+            { 
                 id: 'klh_mobile-perf.js', 
                 name: '手機效能優化', 
                 desc: '降低格率、音效節流與自動日誌清理防發熱。', 
                 details: '專為手機端設計。包含音效播放節流、過濾低效動畫影格、限制日誌行數、降低 DOM 渲染頻率等。可於右上角懸浮面板微調各項優化參數。', 
                 isCore: false, 
-                checked: true 
+                checked: true
             },
             { 
                 id: 'klh_perf-monitor.js', 
@@ -762,7 +770,7 @@
                 desc: '在右上角顯示 FPS、Tick 延遲與特效狀態。', 
                 details: '在畫面右上角建立小型的效能監控器。可即時測量顯示 FPS、遊戲 tick 執行的毫秒數，並偵測顯示 VFX 降載優化的啟動狀態。', 
                 isCore: false, 
-                checked: true 
+                checked: true
             },
             { 
                 id: 'klh_Backpack.js', 
@@ -770,7 +778,7 @@
                 desc: '列表/格子切換、批量賣出鎖定與廢品記憶。', 
                 details: '提供列表模式切換（隱藏裝備面板以防爆版）、批量賣出/加鎖/解鎖、模糊搜尋與廢品記憶管理（下次獲得自動標記廢品，一鍵快速賣出）。', 
                 isCore: false, 
-                checked: false 
+                checked: false
             },
             { 
                 id: 'klh_Addition.js', 
@@ -786,15 +794,15 @@
                 desc: '上傳名片、搜尋玩家挑戰與 10 名對手列表。', 
                 details: '支援名片上傳、搜尋玩家、隨機對手刷新（10名對手）、決鬥5秒加速計時、前端3秒冷卻倒數防刷與雙重安全防護。', 
                 isCore: false, 
-                checked: false 
+                checked: true 
             },
             { 
                 id: 'klh_Pandora.js', 
                 name: '潘朵拉抽獎擴充', 
                 desc: '自訂金幣抽獎與特定兌換機制封裝。', 
-                details: '動態注入「潘朵拉的妹妹」NPC。提供自訂金幣單抽、10連抽與100連抽功能，自動依物品售價計算權重機率與傳說大獎高光特效。', 
+                details: '動態注入「潘朵拉的妹妹」NPC。提供自訂金幣單抽、10連抽與100連抽功能，自動依經售價計算權重機率與傳說大獎高光特效。', 
                 isCore: false, 
-                checked: false 
+                checked: true 
             },
             { 
                 id: 'klh_remove-banner.js', 
@@ -802,7 +810,7 @@
                 desc: '自動修正部分螢幕比例或解析度下的介面偏移問題（與離線掛機相反，僅在 Chaos 站生效）。', 
                 details: '在特定寬螢幕或特殊視窗比例時，自動重置並修正頂部導覽列與版面容器的相對位移（--orig-bar-h），確保介面元素不被裁切或錯位。<br><b style="color: #38bdf8;">ⓘ 提示：與離線掛機補丁相反，此模組僅在 Chaos 版網頁 (pp771007) 中生效，於非 Chaos 網頁會自動跳過。</b>', 
                 isCore: false, 
-                checked: false 
+                checked: true 
             },
             { 
                 id: 'afk-offline.js', 
@@ -810,7 +818,7 @@
                 desc: '載入並結算離線時間打怪收益（原程式碼作者：Chaos）。', 
                 details: '此模組提取自 Chaos 開發的離線結算引擎。啟用後，若偵測到當前網域為「非 Chaos 版」（即非 pp771007 網域，如官方原版網域），則會自動觸發並載入腳本，替原版遊戲補上離線金幣與經驗收益結算功能。', 
                 isCore: false, 
-                checked: false 
+                checked: true 
             }
         ];
 
@@ -877,7 +885,7 @@
 
         window.applyPreset = function(presetType) {
             if (presetType === 'mobile') {
-                const targetIds = ['klh_mobile-perf.js', 'klh_perf-monitor.js'];
+                const targetIds = ['klh_mobile-perf.js', 'klh_perf-monitor.js', 'klh_Shop.js'];
                 activePlugins.forEach(p => {
                     p.checked = !p.disabled && targetIds.includes(p.id);
                 });
@@ -887,13 +895,14 @@
                     'klh_mobile-perf.js',
                     'klh_Addition.js',
                     'klh_Pandora.js',
-                    'klh_remove-banner.js'
+                    'klh_remove-banner.js',
+                    'klh_Shop.js'
                 ];
                 activePlugins.forEach(p => {
                     p.checked = !p.disabled && targetIds.includes(p.id);
                 });
             } else if (presetType === 'pvp') {
-                const targetIds = ['klh_mobile-perf.js', 'klh_pk.js'];
+                const targetIds = ['klh_mobile-perf.js', 'klh_pk.js', 'klh_Shop.js'];
                 activePlugins.forEach(p => {
                     p.checked = !p.disabled && targetIds.includes(p.id);
                 });
@@ -906,7 +915,8 @@
                     'klh_Addition.js',
                     'klh_pk.js',
                     'klh_Pandora.js',
-                    'klh_remove-banner.js'
+                    'klh_remove-banner.js',
+                    'klh_Shop.js'
                 ];
                 activePlugins.forEach(p => {
                     p.checked = !p.disabled && targetIds.includes(p.id);

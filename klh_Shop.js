@@ -93,21 +93,36 @@
     }
 
     function getSavePlayerId() {
-        // 本地模式下不提供交易所角色 ID，防止誤用或冒用公用金鑰 ID
         const mode = localStorage.getItem('klh_storage_mode');
-        const isCloudMode = mode === 'cloud' || mode === 'supabase';
-        if (!isCloudMode) return null;
+        const isCloudMode = mode === 'cloud' || mode === 'supabase' || mode === 'firebase';
+
+        const getLocalEnSeed = () => {
+            if (typeof player !== 'undefined' && player && player.enSeed) {
+                return '$' + player.enSeed.substring(0, 9);
+            }
+            return null;
+        };
+
+        if (!isCloudMode) {
+            return getLocalEnSeed();
+        }
 
         const slot = (typeof currentSlot !== 'undefined' && currentSlot !== null) ? parseInt(currentSlot, 10) : 1;
         let key = null;
         if (mode === 'supabase') {
-            key = localStorage.getItem('klh_supabase_key');
+            key = localStorage.getItem('klh_supabase_key') || localStorage.getItem('klh_supabase_local_key');
+        } else if (mode === 'firebase') {
+            key = localStorage.getItem('klh_firebase_sync_id') || localStorage.getItem('klh_firebase_local_sync_id');
         } else {
             key = (typeof window.activeKey === 'string' && window.activeKey.trim() !== '') 
                 ? window.activeKey.trim() 
-                : localStorage.getItem('klh_custom_key');
+                : (localStorage.getItem('klh_custom_key') || localStorage.getItem('klh_jsonblob_local_key'));
         }
-        if (!key) return null;
+        
+        if (!key) {
+            return getLocalEnSeed();
+        }
+        
         const inputStr = key.trim() + (1000 + slot);
         return sha256(inputStr).substring(0, 10);
     }
@@ -116,9 +131,10 @@
     let lastFetchTime = 0;
     let isFetchingStock = false;
 
-    window.reaperGMBagMode = false;
+    window.reaperModalView = 'form'; // 'form' or 'bag'
     window.reaperGMBagCategory = 'all';
     window.reaperGMSelectedBagItem = null;
+    window.reaperGMSellerType = 'gm'; // 'gm' or 'player'
 
     function clearReaperMocks() {
         if (typeof player !== 'undefined' && player && player.inv) {
@@ -127,12 +143,63 @@
     }
 
     // ==========================================
-    // 代理與連線封裝
+    // Supabase REST API 連線封裝 (關聯式資料表)
     // ==========================================
-    async function fetchWithProxy(targetUrl, options = {}) {
-        const method = options.method || 'GET';
-        console.log(`[klh_Shop] 進行直接 ${method} 請求: ${targetUrl}`);
-        return await fetch(targetUrl, options);
+    const SUPA_URL = 'https://onsqosmlmkfgjevryxek.supabase.co';
+    const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc3Fvc21sbWtmZ2pldnJ5eGVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3MTI4NjIsImV4cCI6MjEwMDI4ODg2Mn0.WMZnonxgqkE67AUZAg9-RCPBmC9Cu2-_xqYBkfvpOpo';
+    const SUPA_HEADERS = {
+        'apikey': SUPA_KEY,
+        'Authorization': 'Bearer ' + SUPA_KEY,
+        'Content-Type': 'application/json'
+    };
+
+    // 取得所有商品庫存
+    async function fetchShopStock() {
+        const res = await fetch(`${SUPA_URL}/rest/v1/reaper_shop_listings?select=*`, { headers: SUPA_HEADERS });
+        if (!res.ok) throw new Error('GET failed');
+        const rows = await res.json();
+        const stock = {};
+        for (let r of rows) {
+            stock[r.id] = {
+                itemId: r.item_id, stock: r.stock, price: r.price,
+                en: r.en, bless: r.bless, anc: r.anc, attr: r.attr, seteff: r.seteff,
+                sellerId: r.seller_id, sellerName: r.seller_name,
+                earned: r.earned, soldOutTime: r.sold_out_time ? parseInt(r.sold_out_time, 10) : undefined
+            };
+        }
+        return stock;
+    }
+
+    // 新增商品
+    async function insertShopListing(payload) {
+        const res = await fetch(`${SUPA_URL}/rest/v1/reaper_shop_listings`, {
+            method: 'POST',
+            headers: { ...SUPA_HEADERS, 'Prefer': 'return=minimal' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(errText);
+        }
+    }
+
+    // 更新庫存與收益 (購買)
+    async function updateShopListing(id, updates) {
+        const res = await fetch(`${SUPA_URL}/rest/v1/reaper_shop_listings?id=eq.${id}`, {
+            method: 'PATCH',
+            headers: { ...SUPA_HEADERS, 'Prefer': 'return=minimal' },
+            body: JSON.stringify(updates)
+        });
+        if (!res.ok) throw new Error('UPDATE failed');
+    }
+
+    // 刪除商品 (下架、提領)
+    async function deleteShopListing(id) {
+        const res = await fetch(`${SUPA_URL}/rest/v1/reaper_shop_listings?id=eq.${id}`, {
+            method: 'DELETE',
+            headers: SUPA_HEADERS
+        });
+        if (!res.ok) throw new Error('DELETE failed');
     }
 
     // ==========================================
@@ -236,11 +303,6 @@
                 const listDiv = document.getElementById('shop-items-list');
                 if (!listDiv) return;
 
-                if (window.reaperGMBagMode) {
-                    renderGMBagItemsUI(listDiv);
-                    return;
-                }
-
                 if (wealthReaperStock === null && !isFetchingStock) {
                     isFetchingStock = true;
                     listDiv.innerHTML = `
@@ -250,13 +312,8 @@
                         </div>
                     `;
                     try {
-                        const res = await fetchWithProxy(WEALTH_REAPER_BLOB_URL);
-                        if (res.status === 200) {
-                            wealthReaperStock = await res.json();
-                            lastFetchTime = Date.now(); // 記錄成功下載時間
-                        } else {
-                            throw new Error("HTTP " + res.status);
-                        }
+                        wealthReaperStock = await fetchShopStock();
+                        lastFetchTime = Date.now(); // 記錄成功下載時間
                     } catch (err) {
                         console.error("[klh_Shop] 取得庫存失敗:", err);
                         listDiv.innerHTML = `
@@ -314,16 +371,15 @@
     function renderWealthReaperItemsUI(listDiv) {
         listDiv.innerHTML = '';
 
-        // 🌟 渲染最上方警示敘述
         const warningDesc = document.createElement('div');
         warningDesc.className = 'w-full bg-red-950/40 border border-red-900/60 text-red-200 text-xs font-semibold rounded-lg p-2.5 mb-3 text-center leading-relaxed tracking-wide';
         warningDesc.innerHTML = '⚠️ 雲端裂縫極不穩定！物品與金幣隨時可能蒸發，風險請自負。';
         listDiv.appendChild(warningDesc);
 
-        // 判斷是否具備上架權限：有金鑰登入者，或者 GM
         const isGM = typeof window.openGMShop === 'function';
         const mode = localStorage.getItem('klh_storage_mode');
         const isCloudMode = mode === 'cloud' || mode === 'supabase';
+        
         let hasKey = false;
         if (mode === 'supabase') {
             const sKey = localStorage.getItem('klh_supabase_key');
@@ -331,81 +387,71 @@
         } else {
             hasKey = (typeof window.activeKey === 'string' && window.activeKey.trim() !== '') || localStorage.getItem('klh_custom_key');
         }
-        const canUpload = isGM || (isCloudMode && hasKey);
-        const mySellerId = isGM ? "F123456789" : getSavePlayerId();
+        
+        const myPlayerId = getSavePlayerId();
 
-        if (canUpload) {
-            const adminPanel = document.createElement('div');
-            adminPanel.className = 'bg-slate-900/60 border border-slate-700 rounded-lg p-3 mb-4 text-left flex flex-col gap-2 w-full';
-            
-            // 🌟 額外顯示目前選取的物品稱號 preview
-            const selectedTip = window.reaperGMSelectedBagItem
-                ? `<div class="text-xs text-indigo-300 font-bold border-t border-slate-700/50 pt-1.5 mt-1">已選取：${getItemFullName(window.reaperGMSelectedBagItem)}</div>`
-                : '';
+        let claimableGold = 0;
+        let activeListings = 0;
+        if (wealthReaperStock) {
+            for (let lid in wealthReaperStock) {
+                const info = wealthReaperStock[lid];
+                if (!info) continue;
+                
+                const isMineAsGM = isGM && info.sellerId === "F123456789";
+                const isMineAsPlayer = myPlayerId && info.sellerId === myPlayerId;
 
-            const defaultId = window.reaperGMSelectedBagItem ? window.reaperGMSelectedBagItem.id : '';
-            const defaultStock = window.reaperGMSelectedBagItem ? window.reaperGMSelectedBagItem.cnt : '';
-
-            // 🌟 計算當前玩家已上架商品數量與可提領的已售出金額總和
-            let activeListings = 0;
-            let claimableGold = 0;
-            if (wealthReaperStock && mySellerId) {
-                for (let lid in wealthReaperStock) {
-                    const info = wealthReaperStock[lid];
-                    if (info && info.sellerId === mySellerId) {
-                        activeListings++;
-                        if (info.earned > 0) {
-                            claimableGold += parseInt(info.earned, 10) || 0;
-                        }
+                if (isMineAsGM || isMineAsPlayer) {
+                    activeListings++;
+                    if (info.earned > 0) {
+                        claimableGold += parseInt(info.earned, 10) || 0;
                     }
                 }
             }
-            const limitText = isGM ? `(已上架: ${activeListings} 件)` : `(已上架: ${activeListings}/10)`;
-
-            const claimSection = claimableGold > 0
-                ? `<div class="mt-2 p-2 bg-emerald-950/60 border border-emerald-800 rounded flex justify-between items-center text-xs text-emerald-300 w-full">
-                       <span>💰 您有已售出商品所得共 <b class="text-yellow-400 font-bold">${claimableGold.toLocaleString()}</b> 金幣可提領！</span>
-                       <button onclick="claimReaperEarnings()" class="btn bg-emerald-700 hover:bg-emerald-600 border-emerald-500 py-1 px-3 font-bold text-white rounded shrink-0">💰 立即提領</button>
-                   </div>`
-                : '';
-
-            const clearAllBtn = isGM
-                ? `<label class="flex items-center gap-1 cursor-pointer text-xs text-slate-300 font-bold ml-2 select-none"><input type="checkbox" id="reaper-select-all" class="w-3.5 h-3.5" onchange="toggleSelectAllReaperItems(this.checked)"> 全選</label>
-                   <button onclick="deleteSelectedReaperListings()" class="btn bg-red-700 hover:bg-red-600 border-red-500 py-1.5 px-3 text-xs font-bold shadow text-white rounded ml-1">🗑️ 刪除所選</button>`
-                : '';
-
-            adminPanel.innerHTML = `
-                <div class="text-yellow-400 font-bold text-xs flex justify-between items-center">
-                    <span>🛠&nbsp;交易所商品上架面版</span>
-                    <span class="text-slate-500 text-[10px] font-normal">您的 ID: ${mySellerId || '未知(本地模式)'} ${limitText}</span>
-                </div>
-                <div class="flex flex-wrap gap-2 items-center text-xs reaper-upload-row">
-                    <input type="text" id="gm-reaper-item-id" value="${defaultId}" placeholder="物品 ID (例如: wpn_shortsword)" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
-                    <input type="number" id="gm-reaper-stock" value="${defaultStock}" placeholder="上架數量" min="1" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-20 focus:outline-none">
-                    <input type="number" id="gm-reaper-price" placeholder="自訂單價 (留空使用原版價)" min="0" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
-                    <button onclick="submitGMReaperItem()" class="btn bg-amber-700 hover:bg-amber-600 border-amber-500 py-1.5 px-3 text-xs font-bold shadow text-white rounded">🚀 上架商品</button>
-                    <button onclick="toggleGMBagMode()" class="btn ${window.reaperGMBagMode ? 'bg-slate-700 hover:bg-slate-600 border-slate-500' : 'bg-indigo-700 hover:bg-indigo-600 border-indigo-500'} py-1.5 px-3 text-xs font-bold shadow text-white rounded">
-                        ${window.reaperGMBagMode ? '🔙 返回商品列表' : '🎒 從背包選取物品'}
-                    </button>
-                    ${clearAllBtn}
-                </div>
-                ${selectedTip}
-                ${claimSection}
-            `;
-            listDiv.appendChild(adminPanel);
-        } else {
-            // 針對沒有ID的本地模式，以天堂口吻顯示提示訊息
-            const noKeyPanel = document.createElement('div');
-            noKeyPanel.className = 'w-full bg-slate-900/60 border border-slate-700 rounded-lg p-4 mb-4 text-center leading-relaxed';
-            noKeyPanel.innerHTML = `
-                <div class="text-amber-400 font-bold text-xs mb-2">✨ 裂縫使者的神聖啟示 ✨</div>
-                <div class="text-slate-300 text-[11px] leading-normal">
-                    「旅人啊... 汝之靈魂正處於孤立的塵世（本地模式），身上並未攜帶連通諸界虛空的 <span class="text-yellow-400 font-bold">雲端金鑰</span>。<br>
-                    若無古老的時光金鑰作為引導，吾等無法將此世之物送入不穩定的雲端裂縫。若想在此上架物品，請先取得金鑰並回歸世界之流。」
-                </div>
-            `;
-            listDiv.appendChild(noKeyPanel);
         }
+
+        const limitText = isGM ? `(已寄售: ${activeListings})` : `(已寄售: ${activeListings}/10)`;
+
+        const actionBar = document.createElement('div');
+        actionBar.className = 'w-full bg-slate-900/80 border border-slate-700/80 rounded-lg p-2.5 mb-4 flex flex-wrap items-center justify-between gap-3 shadow-md';
+
+        const leftActions = document.createElement('div');
+        leftActions.className = 'flex items-center gap-2';
+        
+        leftActions.innerHTML += `
+            <button onclick="openReaperListingModal()" class="btn bg-amber-700 hover:bg-amber-600 border border-amber-500 py-1.5 px-4 font-bold shadow-lg text-white rounded text-sm flex items-center gap-1.5 transition-all">
+                <span class="text-base leading-none mt-[-2px]">➕</span> 上架寄售
+            </button>
+        `;
+
+        if (claimableGold > 0) {
+            leftActions.innerHTML += `
+                <button onclick="claimReaperEarnings()" class="btn bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 py-1.5 px-4 font-bold shadow-lg text-white rounded text-sm flex items-center gap-1.5 transition-all animate-pulse">
+                    <span class="text-base leading-none">💰</span> 提領收益 (${claimableGold.toLocaleString()} G)
+                </button>
+            `;
+        }
+        
+        const rightActions = document.createElement('div');
+        rightActions.className = 'flex items-center gap-3 text-xs';
+        rightActions.innerHTML += `
+            <span class="text-slate-400 font-medium tracking-wide flex items-center gap-1">
+                <span>📦</span> ${limitText}
+            </span>
+        `;
+
+        if (isGM) {
+            rightActions.innerHTML += `
+                <div class="h-4 w-px bg-slate-700 mx-1 hidden sm:block"></div>
+                <label class="hidden sm:flex items-center gap-1 cursor-pointer text-slate-300 font-bold select-none hover:text-white transition-colors">
+                    <input type="checkbox" id="reaper-select-all" class="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800" onchange="toggleSelectAllReaperItems(this.checked)"> 全選
+                </label>
+                <button onclick="deleteSelectedReaperListings()" class="btn bg-red-700 hover:bg-red-600 border border-red-500 py-1 px-3 font-bold shadow text-white rounded">🗑️ 下架</button>
+            `;
+        }
+
+        actionBar.appendChild(leftActions);
+        actionBar.appendChild(rightActions);
+        listDiv.appendChild(actionBar);
 
         const ids = Object.keys(wealthReaperStock || {});
         if (ids.length === 0) {
@@ -427,11 +473,11 @@
             const d = DB.items[itemId];
             if (!d) return; // 🌟 1. 第一關防護：本版查無此物品則安全跳過不渲染
 
-            const en = listingId.startsWith('list_') ? (info.en || 0) : 0;
-            const bless = listingId.startsWith('list_') ? (info.bless || false) : false;
-            const anc = listingId.startsWith('list_') ? (info.anc || false) : false;
-            const attr = listingId.startsWith('list_') ? (info.attr || false) : false;
-            const seteff = listingId.startsWith('list_') ? (info.seteff || false) : false;
+            const en = listingId.startsWith('list_') ? (parseInt(info.en, 10) || 0) : 0;
+            const bless = listingId.startsWith('list_') && info.bless && info.bless !== 'false' ? info.bless : false;
+            const anc = listingId.startsWith('list_') && info.anc && info.anc !== 'false' ? info.anc : false;
+            const attr = listingId.startsWith('list_') && info.attr && info.attr !== 'false' ? info.attr : false;
+            const seteff = listingId.startsWith('list_') && info.seteff && info.seteff !== 'false' ? info.seteff : false;
 
             const mockItem = {
                 id: itemId,
@@ -589,74 +635,46 @@
 
         try {
             // 🚀 交易鎖定：先向雲端獲取最新即時庫存，防止同時間被其他玩家買走
-            const res = await fetchWithProxy(WEALTH_REAPER_BLOB_URL);
-            if (res.status === 200) {
-                const latestStock = await res.json();
+            const latestStock = await fetchShopStock();
                 
-                // 讀取最新雲端該商品的庫存
-                const cloudRaw = latestStock[listingId];
-                if (!cloudRaw) {
-                    showToast("商品已下架或已被買走！", "error");
-                    wealthReaperStock = latestStock;
-                    if (typeof renderShopItems === 'function') renderShopItems();
-                    return;
-                }
+            // 讀取最新雲端該商品的庫存
+            const cloudRaw = latestStock[listingId];
+            if (!cloudRaw) {
+                showToast("商品已下架或已被買走！", "error");
+                wealthReaperStock = latestStock;
+                if (typeof renderShopItems === 'function') renderShopItems();
+                return;
+            }
 
-                let latestVal = 0;
-                if (listingId.startsWith('list_')) {
-                    latestVal = Math.max(0, parseInt(cloudRaw.stock, 10) || 0);
-                } else {
-                    // 兼容舊數字格式
-                    latestVal = typeof cloudRaw === 'object' ? (parseInt(cloudRaw.stock, 10) || 0) : (parseInt(cloudRaw, 10) || 0);
-                }
+            let latestVal = Math.max(0, parseInt(cloudRaw.stock, 10) || 0);
 
-                if (qty > latestVal) {
-                    if (typeof showToast === 'function') {
-                        showToast(`庫存不足！最新剩餘數量為 ${latestVal}，交易已被取消。`, "error");
-                    }
-                    wealthReaperStock = latestStock;
-                    if (typeof renderShopItems === 'function') renderShopItems();
-                    return;
+            if (qty > latestVal) {
+                if (typeof showToast === 'function') {
+                    showToast(`庫存不足！最新剩餘數量為 ${latestVal}，交易已被取消。`, "error");
                 }
-                // 扣除並更新雲端庫存 (維持原有的 JSON 欄位結構，並在售空時記錄 soldOutTime)
-                if (listingId.startsWith('list_')) {
-                    latestStock[listingId].stock = latestVal - qty;
-                    if (latestStock[listingId].stock === 0) {
-                        latestStock[listingId].soldOutTime = Date.now();
-                    }
-                    // 🌟 累加已售出金額至該商品節點的 earned 欄位
-                    if (latestStock[listingId].earned === undefined) {
-                        latestStock[listingId].earned = 0;
-                    }
-                    latestStock[listingId].earned += cost;
-                } else {
-                    if (typeof latestStock[listingId] === 'object' && latestStock[listingId] !== null) {
-                        latestStock[listingId].stock = latestVal - qty;
-                        if (latestStock[listingId].stock === 0) {
-                            latestStock[listingId].soldOutTime = Date.now();
-                        }
-                    } else {
-                        const newStockVal = latestVal - qty;
-                        if (newStockVal === 0) {
-                            // 舊純數字格式升級為包含售罄時間的物件
-                            latestStock[listingId] = {
-                                itemId: itemId,
-                                stock: 0,
-                                soldOutTime: Date.now()
-                            };
-                        } else {
-                            latestStock[listingId] = newStockVal;
-                        }
-                    }
-                }
+                wealthReaperStock = latestStock;
+                if (typeof renderShopItems === 'function') renderShopItems();
+                return;
+            }
 
-                const putRes = await fetchWithProxy(WEALTH_REAPER_BLOB_URL, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(latestStock)
-                });
+            // 扣除並更新雲端庫存 (維持原有的 JSON 欄位結構，並在售空時記錄 soldOutTime)
+            const newStockVal = latestVal - qty;
+            const newEarned = (cloudRaw.earned || 0) + cost;
+            const updates = { 
+                stock: newStockVal, 
+                earned: newEarned 
+            };
+            if (newStockVal === 0) updates.sold_out_time = Date.now();
 
-                if (putRes.ok) {
+            // 🚀 使用獨立更新 API，不再覆寫全表
+            await updateShopListing(listingId, updates);
+            
+            // 更新本地緩存
+            latestStock[listingId].stock = newStockVal;
+            latestStock[listingId].earned = newEarned;
+            if (newStockVal === 0) latestStock[listingId].soldOutTime = updates.sold_out_time;
+
+            if (true) {
                     // 扣除玩家金幣並給予道具
                     player.gold -= cost;
 
@@ -702,12 +720,8 @@
                     if (typeof saveGame === 'function') {
                         await saveGame();
                     }
-                } else {
-                    throw new Error("Cloud PUT request failed");
                 }
-            } else {
-                throw new Error("Cloud GET request failed");
-            }
+
         } catch (err) {
             console.error("[klh_Shop] 交易所同步失敗:", err);
             if (typeof showToast === 'function') {
@@ -731,11 +745,16 @@
     // ==========================================
     window.submitGMReaperItem = async function () {
         const isGM = typeof window.openGMShop === 'function';
-        const mySellerId = isGM ? "F123456789" : getSavePlayerId();
-        const mySellerName = isGM ? "線上GM" : ((typeof player !== 'undefined' && player.name) ? player.name : '未知');
+        let mySellerId = getSavePlayerId();
+        let mySellerName = (typeof player !== 'undefined' && player.name) ? player.name : '未知';
+
+        if (isGM && window.reaperGMSellerType === 'gm') {
+            mySellerId = "F123456789";
+            mySellerName = "線上GM";
+        }
 
         if (!mySellerId) {
-            showToast("「旅人啊... 汝身上並未攜帶雲端金鑰，吾等無法替汝將物品送入裂縫之中！」", "error");
+            showToast("「旅人啊... 無法取得您的角色身分證，請先確保角色已建立完畢！」", "error");
             return;
         }
 
@@ -775,9 +794,11 @@
         }
 
         const selectedItem = window.reaperGMSelectedBagItem;
+        
+        // 若非 GM，或是 GM 但選擇以玩家個人身分上架，則必須從背包扣除且嚴格檢查
+        const shouldDeductBag = !isGM || window.reaperGMSellerType === 'player';
 
-        if (!isGM) {
-            // 普通金鑰玩家：強制使用背包選取模式，且必須數量足夠
+        if (shouldDeductBag) {
             if (!selectedItem || selectedItem.id !== id) {
                 showToast("請透過「🎒 從背包選取物品」進行上架！", "error");
                 return;
@@ -793,91 +814,96 @@
         }
 
         try {
-            const res = await fetchWithProxy(WEALTH_REAPER_BLOB_URL);
-            if (res.status === 200) {
-                const latestStock = await res.json();
+            const latestStock = await fetchShopStock();
 
-                // 🌟 交易所總商品上限 200 件判定
-                const totalListings = Object.keys(latestStock).length;
-                if (totalListings >= 300) {
-                    showToast("交易所已滿（最大容納 300 件商品），請等待他人提領釋出空間後再上架！", "error");
+            // 🌟 交易所總商品上限 200 件判定
+            const totalListings = Object.keys(latestStock).length;
+            if (totalListings >= 300) {
+                showToast("交易所已滿（最大容納 300 件商品），請等待他人提領釋出空間後再上架！", "error");
+                if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
+                return;
+            }
+
+            // 上架數量限額判定 (GM 選個人身分時也套用，或只給純玩家套用皆可，這裡依據 shouldDeductBag 判斷)
+            if (shouldDeductBag) {
+                let activeListings = 0;
+                for (let lid in latestStock) {
+                    const info = latestStock[lid];
+                    if (info && info.sellerId === mySellerId) {
+                        activeListings++;
+                    }
+                }
+                if (activeListings >= 10) {
+                    showToast("您已達到上架數量限制（最大 10 個商品），請先下架或提領已售罄商品！", "error");
                     if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
                     return;
                 }
+            }
 
-                // 非 GM 上架數量限額判定
-                if (!isGM) {
-                    let activeListings = 0;
-                    for (let lid in latestStock) {
-                        const info = latestStock[lid];
-                        if (info && info.sellerId === mySellerId) {
-                            activeListings++;
-                        }
+            // 生成獨立唯一的上架 ID：防止相同物品因價格不同而覆蓋合併
+            const listingId = 'list_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+
+            const hasMatchedStats = selectedItem && selectedItem.id === id;
+
+            // 上架結構 (加入特殊裝備屬性與賣家識別資訊)
+            const newListing = {
+                id: listingId,
+                item_id: id,
+                stock: stock,
+                price: price,
+                en: hasMatchedStats ? (selectedItem.en || 0) : 0,
+                bless: hasMatchedStats ? (selectedItem.bless || false) : false,
+                anc: hasMatchedStats ? (selectedItem.anc || false) : false,
+                attr: hasMatchedStats ? (selectedItem.attr || false) : false,
+                seteff: hasMatchedStats ? (selectedItem.seteff || false) : false,
+                seller_id: mySellerId,
+                seller_name: mySellerName,
+                earned: 0 // 🌟 初始化已售出金額為 0
+            };
+
+            // 🚀 使用獨立新增 API
+            await insertShopListing(newListing);
+
+            if (true) {
+                if (shouldDeductBag && selectedItem) {
+                    selectedItem.cnt -= stock;
+                    if (selectedItem.cnt <= 0) {
+                        player.inv = player.inv.filter(i => i.uid !== selectedItem.uid);
                     }
-                    if (activeListings >= 10) {
-                        showToast("您已達到上架數量限制（最大 10 個商品），請先下架或提領已售罄商品！", "error");
-                        if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
-                        return;
+                    if (typeof saveGame === 'function') {
+                        await saveGame();
                     }
+                    if (typeof updateUI === 'function') updateUI();
                 }
 
-                // 生成獨立唯一的上架 ID：防止相同物品因價格不同而覆蓋合併
-                const listingId = 'list_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-
-                const hasMatchedStats = selectedItem && selectedItem.id === id;
-
-                // 上架結構 (加入特殊裝備屬性與賣家識別資訊)
+                // 更新本地緩存
                 latestStock[listingId] = {
-                    itemId: id,
-                    stock: stock,
-                    price: price,
-                    en: hasMatchedStats ? (selectedItem.en || 0) : 0,
-                    bless: hasMatchedStats ? (selectedItem.bless || false) : false,
-                    anc: hasMatchedStats ? (selectedItem.anc || false) : false,
-                    attr: hasMatchedStats ? (selectedItem.attr || false) : false,
-                    seteff: hasMatchedStats ? (selectedItem.seteff || false) : false,
-                    sellerId: mySellerId,
-                    sellerName: mySellerName,
-                    earned: 0 // 🌟 初始化已售出金額為 0
+                    itemId: newListing.item_id, stock: newListing.stock, price: newListing.price,
+                    en: newListing.en, bless: newListing.bless, anc: newListing.anc, attr: newListing.attr, seteff: newListing.seteff,
+                    sellerId: newListing.seller_id, sellerName: newListing.seller_name, earned: newListing.earned
                 };
-
-                const putRes = await fetchWithProxy(WEALTH_REAPER_BLOB_URL, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(latestStock)
-                });
-
-                if (putRes.ok) {
-                    // 若非 GM 玩家，扣除背包對應數量物品
-                    if (!isGM && selectedItem) {
-                        selectedItem.cnt -= stock;
-                        if (selectedItem.cnt <= 0) {
-                            player.inv = player.inv.filter(i => i.uid !== selectedItem.uid);
-                        }
-                        if (typeof saveGame === 'function') {
-                            await saveGame();
-                        }
-                        if (typeof updateUI === 'function') updateUI();
-                    }
-
-                    wealthReaperStock = latestStock;
-                    lastFetchTime = Date.now(); // 上架成功，更新快取時間戳
-                    window.reaperGMBagMode = false; // 🚀 上架成功後自動切回商品列表
-                    window.reaperGMSelectedBagItem = null; // 清除已選取的暫存
-                    showToast(`商品 「${DB.items[id].n}」 上架成功！`, "success");
-                    idInput.value = "";
-                    stockInput.value = "";
-                    priceInput.value = "";
-                    if (typeof renderShopItems === 'function') renderShopItems();
-                } else {
-                    throw new Error("PUT failed");
+                wealthReaperStock = latestStock;
+                lastFetchTime = Date.now(); // 上架成功，更新快取時間戳
+                
+                window.reaperGMSelectedBagItem = null; // 清除已選取的暫存
+                window.reaperModalView = 'form';
+                
+                showToast(`商品 「${DB.items[id].n}」 上架成功！`, "success");
+                
+                idInput.value = "";
+                stockInput.value = "";
+                priceInput.value = "";
+                
+                if (typeof window.closeReaperListingModal === 'function') {
+                    window.closeReaperListingModal();
                 }
-            } else {
-                throw new Error("GET failed");
+                if (typeof renderShopItems === 'function') {
+                    renderShopItems();
+                }
             }
         } catch (err) {
             console.error(err);
-            showToast("更新交易所失敗，請檢查網路連線！", "error");
+            showToast(`上架失敗：${err.message || '請檢查網路連線'}`, "error");
         } finally {
             if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
         }
@@ -899,32 +925,27 @@
         }
 
         try {
-            const res = await fetchWithProxy(WEALTH_REAPER_BLOB_URL);
-            if (res.status === 200) {
-                const latestStock = await res.json();
-                const cloudItem = latestStock[listingId];
+            const latestStock = await fetchShopStock();
+            const cloudItem = latestStock[listingId];
 
-                // 下架權限判定 (GM 或者 原上架者可以下架)
-                const isGM = typeof window.openGMShop === 'function';
-                const mySellerId = isGM ? "F123456789" : getSavePlayerId();
-                const canDelete = isGM || (cloudItem && cloudItem.sellerId && cloudItem.sellerId === mySellerId);
+            // 下架權限判定 (GM 或者 原上架者可以下架)
+            const isGM = typeof window.openGMShop === 'function';
+            const mySellerId = isGM ? "F123456789" : getSavePlayerId();
+            const canDelete = isGM || (cloudItem && cloudItem.sellerId && cloudItem.sellerId === mySellerId);
 
-                if (!canDelete) {
-                    showToast("您沒有權限下架此商品！", "error");
-                    return;
-                }
+            if (!canDelete) {
+                showToast("您沒有權限下架此商品！", "error");
+                return;
+            }
 
-                if (latestStock[listingId] !== undefined) {
-                    delete latestStock[listingId];
-                }
+            // 🚀 使用獨立刪除 API
+            await deleteShopListing(listingId);
 
-                const putRes = await fetchWithProxy(WEALTH_REAPER_BLOB_URL, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(latestStock)
-                });
+            if (latestStock[listingId] !== undefined) {
+                delete latestStock[listingId];
+            }
 
-                if (putRes.ok) {
+            if (true) {
                     // 🌟 如果是原上架者下架，或是 GM 下架，且商品還有庫存，則退回背包 (GM 下架退回 GM 背包)
                     const isOwner = cloudItem && cloudItem.sellerId && cloudItem.sellerId === mySellerId;
                     const shouldReturnToBag = isOwner || isGM;
@@ -977,12 +998,8 @@
                     lastFetchTime = Date.now(); // 下架成功，更新快取時間戳
                     showToast(`商品 「${itemName}」 下架成功！`, "success");
                     if (typeof renderShopItems === 'function') renderShopItems();
-                } else {
-                    throw new Error("PUT failed");
                 }
-            } else {
-                throw new Error("GET failed");
-            }
+
         } catch (err) {
             console.error(err);
             showToast("下架失敗，請檢查網路連線！", "error");
@@ -996,8 +1013,10 @@
     // ==========================================
     window.claimReaperEarnings = async function () {
         const isGM = typeof window.openGMShop === 'function';
-        const mySellerId = isGM ? "F123456789" : getSavePlayerId();
-        if (!mySellerId) {
+        const myPlayerId = getSavePlayerId();
+        
+        // 若都不是 GM 也沒有金鑰，無法提領
+        if (!isGM && !myPlayerId) {
             showToast("您未透過金鑰登入，無法提領！", "error");
             return;
         }
@@ -1007,58 +1026,53 @@
         }
 
         try {
-            const res = await fetchWithProxy(WEALTH_REAPER_BLOB_URL);
-            if (res.status === 200) {
-                const latestStock = await res.json();
-                let totalEarned = 0;
-                let hasChanges = false;
+            const latestStock = await fetchShopStock();
+            let totalEarned = 0;
 
-                for (let lid in latestStock) {
-                    const info = latestStock[lid];
-                    if (info && info.sellerId === mySellerId && info.earned > 0) {
-                        totalEarned += parseInt(info.earned, 10) || 0;
-                        info.earned = 0;
-                        hasChanges = true;
+            for (let lid in latestStock) {
+                const info = latestStock[lid];
+                if (!info || !(info.earned > 0)) continue;
+                
+                const isMineAsGM = isGM && info.sellerId === "F123456789";
+                const isMineAsPlayer = myPlayerId && info.sellerId === myPlayerId;
 
-                        // 垃圾回收：如果剩餘庫存已為 0，且已提領，則下架該商品節點
-                        const stockCount = Math.max(0, parseInt(info.stock, 10) || 0);
-                        if (stockCount <= 0) {
-                            delete latestStock[lid];
-                        }
+                if (isMineAsGM || isMineAsPlayer) {
+                    const goldToClaim = parseInt(info.earned, 10) || 0;
+                    totalEarned += goldToClaim;
+                    
+                    // 垃圾回收：如果剩餘庫存已為 0，且已提領，則從資料庫刪除
+                    const stockCount = Math.max(0, parseInt(info.stock, 10) || 0);
+                    if (stockCount <= 0) {
+                        await deleteShopListing(lid);
+                        delete latestStock[lid];
+                    } else {
+                        // 若還有庫存，則只歸零已賺取金額
+                        await updateShopListing(lid, { earned: 0 });
+                        latestStock[lid].earned = 0;
                     }
                 }
+            }
 
-                if (totalEarned <= 0) {
-                    showToast("沒有可提領的金額！", "info");
-                    if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
-                    return;
+            if (totalEarned <= 0) {
+                showToast("沒有可提領的金額！", "info");
+                if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
+                return;
+            }
+
+            if (true) {
+                player.gold += totalEarned;
+                wealthReaperStock = latestStock;
+
+                showToast(`成功提領金幣共 ${totalEarned.toLocaleString()} 元！`, "success");
+                if (typeof logSys === 'function') {
+                    logSys(`在黃金交易所提領了已售商品所得金幣共 ${totalEarned.toLocaleString()}。`);
                 }
 
-                const putRes = await fetchWithProxy(WEALTH_REAPER_BLOB_URL, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(latestStock)
-                });
-
-                if (putRes.ok) {
-                    player.gold += totalEarned;
-                    wealthReaperStock = latestStock;
-
-                    showToast(`成功提領金幣共 ${totalEarned.toLocaleString()} 元！`, "success");
-                    if (typeof logSys === 'function') {
-                        logSys(`在黃金交易所提領了已售商品所得金幣共 ${totalEarned.toLocaleString()}。`);
-                    }
-
-                    if (typeof renderShopItems === 'function') renderShopItems();
-                    if (typeof updateUI === 'function') updateUI();
-                    if (typeof saveGame === 'function') {
-                        await saveGame();
-                    }
-                } else {
-                    throw new Error("PUT failed");
+                if (typeof renderShopItems === 'function') renderShopItems();
+                if (typeof updateUI === 'function') updateUI();
+                if (typeof saveGame === 'function') {
+                    await saveGame();
                 }
-            } else {
-                throw new Error("GET failed");
             }
         } catch (err) {
             console.error("[klh_Shop] 提領金幣失敗:", err);
@@ -1107,88 +1121,77 @@
         }
 
         try {
-            const res = await fetchWithProxy(WEALTH_REAPER_BLOB_URL);
-            if (res.status === 200) {
-                const latestStock = await res.json();
-                let totalGoldCollected = 0;
-                let itemsReturnedMap = [];
+            const latestStock = await fetchShopStock();
+            let totalGoldCollected = 0;
+            let itemsReturnedMap = [];
 
-                idsToDelete.forEach(lid => {
-                    const cloudItem = latestStock[lid];
-                    if (!cloudItem) return;
+            // 改為使用非同步迴圈確保刪除成功
+            for (let lid of idsToDelete) {
+                const cloudItem = latestStock[lid];
+                if (!cloudItem) continue;
 
-                    // 1. 回收金幣
-                    if (cloudItem.earned > 0) {
-                        totalGoldCollected += parseInt(cloudItem.earned, 10) || 0;
-                    }
-
-                    // 2. 回收道具 (退回 GM 背包)
-                    const stockCount = parseInt(cloudItem.stock, 10) || 0;
-                    if (stockCount > 0) {
-                        const returned = {
-                            id: cloudItem.itemId,
-                            uid: uid(),
-                            cnt: stockCount,
-                            en: cloudItem.en || 0,
-                            bless: cloudItem.bless || false,
-                            anc: cloudItem.anc || false,
-                            attr: cloudItem.attr || false,
-                            seteff: cloudItem.seteff || false,
-                            lock: false,
-                            junk: false
-                        };
-                        itemsReturnedMap.push(returned);
-                    }
-
-                    // 3. 從雲端中刪除該節點
-                    delete latestStock[lid];
-                });
-
-                const putRes = await fetchWithProxy(WEALTH_REAPER_BLOB_URL, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(latestStock)
-                });
-
-                if (putRes.ok) {
-                    // 發放金幣
-                    if (totalGoldCollected > 0) {
-                        player.gold += totalGoldCollected;
-                    }
-
-                    // 發放道具
-                    itemsReturnedMap.forEach(returned => {
-                        const ex = player.inv.find(i => (i.en || 0) === (returned.en || 0) && sameItemSig(i, returned));
-                        if (ex) {
-                            ex.cnt += returned.cnt;
-                        } else {
-                            player.inv.push(returned);
-                        }
-                    });
-
-                    // 打印日誌
-                    if (typeof logSys === 'function') {
-                        if (itemsReturnedMap.length > 0) {
-                            logSys(`GM 批量下架回收了共 ${itemsReturnedMap.length} 種剩餘商品道具至背包。`);
-                        }
-                        if (totalGoldCollected > 0) {
-                            logSys(`GM 批量下架收回未提領金幣共 ${totalGoldCollected.toLocaleString()}。`);
-                        }
-                    }
-
-                    wealthReaperStock = latestStock;
-                    showToast(`批量下架成功！共回收金幣 ${totalGoldCollected.toLocaleString()} 元。`, "success");
-
-                    if (typeof saveGame === 'function') {
-                        await saveGame();
-                    }
-                    if (typeof updateUI === 'function') updateUI();
-                    if (typeof renderShopItems === 'function') renderShopItems();
-                } else {
-                    throw new Error("PUT failed");
+                // 1. 回收金幣
+                if (cloudItem.earned > 0) {
+                    totalGoldCollected += parseInt(cloudItem.earned, 10) || 0;
                 }
-            } else {
-                throw new Error("GET failed");
+
+                // 2. 回收道具 (退回 GM 背包)
+                const stockCount = parseInt(cloudItem.stock, 10) || 0;
+                if (stockCount > 0) {
+                    const returned = {
+                        id: cloudItem.itemId,
+                        uid: uid(),
+                        cnt: stockCount,
+                        en: cloudItem.en || 0,
+                        bless: cloudItem.bless || false,
+                        anc: cloudItem.anc || false,
+                        attr: cloudItem.attr || false,
+                        seteff: cloudItem.seteff || false,
+                        lock: false,
+                        junk: false
+                    };
+                    itemsReturnedMap.push(returned);
+                }
+
+                // 3. 呼叫獨立刪除 API 並從緩存移除
+                await deleteShopListing(lid);
+                delete latestStock[lid];
+            }
+
+            if (true) {
+                // 發放金幣
+                if (totalGoldCollected > 0) {
+                    player.gold += totalGoldCollected;
+                }
+
+                // 發放道具
+                itemsReturnedMap.forEach(returned => {
+                    const ex = player.inv.find(i => (i.en || 0) === (returned.en || 0) && sameItemSig(i, returned));
+                    if (ex) {
+                        ex.cnt += returned.cnt;
+                    } else {
+                        player.inv.push(returned);
+                    }
+                });
+
+                // 打印日誌
+                if (typeof logSys === 'function') {
+                    if (itemsReturnedMap.length > 0) {
+                        logSys(`GM 批量下架回收了共 ${itemsReturnedMap.length} 種剩餘商品道具至背包。`);
+                    }
+                    if (totalGoldCollected > 0) {
+                        logSys(`GM 批量下架收回未提領金幣共 ${totalGoldCollected.toLocaleString()}。`);
+                    }
+                }
+
+                wealthReaperStock = latestStock;
+                showToast(`批量下架成功！共回收金幣 ${totalGoldCollected.toLocaleString()} 元。`, "success");
+
+                if (typeof saveGame === 'function') {
+                    await saveGame();
+                }
+                if (typeof updateUI === 'function') updateUI();
+                if (typeof renderShopItems === 'function') renderShopItems();
             }
         } catch (err) {
             console.error("[klh_Shop] 批量下架失敗:", err);
@@ -1201,18 +1204,66 @@
     // ==========================================
     // GM 背包上架模式切換與輔助函數
     // ==========================================
-    window.toggleGMBagMode = function () {
-        window.reaperGMBagMode = !window.reaperGMBagMode;
-        if (typeof renderShopItems === 'function') {
-            renderShopItems();
+    // ==========================================
+    // 上架 Modal 系統 (GM 身分切換 / 背包選取)
+    // ==========================================
+
+    window.openReaperListingModal = function (autoSelectItemUid = null) {
+        let modal = document.getElementById('reaper-listing-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'reaper-listing-modal';
+            // 使用行內樣式確保不會因為缺少 Tailwind class 而版面破掉，並避免強制捲動
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); padding: 16px; overscroll-behavior: contain;';
+            
+            // 建立固定的內部容器，避免每次重新渲染時外層遮罩被砍掉重建，解決畫面閃爍與跳轉問題
+            const contentContainer = document.createElement('div');
+            contentContainer.id = 'reaper-listing-modal-content';
+            contentContainer.style.cssText = 'width: 100%; max-width: 400px; max-height: 90vh; display: flex; flex-direction: column;';
+            modal.appendChild(contentContainer);
+
+            document.body.appendChild(modal);
         }
+        
+        window.reaperModalView = 'form';
+        window.reaperGMBagCategory = 'all';
+        
+        if (autoSelectItemUid) {
+            const item = player.inv.find(i => i.uid === autoSelectItemUid);
+            if (item) {
+                window.reaperGMSelectedBagItem = item;
+                if (typeof showToast === 'function') {
+                    showToast("已帶入背包物品，請填寫價格後上架！", "success");
+                }
+            }
+        }
+        
+        renderReaperListingModalContent();
+        modal.style.display = 'flex';
+    };
+
+    window.closeReaperListingModal = function () {
+        const modal = document.getElementById('reaper-listing-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        window.reaperGMSelectedBagItem = null;
+        window.reaperModalView = 'form';
+    };
+
+    window.setReaperGMSellerType = function (type) {
+        window.reaperGMSellerType = type;
+        renderReaperListingModalContent();
+    };
+
+    window.toggleReaperModalView = function () {
+        window.reaperModalView = window.reaperModalView === 'form' ? 'bag' : 'form';
+        renderReaperListingModalContent();
     };
 
     window.setReaperGMBagCategory = function (cat) {
         window.reaperGMBagCategory = cat;
-        if (typeof renderShopItems === 'function') {
-            renderShopItems();
-        }
+        renderReaperListingModalContent();
     };
 
     window.selectBagItemForUpload = function (uid) {
@@ -1223,170 +1274,198 @@
         }
 
         window.reaperGMSelectedBagItem = item;
+        window.reaperModalView = 'form'; // 選取後切回表單
+        
+        renderReaperListingModalContent();
 
-        // 🌟 先刷新 DOM，讓 value="${defaultId}" 和 value="${defaultStock}" 自動被帶入
-        if (typeof renderShopItems === 'function') {
-            renderShopItems();
-        }
-
-        // 🌟 刷新後再獲取價格輸入框以清空並聚焦，這時它的 DOM 已經是重新渲染後的最新實例
         const priceInput = document.getElementById('gm-reaper-price');
         if (priceInput) {
             priceInput.value = '';
-            priceInput.focus();
+            // 不要自動 focus，避免手機或部分瀏覽器在更新 DOM 後焦點跳轉導致畫面閃動或捲動到頂部
+            // priceInput.focus();
         }
 
         if (typeof showToast === 'function') {
-            showToast("已自動帶入物品屬性，請填寫自訂價格後上架！", "success");
+            showToast("已帶入背包物品，請填寫自訂價格後上架！", "success");
         }
     };
 
-    function renderGMBagItemsUI(listDiv) {
-        listDiv.innerHTML = '';
+    window.renderReaperListingModalContent = function () {
+        const container = document.getElementById('reaper-listing-modal-content');
+        if (!container) return;
 
-        // 1. 頂部仍渲染管理面板 (以供帶入和點擊上架)
         const isGM = typeof window.openGMShop === 'function';
-        const mode = localStorage.getItem('klh_storage_mode');
-        let hasKey = false;
-        if (mode === 'supabase') {
-            const sKey = localStorage.getItem('klh_supabase_key');
-            hasKey = typeof sKey === 'string' && sKey.trim() !== '';
-        } else {
-            hasKey = (typeof window.activeKey === 'string' && window.activeKey.trim() !== '') || (mode === 'cloud' && localStorage.getItem('klh_custom_key'));
-        }
-        const canUpload = isGM || hasKey;
-        const mySellerId = isGM ? "F123456789" : getSavePlayerId();
+        const myPlayerId = getSavePlayerId();
 
-        if (canUpload) {
-            const adminPanel = document.createElement('div');
-            adminPanel.className = 'bg-slate-900/60 border border-slate-700 rounded-lg p-3 mb-4 text-left flex flex-col gap-2 w-full';
-            
-            // 🌟 額外顯示目前選取的物品稱號 preview
-            const selectedTip = window.reaperGMSelectedBagItem
-                ? `<div class="text-xs text-indigo-300 font-bold border-t border-slate-700/50 pt-1.5 mt-1">已選取：${getItemFullName(window.reaperGMSelectedBagItem)}</div>`
-                : '';
+        let contentHtml = '';
 
-            const defaultId = window.reaperGMSelectedBagItem ? window.reaperGMSelectedBagItem.id : '';
-            const defaultStock = window.reaperGMSelectedBagItem ? window.reaperGMSelectedBagItem.cnt : '';
-
-            // 🌟 計算當前玩家已上架商品數量與可提領的已售出金額總和
-            let activeListings = 0;
-            let claimableGold = 0;
-            if (wealthReaperStock && mySellerId) {
-                for (let lid in wealthReaperStock) {
-                    const info = wealthReaperStock[lid];
-                    if (info && info.sellerId === mySellerId) {
-                        activeListings++;
-                        if (info.earned > 0) {
-                            claimableGold += parseInt(info.earned, 10) || 0;
-                        }
-                    }
-                }
-            }
-            const limitText = isGM ? `(已上架: ${activeListings} 件)` : `(已上架: ${activeListings}/10)`;
-
-            const claimSection = claimableGold > 0
-                ? `<div class="mt-2 p-2 bg-emerald-950/60 border border-emerald-800 rounded flex justify-between items-center text-xs text-emerald-300 w-full">
-                       <span>💰 您有已售出商品所得共 <b class="text-yellow-400 font-bold">${claimableGold.toLocaleString()}</b> 金幣可提領！</span>
-                       <button onclick="claimReaperEarnings()" class="btn bg-emerald-700 hover:bg-emerald-600 border-emerald-500 py-1 px-3 font-bold text-white rounded shrink-0">💰 立即提領</button>
-                   </div>`
-                : '';
-
-            const clearAllBtn = isGM
-                ? `<label class="flex items-center gap-1 cursor-pointer text-xs text-slate-300 font-bold ml-2 select-none"><input type="checkbox" id="reaper-select-all" class="w-3.5 h-3.5" onchange="toggleSelectAllReaperItems(this.checked)"> 全選</label>
-                   <button onclick="deleteSelectedReaperListings()" class="btn bg-red-700 hover:bg-red-600 border-red-500 py-1.5 px-3 text-xs font-bold shadow text-white rounded ml-1">🗑️ 刪除所選</button>`
-                : '';
-
-            adminPanel.innerHTML = `
-                <div class="text-yellow-400 font-bold text-xs flex justify-between items-center">
-                    <span>🛠&nbsp;交易所商品上架面版</span>
-                    <span class="text-slate-500 text-[10px] font-normal">您的 ID: ${mySellerId || '未知(本地模式)'} ${limitText}</span>
-                </div>
-                <div class="flex flex-wrap gap-2 items-center text-xs reaper-upload-row">
-                    <input type="text" id="gm-reaper-item-id" value="${defaultId}" placeholder="物品 ID (例如: wpn_shortsword)" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
-                    <input type="number" id="gm-reaper-stock" value="${defaultStock}" placeholder="上架數量" min="1" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-20 focus:outline-none">
-                    <input type="number" id="gm-reaper-price" placeholder="自訂單價 (留空使用原版價)" min="0" class="bg-slate-950 border border-slate-700 text-white rounded px-2.5 py-1.5 w-48 focus:outline-none">
-                    <button onclick="submitGMReaperItem()" class="btn bg-amber-700 hover:bg-amber-600 border-amber-500 py-1.5 px-3 text-xs font-bold shadow text-white rounded">🚀 上架商品</button>
-                    <button onclick="toggleGMBagMode()" class="btn ${window.reaperGMBagMode ? 'bg-slate-700 hover:bg-slate-600 border-slate-500' : 'bg-indigo-700 hover:bg-indigo-600 border-indigo-500'} py-1.5 px-3 text-xs font-bold shadow text-white rounded">
-                        ${window.reaperGMBagMode ? '🔙 返回商品列表' : '🎒 從背包選取物品'}
-                    </button>
-                    ${clearAllBtn}
-                </div>
-                ${selectedTip}
-                ${claimSection}
-            `;
-            listDiv.appendChild(adminPanel);
-        }
-
-        // 2. 渲染分類 Tab 頁籤
-        const cat = window.reaperGMBagCategory || 'all';
-        const tabsDiv = document.createElement('div');
-        tabsDiv.className = 'flex gap-2 mb-3 w-full border-b border-slate-700 pb-2 text-xs justify-start';
-        tabsDiv.innerHTML = `
-            <button onclick="setReaperGMBagCategory('all')" class="btn py-1 px-3 text-xs font-bold rounded ${cat === 'all' ? 'bg-indigo-700 border-indigo-500' : 'bg-slate-800 border-slate-700'} text-white">全部 (${player.inv.length})</button>
-            <button onclick="setReaperGMBagCategory('equip')" class="btn py-1 px-3 text-xs font-bold rounded ${cat === 'equip' ? 'bg-indigo-700 border-indigo-500' : 'bg-slate-800 border-slate-700'} text-white">裝備</button>
-            <button onclick="setReaperGMBagCategory('consume')" class="btn py-1 px-3 text-xs font-bold rounded ${cat === 'consume' ? 'bg-indigo-700 border-indigo-500' : 'bg-slate-800 border-slate-700'} text-white">消耗品</button>
+        const closeBtnHtml = `
+            <button onclick="closeReaperListingModal()" class="absolute top-3 right-3 text-slate-400 hover:text-white transition-colors bg-slate-800 rounded-full w-7 h-7 flex justify-center items-center font-bold pb-0.5 z-10">×</button>
         `;
-        listDiv.appendChild(tabsDiv);
 
-        // 3. 獲取並過濾背包物品
-        const bagItems = player.inv || [];
-        const filtered = bagItems.filter(item => {
-            const d = DB.items[item.id];
-            if (!d) return false;
-            if (cat === 'equip') {
-                return d.type === 'wpn' || d.type === 'arm' || d.type === 'acc';
+        if (window.reaperModalView === 'form') {
+            const selectedItem = window.reaperGMSelectedBagItem;
+            
+            const defaultId = selectedItem ? selectedItem.id : '';
+            const defaultStock = selectedItem ? selectedItem.cnt : '';
+            
+            // 若為 GM，使用簡潔的 Checkbox 切換身分
+            let gmSwitchHtml = '';
+            if (isGM) {
+                const isGMChecked = window.reaperGMSellerType === 'gm' ? 'checked' : '';
+                gmSwitchHtml = `
+                    <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer mb-5 w-fit select-none">
+                        <input type="checkbox" ${isGMChecked} onchange="setReaperGMSellerType(this.checked ? 'gm' : 'player')" class="w-4 h-4 cursor-pointer accent-amber-500">
+                        <span class="text-amber-400 font-bold tracking-wide">👑 使用 GM 權限 (無限上架)</span>
+                    </label>
+                `;
             }
-            if (cat === 'consume') {
-                return d.type !== 'wpn' && d.type !== 'arm' && d.type !== 'acc';
-            }
-            return true;
-        });
 
-        if (filtered.length === 0) {
-            const emptyEl = document.createElement('div');
-            emptyEl.className = 'text-slate-500 text-sm text-center py-8 w-full';
-            emptyEl.innerText = '您的背包中沒有此分類的物品。';
-            listDiv.appendChild(emptyEl);
-            return;
-        }
+            // 一行式設計：(背包按鈕) + (數量) + (單價)
+            const d = selectedItem ? DB.items[selectedItem.id] : null;
+            const itemDisplay = selectedItem && d
+                ? `<div class="flex items-center gap-2 min-w-0 flex-1 px-2 py-1">
+                       <div class="w-8 h-8 bg-slate-950 rounded flex items-center justify-center shrink-0 border border-slate-700">
+                           <img src="${getIconUrl(d)}" class="w-6 h-6 object-contain">
+                       </div>
+                       <div class="flex flex-col min-w-0 flex-1 justify-center">
+                           <span class="truncate ${getItemColor(selectedItem)} font-bold text-[13px] text-left leading-tight w-full">${getItemFullName(selectedItem)}</span>
+                           <span class="text-[10px] text-slate-400 text-left leading-none mt-1">庫存: ${selectedItem.cnt}</span>
+                       </div>
+                   </div>`
+                : `<div class="flex items-center gap-2 min-w-0 flex-1 px-2 py-1 justify-center">
+                       <span class="text-lg shrink-0 text-slate-400">🎒</span>
+                       <span class="truncate text-slate-400 font-bold text-[13px]">點此選取背包物品</span>
+                   </div>`;
 
-        // 4. 渲染背包物品列表 (帶有 tip-host 與 data-tip-uid 以支持完整屬性 Hover 彈窗)
-        filtered.forEach(item => {
-            const d = DB.items[item.id];
-            if (!d) return;
+            // Hidden input for item ID
+            const hiddenId = `<input type="hidden" id="gm-reaper-item-id" value="${defaultId}">`;
 
-            const imgUrl = getIconUrl(d);
-            const glowClass = getGlowClass(item, d) || '';
-            const fullName = getItemFullName(item);
-            const colorClass = getItemColor(item);
-
-            const el = document.createElement('div');
-            el.className = 'list-item bg-slate-800 rounded mb-2 border border-slate-700 p-3 hover:bg-slate-750 transition-colors';
-            el.style.cssText = 'display:flex !important; justify-content:space-between !important; align-items:center !important; width:100% !important; box-sizing:border-box !important;';
-
-            el.innerHTML = `
-                <div class="flex items-center gap-4 min-w-0 flex-1">
-                    <div class="w-12 h-12 bg-slate-900 rounded border border-slate-600 flex items-center justify-center shrink-0 tip-host" data-tip-uid="${item.uid}" data-tip-src="inv">
-                        <img src="${imgUrl}" onerror="this.style.display='none';" class="w-10 h-10 object-contain pointer-events-none ${glowClass}">
+            // One-liner layout:
+            const oneLinerHtml = `
+                ${hiddenId}
+                <div class="flex gap-2 items-stretch w-full mt-2 h-11">
+                    <!-- 選取按鈕 (充當預覽) -->
+                    <button type="button" onclick="toggleReaperModalView()" class="flex-1 bg-slate-900 border border-slate-600 hover:bg-slate-800 rounded flex items-center shadow-inner transition-colors min-w-0 overflow-hidden outline-none">
+                        ${itemDisplay}
+                    </button>
+                    
+                    <!-- 數量 -->
+                    <div class="shrink-0">
+                        <input type="number" id="gm-reaper-stock" value="${defaultStock}" placeholder="數量" min="1" max="999" class="w-[60px] h-full bg-slate-900 border border-slate-600 text-white rounded px-1 text-sm text-center focus:outline-none focus:border-amber-500 shadow-inner placeholder-slate-500 font-bold">
                     </div>
-                    <div class="flex flex-col items-start gap-1.5 min-w-0 flex-1">
-                        <span class="${colorClass} font-bold text-base leading-none truncate">
-                            ${fullName}
-                        </span>
-                        <div class="flex items-center gap-2">
-                            <span class="text-slate-400 text-xs leading-none">擁有數量: ${item.cnt}</span>
-                            <span class="text-slate-400 text-xs hidden md:block leading-none truncate" style="max-width: 200px !important;">${d.d || ''}</span>
+                    
+                    <!-- 單價 -->
+                    <div class="shrink-0">
+                        <input type="number" id="gm-reaper-price" placeholder="單價" min="0" class="w-[84px] h-full bg-slate-900 border border-slate-600 text-white rounded px-1 text-sm text-center focus:outline-none focus:border-amber-500 shadow-inner placeholder-slate-500 font-bold">
+                    </div>
+                </div>
+            `;
+
+            contentHtml = `
+                <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl relative overflow-hidden flex flex-col w-full h-full">
+                    <div class="bg-slate-950 p-4 border-b border-slate-800 shrink-0">
+                        <h3 class="text-lg font-black text-amber-400 flex items-center gap-2">
+                            <span>📦</span> 新增寄售商品
+                        </h3>
+                    </div>
+                    ${closeBtnHtml}
+                    <div class="px-5 pt-4 pb-5 overflow-y-auto custom-scrollbar flex-1 flex flex-col justify-center">
+                        ${gmSwitchHtml}
+                        ${oneLinerHtml}
+                        
+                        <div class="mt-6 pt-5 border-t border-slate-800 border-dashed">
+                            <button type="button" onclick="submitGMReaperItem()" class="w-full btn bg-amber-700 hover:bg-amber-600 border border-amber-500 py-3 font-bold shadow text-white rounded-lg text-sm transition-all shadow-amber-900/50 flex items-center justify-center gap-2">
+                                <span>🚀</span> 確認上架
+                            </button>
                         </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-2 shrink-0">
-                    <button class="btn bg-indigo-700 hover:bg-indigo-600 border-indigo-500 py-1.5 px-4 font-bold shadow text-white rounded text-xs" onclick="selectBagItemForUpload('${item.uid}')">選取上架</button>
+            `;
+
+        } else if (window.reaperModalView === 'bag') {
+            // 背包選取介面
+            const cat = window.reaperGMBagCategory || 'all';
+            const tabsDivHtml = `
+                <div class="flex gap-2 mb-4 w-full border-b border-slate-700 pb-2 text-xs justify-start overflow-x-auto shrink-0 custom-scrollbar">
+                    <button onclick="setReaperGMBagCategory('all')" class="btn py-1.5 px-3 text-xs font-bold rounded ${cat === 'all' ? 'bg-indigo-700 border-indigo-500 shadow-inner' : 'bg-slate-800 border-slate-700'} text-white transition-colors shrink-0">全部 (${player.inv.length})</button>
+                    <button onclick="setReaperGMBagCategory('equip')" class="btn py-1.5 px-3 text-xs font-bold rounded ${cat === 'equip' ? 'bg-indigo-700 border-indigo-500 shadow-inner' : 'bg-slate-800 border-slate-700'} text-white transition-colors shrink-0">裝備</button>
+                    <button onclick="setReaperGMBagCategory('consume')" class="btn py-1.5 px-3 text-xs font-bold rounded ${cat === 'consume' ? 'bg-indigo-700 border-indigo-500 shadow-inner' : 'bg-slate-800 border-slate-700'} text-white transition-colors shrink-0">消耗品</button>
                 </div>
             `;
-            listDiv.appendChild(el);
-        });
-    }
+
+            const bagItems = player.inv || [];
+            const filtered = bagItems.filter(item => {
+                const d = DB.items[item.id];
+                if (!d) return false;
+                if (cat === 'equip') {
+                    return d.type === 'wpn' || d.type === 'arm' || d.type === 'acc';
+                }
+                if (cat === 'consume') {
+                    return d.type !== 'wpn' && d.type !== 'arm' && d.type !== 'acc';
+                }
+                return true;
+            });
+
+            let listHtml = '';
+            if (filtered.length === 0) {
+                listHtml = `<div class="text-slate-500 text-sm text-center py-10 w-full flex-1 flex items-center justify-center">您的背包中沒有此分類的物品。</div>`;
+            } else {
+                listHtml = `<div class="grid grid-cols-2 gap-2 overflow-y-auto flex-1 pr-1 custom-scrollbar content-start">`;
+                filtered.forEach(item => {
+                    const d = DB.items[item.id];
+                    if (!d) return;
+
+                    const imgUrl = getIconUrl(d);
+                    const glowClass = getGlowClass(item, d) || '';
+                    const fullName = getItemFullName(item);
+                    const colorClass = getItemColor(item);
+
+                    listHtml += `
+                        <div class="list-item bg-slate-800 rounded border border-slate-700 p-1.5 hover:bg-slate-750 transition-colors flex justify-between items-center w-full shadow-sm">
+                            <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                                <div class="w-8 h-8 bg-slate-900 rounded border border-slate-600 flex items-center justify-center shrink-0 tip-host" data-tip-uid="${item.uid}" data-tip-src="inv">
+                                    <img src="${imgUrl}" onerror="this.style.display='none';" class="w-6 h-6 object-contain pointer-events-none ${glowClass}">
+                                </div>
+                                <div class="flex flex-col items-start gap-0.5 min-w-0 flex-1">
+                                    <span class="${colorClass} font-bold text-[12px] leading-tight truncate w-full block text-left">
+                                        ${fullName}
+                                    </span>
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-slate-400 text-[10px] leading-none">庫存: ${item.cnt}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center shrink-0 ml-1">
+                                <button class="btn bg-indigo-700 hover:bg-indigo-600 border-indigo-500 py-1 px-2 font-bold shadow text-white rounded text-[11px] transition-colors" onclick="selectBagItemForUpload('${item.uid}')">選取</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                listHtml += `</div>`;
+            }
+
+            contentHtml = `
+                <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl relative flex flex-col overflow-hidden w-full h-full">
+                    <div class="bg-slate-950 p-4 border-b border-slate-800 flex justify-between items-center shrink-0">
+                        <h3 class="text-lg font-black text-white flex items-center gap-2">
+                            <button type="button" onclick="toggleReaperModalView()" class="text-slate-400 hover:text-white mr-1 transition-colors bg-slate-800 w-8 h-8 rounded-full flex items-center justify-center">
+                                ←
+                            </button>
+                            🎒 選擇背包物品
+                        </h3>
+                    </div>
+                    ${closeBtnHtml}
+                    <div class="p-4 flex flex-col flex-1 min-h-0">
+                        ${tabsDivHtml}
+                        ${listHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = contentHtml;
+    };
 
     // ==========================================
     // 瞞天過海 Tooltip 機制 (因 findTipItem 為遊戲閉包區域變數，無法從外部 Hook)
@@ -1573,6 +1652,49 @@
                 triggerReaperSalesCheck();
             };
             window.startGame._reaperHooked = true;
+        }
+
+        // 註冊 openModal 勾子 (插入上架按鈕)
+        if (typeof window.openModal === 'function' && !window.openModal._reaperHooked) {
+            const originalOpenModal = window.openModal;
+            window.openModal = function (item, isEq, slot) {
+                // 先呼叫原始函式渲染 modal
+                originalOpenModal.apply(this, arguments);
+
+                // 渲染後，為未鎖定、非裝備中且具有 uid 的道具加入「上架」按鈕
+                const modalActions = document.getElementById('modal-actions');
+                if (modalActions && item && !isEq && item.uid && !item.lock) {
+                    const btn = document.createElement('button');
+                    // 金色框設計：邊框金黃，文字偏金，背景深色以凸顯邊框
+                    btn.className = 'btn border-yellow-500 bg-yellow-950 hover:bg-yellow-900 text-yellow-300 py-2 text-base font-bold shadow-[0_0_5px_rgba(234,179,8,0.4)]';
+                    btn.textContent = '上架';
+                    btn.onclick = () => window.openReaperListingModal(item.uid);
+
+                    // 尋找原版的「販賣」與「全部賣出」按鈕
+                    const sellBtns = Array.from(modalActions.querySelectorAll("button")).filter(b => 
+                        b.getAttribute("onclick") && b.getAttribute("onclick").startsWith("sellItem")
+                    );
+
+                    if (sellBtns.length === 2) {
+                        // 建立一個佔據整行(col-span-2)的 3 欄網格容器
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'col-span-2 grid grid-cols-3 gap-3 w-full';
+                        
+                        // 將 wrapper 插入到第一個賣出按鈕的位置
+                        modalActions.insertBefore(wrapper, sellBtns[0]);
+                        
+                        // 將賣出按鈕移入 wrapper，並在右邊加入上架按鈕
+                        wrapper.appendChild(sellBtns[0]);
+                        wrapper.appendChild(sellBtns[1]);
+                        wrapper.appendChild(btn);
+                    } else {
+                        // 若找不到，退回原方案放在最下方
+                        btn.className += ' col-span-2 w-full mt-1.5';
+                        modalActions.appendChild(btn);
+                    }
+                }
+            };
+            window.openModal._reaperHooked = true;
         }
 
         // 若啟動時已載入存檔，直接執行
