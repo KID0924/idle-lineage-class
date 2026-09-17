@@ -28,7 +28,6 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            user-select: none;
         }
 
         body {
@@ -149,7 +148,6 @@
             display: flex;
             align-items: center;
             gap: 15px;
-            cursor: grab;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             position: relative;
         }
@@ -834,11 +832,10 @@
                 const isDisabled = p.disabled;
                 const card = document.createElement('div');
                 card.className = `file-card ${p.checked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}`;
-                card.draggable = !isDisabled;
                 card.dataset.id = p.id;
                 
                 card.innerHTML = `
-                    <div class="drag-handle">☰</div>
+                    <div class="drag-handle" ${!isDisabled ? 'draggable="true"' : ''}>☰</div>
                     <label class="custom-checkbox">
                         <input type="checkbox" ${p.checked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} onchange="togglePlugin('${p.id}')">
                         <span class="checkmark"></span>
@@ -978,6 +975,9 @@
             dragSrcEl = this;
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', this.dataset.id);
+            if (e.dataTransfer.setDragImage) {
+                e.dataTransfer.setDragImage(this, 20, 20);
+            }
         }
 
         function handleDragOver(e) {
@@ -1046,7 +1046,7 @@
             if (hasOffline || hasRemoveBanner) {
                 const commonIds = checkedPlugins.filter(p => p.id !== 'afk-offline.js' && p.id !== 'klh_remove-banner.js').map(p => p.id);
                 const commonJson = JSON.stringify(commonIds);
-                const offlineSnippet = hasOffline ? '["https://pp771007.github.io/idle-lineage-class/afk-lzcache.js", "https://pp771007.github.io/idle-lineage-class/afk-offline.js"],' : '[],';
+                const offlineSnippet = hasOffline ? '[b+"afk-lzcache.js", b+"afk-offline.js"],' : '[],';
                 const bannerSnippet = hasRemoveBanner ? '[b+"klh_remove-banner.js"],' : '[],';
                 const toastTextExpr = hasOffline ? '(!t?"【離線掛機 + 外掛模組】":"【外掛模組】")' : '"【外掛模組】"';
                 bookmarkletCode = `javascript:(function(){const b="${base}",t=window.location.hostname.includes("pp771007"),c=${commonJson}.map(x=>b+x),n=t?[...${bannerSnippet}...c]:[...${offlineSnippet}...c];function s(e,t){const n=document.createElement("div");n.textContent=e,n.style.cssText="position:fixed;top:20px;right:20px;background:"+(t?"#2ecc71":"#e74c3c")+";color:white;padding:12px 24px;border-radius:8px;z-index:99999;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:opacity 0.5s",document.body.appendChild(n),setTimeout(()=>{n.style.opacity="0",setTimeout(()=>n.remove(),500)},2500)}function l(e){return new Promise((t,n)=>{const o=document.createElement("script");o.src=e+"?v="+Date.now(),o.onload=(()=>{t()}),o.onerror=(()=>{n(e)}),document.body.appendChild(o)})}n.reduce((e,t)=>e.then(()=>l(t)),Promise.resolve()).then(()=>{s("🎉 "+${toastTextExpr}+"注入成功！",!0)}).catch(r=>{const f=(r&&typeof r==="string")?r.split("/").pop().split("?")[0]:"";s("❌ 載入失敗"+(f?"："+f:"！"),!1)})})();`;
@@ -1067,7 +1067,7 @@
             let tamperCode = `// ==UserScript==\n` +
                 `// @name         放置天堂 🌸 書籤模組\n` +
                 `// @namespace    https://kid0924.github.io/\n` +
-                `// @version      1.0\n` +
+                `// @version      2.0\n` +
                 `// @description  自動載入使用者所選取的放置天堂外掛模組\n` +
                 `// @author       KID0924 (https://github.com/KID0924/idle-lineage-class)\n` +
                 `// @homepageURL  https://kid0924.github.io/idle-lineage-class/bookmarklet.html\n` +
@@ -1085,7 +1085,7 @@
             if (hasOffline || hasRemoveBanner) {
                 const commonIds = checkedPlugins.filter(p => p.id !== 'afk-offline.js' && p.id !== 'klh_remove-banner.js').map(p => p.id);
                 const commonJson = JSON.stringify(commonIds);
-                const offlineSnippet = hasOffline ? '["https://pp771007.github.io/idle-lineage-class/afk-lzcache.js", "https://pp771007.github.io/idle-lineage-class/afk-offline.js"],' : '[],';
+                const offlineSnippet = hasOffline ? '[b+"afk-lzcache.js", b+"afk-offline.js"],' : '[],';
                 const bannerSnippet = hasRemoveBanner ? '[b+"klh_remove-banner.js"],' : '[],';
                 const toastTextExpr = hasOffline ? '(!t?"【離線掛機 + 外掛模組】":"【外掛模組】")' : '"【外掛模組】"';
 
