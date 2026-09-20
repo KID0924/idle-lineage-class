@@ -1372,6 +1372,37 @@
         window.reaperModalView = 'form';
     };
 
+    window.filterReaperBagItems = function(query) {
+        query = query.toLowerCase();
+        const container = document.getElementById('reaper-bag-list-container');
+        if (!container) return;
+        const items = container.querySelectorAll('.reaper-bag-item-card');
+        let visibleCount = 0;
+        items.forEach(el => {
+            const name = el.getAttribute('data-name') || '';
+            if (name.includes(query)) {
+                el.style.display = '';
+                visibleCount++;
+            } else {
+                el.style.display = 'none';
+            }
+        });
+        
+        let emptyMsg = document.getElementById('reaper-bag-empty-msg');
+        if (visibleCount === 0) {
+            if (!emptyMsg) {
+                emptyMsg = document.createElement('div');
+                emptyMsg.id = 'reaper-bag-empty-msg';
+                emptyMsg.className = 'text-slate-500 text-sm text-center py-10 w-full col-span-full';
+                emptyMsg.textContent = '找不到符合的物品。';
+                container.appendChild(emptyMsg);
+            }
+            emptyMsg.style.display = '';
+        } else {
+            if (emptyMsg) emptyMsg.style.display = 'none';
+        }
+    };
+
     window.setReaperGMSellerType = function (type) {
         window.reaperGMSellerType = type;
         renderReaperListingModalContent();
@@ -1414,6 +1445,12 @@
     window.renderReaperListingModalContent = function () {
         const container = document.getElementById('reaper-listing-modal-content');
         if (!container) return;
+        
+        if (window.reaperModalView === 'bag') {
+            container.style.maxWidth = '900px';
+        } else {
+            container.style.maxWidth = '400px';
+        }
 
         const isGM = typeof window.openGMShop === 'function';
         const myPlayerId = getSavePlayerId();
@@ -1517,9 +1554,16 @@
             // 背包選取介面
             const cat = window.reaperGMBagCategory || 'all';
             const tabsDivHtml = `
-                <div class="flex gap-2 mb-4 w-full border-b border-slate-700 pb-2 text-xs justify-start overflow-x-auto shrink-0 custom-scrollbar">
+                <div class="mb-3 w-full">
+                    <input type="text" id="reaper-bag-search" placeholder="搜尋物品名稱..." class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500 transition-colors" oninput="if(typeof filterReaperBagItems === 'function') filterReaperBagItems(this.value)">
+                </div>
+                <div class="flex flex-wrap gap-2 mb-4 w-full border-b border-slate-700 pb-2 text-xs justify-start shrink-0">
                     <button onclick="setReaperGMBagCategory('all')" class="btn py-1.5 px-3 text-xs font-bold rounded ${cat === 'all' ? 'bg-indigo-700 border-indigo-500 shadow-inner' : 'bg-slate-800 border-slate-700'} text-white transition-colors shrink-0">全部 (${player.inv.length})</button>
                     <button onclick="setReaperGMBagCategory('equip')" class="btn py-1.5 px-3 text-xs font-bold rounded ${cat === 'equip' ? 'bg-indigo-700 border-indigo-500 shadow-inner' : 'bg-slate-800 border-slate-700'} text-white transition-colors shrink-0">裝備</button>
+                    <button onclick="setReaperGMBagCategory('wpn')" class="btn py-1.5 px-3 text-xs font-bold rounded ${cat === 'wpn' ? 'bg-indigo-700 border-indigo-500 shadow-inner' : 'bg-slate-800 border-slate-700'} text-white transition-colors shrink-0">武器</button>
+                    <button onclick="setReaperGMBagCategory('arm')" class="btn py-1.5 px-3 text-xs font-bold rounded ${cat === 'arm' ? 'bg-indigo-700 border-indigo-500 shadow-inner' : 'bg-slate-800 border-slate-700'} text-white transition-colors shrink-0">防具</button>
+                    <button onclick="setReaperGMBagCategory('acc')" class="btn py-1.5 px-3 text-xs font-bold rounded ${cat === 'acc' ? 'bg-indigo-700 border-indigo-500 shadow-inner' : 'bg-slate-800 border-slate-700'} text-white transition-colors shrink-0">飾品</button>
+                    <button onclick="setReaperGMBagCategory('mat')" class="btn py-1.5 px-3 text-xs font-bold rounded ${cat === 'mat' ? 'bg-indigo-700 border-indigo-500 shadow-inner' : 'bg-slate-800 border-slate-700'} text-white transition-colors shrink-0">材料</button>
                     <button onclick="setReaperGMBagCategory('consume')" class="btn py-1.5 px-3 text-xs font-bold rounded ${cat === 'consume' ? 'bg-indigo-700 border-indigo-500 shadow-inner' : 'bg-slate-800 border-slate-700'} text-white transition-colors shrink-0">消耗品</button>
                 </div>
             `;
@@ -1531,8 +1575,12 @@
                 if (cat === 'equip') {
                     return d.type === 'wpn' || d.type === 'arm' || d.type === 'acc';
                 }
+                if (cat === 'wpn') return d.type === 'wpn';
+                if (cat === 'arm') return d.type === 'arm';
+                if (cat === 'acc') return d.type === 'acc';
+                if (cat === 'mat') return d.type === 'mat';
                 if (cat === 'consume') {
-                    return d.type !== 'wpn' && d.type !== 'arm' && d.type !== 'acc';
+                    return d.type !== 'wpn' && d.type !== 'arm' && d.type !== 'acc' && d.type !== 'mat';
                 }
                 return true;
             });
@@ -1541,7 +1589,7 @@
             if (filtered.length === 0) {
                 listHtml = `<div class="text-slate-500 text-sm text-center py-10 w-full flex-1 flex items-center justify-center">您的背包中沒有此分類的物品。</div>`;
             } else {
-                listHtml = `<div class="grid grid-cols-2 gap-2 overflow-y-auto flex-1 pr-1 custom-scrollbar content-start">`;
+                listHtml = `<div id="reaper-bag-list-container" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 overflow-y-auto flex-1 pr-1 custom-scrollbar content-start">`;
                 filtered.forEach(item => {
                     const d = DB.items[item.id];
                     if (!d) return;
@@ -1550,24 +1598,21 @@
                     const glowClass = getGlowClass(item, d) || '';
                     const fullName = getItemFullName(item);
                     const colorClass = getItemColor(item);
+                    const safeName = fullName.replace(/<[^>]*>?/gm, '').replace(/"/g, '&quot;').toLowerCase();
 
                     listHtml += `
-                        <div class="list-item bg-slate-800 rounded border border-slate-700 p-1.5 hover:bg-slate-750 transition-colors flex justify-between items-center w-full shadow-sm">
-                            <div class="flex items-center gap-1.5 min-w-0 flex-1">
-                                <div class="w-8 h-8 bg-slate-900 rounded border border-slate-600 flex items-center justify-center shrink-0 tip-host" data-tip-uid="${item.uid}" data-tip-src="inv">
+                        <div class="reaper-bag-item-card bg-slate-800 rounded border border-slate-700 p-2 hover:bg-slate-750 transition-colors flex flex-row items-start gap-2 w-full shadow-sm" data-name="${safeName}">
+                            <div class="flex flex-col items-center gap-1.5 shrink-0 w-10">
+                                <div class="w-8 h-8 bg-slate-900 rounded border border-slate-600 flex items-center justify-center tip-host" data-tip-uid="${item.uid}" data-tip-src="inv">
                                     <img src="${imgUrl}" onerror="this.style.display='none';" class="w-6 h-6 object-contain pointer-events-none ${glowClass}">
                                 </div>
-                                <div class="flex flex-col items-start gap-0.5 min-w-0 flex-1">
-                                    <span class="${colorClass} font-bold text-[12px] leading-tight truncate w-full block text-left">
-                                        ${fullName}
-                                    </span>
-                                    <div class="flex items-center gap-1">
-                                        <span class="text-slate-400 text-[10px] leading-none">庫存: ${item.cnt}</span>
-                                    </div>
-                                </div>
+                                <button class="btn bg-indigo-700 hover:bg-indigo-600 border-indigo-500 py-0.5 px-1.5 w-full font-bold shadow text-white rounded text-[10px] transition-colors" onclick="selectBagItemForUpload('${item.uid}')">選取</button>
                             </div>
-                            <div class="flex items-center shrink-0 ml-1">
-                                <button class="btn bg-indigo-700 hover:bg-indigo-600 border-indigo-500 py-1 px-2 font-bold shadow text-white rounded text-[11px] transition-colors" onclick="selectBagItemForUpload('${item.uid}')">選取</button>
+                            <div class="flex flex-col items-start min-w-0 flex-1">
+                                <span class="${colorClass} font-bold leading-snug whitespace-normal break-words text-left w-full mb-1" style="font-size: 14px; line-height: 1.3;">
+                                    ${fullName}
+                                </span>
+                                <span class="text-slate-400 font-medium leading-none" style="font-size: 13px;">庫存: ${item.cnt}</span>
                             </div>
                         </div>
                     `;
