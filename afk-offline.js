@@ -400,109 +400,6 @@
     items.sort(function (x, y) { return y.d - x.d; });
     return { floor: floor, exp: exp, gold: (a.gold || 0) - (b.gold || 0), lv: (a.lv || 0) - (b.lv || 0), items: items };
   }
-  function showLootPopup(items, dGold, dExp, dLv, totalKills) {
-    if (!items || items.length === 0) return;
-    try {
-      var overlay = document.createElement('div');
-      overlay.setAttribute('style', 'position:fixed;inset:0;z-index:100000;background:rgba(2,6,23,0.85);display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif;');
-      
-      var box = document.createElement('div');
-      box.setAttribute('style', 'background:#1e293b;border:1px solid #475569;border-radius:12px;width:100%;max-width:480px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 10px 25px rgba(0,0,0,0.5);');
-
-      var header = document.createElement('div');
-      header.setAttribute('style', 'padding:16px;border-bottom:1px solid #334155;font-size:18px;font-weight:bold;color:#fcd34d;text-align:center;');
-      header.textContent = '離線掛機戰利品';
-      box.appendChild(header);
-
-      var content = document.createElement('div');
-      content.setAttribute('style', 'padding:16px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;');
-
-      items.forEach(function(item) {
-        if (item.d <= 0) return;
-        var d = (typeof DB !== 'undefined' && DB.items && DB.items[item.id]) ? DB.items[item.id] : null;
-        var iconUrl = '';
-        if (d) {
-          try { iconUrl = typeof getIconUrl === 'function' ? getIconUrl(d) : (d.img || ''); } catch (e) {}
-        }
-        
-        var itemDiv = document.createElement('div');
-        itemDiv.setAttribute('style', 'position:relative;width:56px;height:56px;background:rgba(30,41,59,0.8);border:1px solid #334155;border-radius:8px;display:flex;align-items:center;justify-content:center;');
-        itemDiv.title = item.n;
-
-        if (iconUrl) {
-          var img = document.createElement('img');
-          img.src = iconUrl;
-          img.setAttribute('style', 'width:40px;height:40px;object-fit:contain;pointer-events:none;');
-          try {
-             var glow = typeof getGlowClass === 'function' ? getGlowClass(item, d) : '';
-             if (glow) img.className = glow;
-          } catch (e) {}
-          itemDiv.appendChild(img);
-        } else {
-          var txt = document.createElement('span');
-          txt.setAttribute('style', 'font-size:10px;color:#94a3b8;text-align:center;line-height:1.2;padding:2px;');
-          txt.textContent = item.n;
-          itemDiv.appendChild(txt);
-        }
-
-        var badge = document.createElement('div');
-        badge.setAttribute('style', 'position:absolute;bottom:0;right:0;background:rgba(0,0,0,0.75);color:#fff;font-size:11px;font-weight:bold;padding:1px 4px;border-radius:4px 0 8px 0;line-height:1;');
-        badge.textContent = 'x' + item.d;
-        itemDiv.appendChild(badge);
-
-        content.appendChild(itemDiv);
-      });
-      box.appendChild(content);
-
-      var info = document.createElement('div');
-      info.setAttribute('style', 'padding:12px 16px;background:rgba(15,23,42,0.5);border-top:1px solid #334155;display:flex;flex-wrap:wrap;justify-content:center;gap:16px;font-size:14px;color:#cbd5e1;');
-      
-      function formatNumber(num) {
-        if (num >= 100000000) return (num / 100000000).toFixed(2).replace(/\.00$/, '') + ' 億';
-        if (num >= 10000) return (num / 10000).toFixed(2).replace(/\.00$/, '') + ' 萬';
-        return num.toLocaleString ? num.toLocaleString() : num;
-      }
-
-      function makeStatHtml(label, color, num) {
-        var shortVal = formatNumber(num);
-        var longVal = num.toLocaleString ? num.toLocaleString() : num;
-        if (shortVal === longVal) return '<span>' + label + ' <span style="color:' + color + ';font-weight:bold;">' + shortVal + '</span></span>';
-        var script = "var s=this.querySelector('span'); var t=s.textContent; s.textContent=this.getAttribute('data-long'); this.setAttribute('data-long', t);";
-        return '<span title="' + longVal + '" onclick="' + script + '" data-long="' + longVal + '" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">' + label + ' <span style="color:' + color + ';font-weight:bold;">' + shortVal + '</span></span>';
-      }
-
-      var infoHtml = '';
-      if (totalKills > 0) infoHtml += makeStatHtml('擊殺', '#ef4444', totalKills);
-      if (dGold > 0) infoHtml += makeStatHtml('金幣', '#facc15', dGold);
-      if (dExp > 0) infoHtml += makeStatHtml('經驗', '#c084fc', dExp);
-      if (dLv > 0) {
-        var curLv = (typeof player !== 'undefined') ? player.lv : 0;
-        var oldLv = curLv - dLv;
-        infoHtml += '<span>等級 <span style="color:#4ade80;font-weight:bold;">+' + dLv + ' ( Lv ' + oldLv + ' &rarr; ' + curLv + ' )</span></span>';
-      }
-      if (infoHtml) {
-        info.innerHTML = infoHtml;
-        box.appendChild(info);
-      }
-
-      var footer = document.createElement('div');
-      footer.setAttribute('style', 'padding:16px;border-top:1px solid #334155;display:flex;justify-content:center;');
-      var btn = document.createElement('button');
-      btn.setAttribute('style', 'padding:10px 32px;background:#475569;color:#f8fafc;font-weight:bold;font-size:16px;border-radius:8px;border:none;cursor:pointer;');
-      btn.textContent = '確定';
-      btn.onclick = function() {
-        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-      };
-      footer.appendChild(btn);
-      box.appendChild(footer);
-
-      overlay.appendChild(box);
-      document.body.appendChild(overlay);
-    } catch (e) {
-      console.warn('[AFK] showLootPopup error:', e);
-    }
-  }
-
   // 攀登專屬的離線摘要:逐層列出收益(一層一行),樓層用中文。沒有任何收益的樓層省略不列。
   function summarizeClimb(segs, doneTicks, died) {
     var mins = Math.round(doneTicks * TICK_MS / 60000);
@@ -512,23 +409,12 @@
     var head = `<span class="text-sky-300 font-bold">🌙 離線攀登傲慢之塔 ${timeStr}</span>（${fromFloor} 樓 → ${reached} 樓）：`;
     try { logSys(head); } catch (e) { console.log('[AFK]', head.replace(/<[^>]+>/g, '')); }
     var shown = 0;
-    var totalGold = 0, totalExp = 0, totalLv = 0;
-    var itemMap = {};
     segs.forEach(function (s) {
       var parts = [];
       if (s.gold > 0) parts.push(`<span class="text-yellow-400 font-bold">${fmt(s.gold)} 金幣</span>`);
       if (s.lv   > 0) parts.push(`<span class="text-green-400 font-bold">升 ${s.lv} 級</span>`);
       if (s.exp  > 0) parts.push(`<span class="text-purple-400 font-bold">${fmt(s.exp)} 經驗</span>`);
       if (s.items.length) parts.push(itemsHTML(s.items));
-      
-      totalGold += s.gold || 0;
-      totalExp += s.exp || 0;
-      totalLv += s.lv || 0;
-      s.items.forEach(function (it) {
-        if (!itemMap[it.id]) itemMap[it.id] = { id: it.id, n: it.n, d: 0 };
-        itemMap[it.id].d += it.d;
-      });
-
       if (!parts.length) return;   // 該樓沒收益就省略
       shown++;
       var ln = `<span class="text-rose-200">傲慢之塔 ${s.floor} 樓</span>：` + parts.join('、') + '。';
@@ -536,15 +422,6 @@
     });
     if (!shown) { try { logSys('（本次攀登無明顯收益）'); } catch (e) {} }
     if (died) { try { logSys('<span class="text-red-500 font-bold">離線攀登中陣亡，已結算至死亡前並送回村莊。</span>'); } catch (e) {} }
-
-    var climbItems = [];
-    for (var k in itemMap) climbItems.push(itemMap[k]);
-    climbItems.sort(function (a, b) { return b.d - a.d; });
-    var totalKills = 0;
-    if (typeof killTally !== 'undefined' && killTally) {
-      for (var kn in killTally) totalKills += killTally[kn];
-    }
-    try { showLootPopup(climbItems, totalGold, totalExp, totalLv, totalKills); } catch (e) { console.warn('[AFK] summarizeClimb showLootPopup error:', e); }
   }
   function summarize(before, after, doneTicks, died, huntMap, kingInfo) {
     var mins = Math.round(doneTicks * TICK_MS / 60000);
@@ -613,11 +490,6 @@
       try { logSys('<span class="text-red-500 font-bold">離線期間角色陣亡，進度已結算至死亡前。</span>'); }
       catch (e) { console.log('[AFK] 離線期間陣亡，結算至死亡前。'); }
     }
-    var totalKills = 0;
-    if (typeof killTally !== 'undefined' && killTally) {
-      for (var kn in killTally) totalKills += killTally[kn];
-    }
-    try { showLootPopup(items, dGold, dExp, dLv, totalKills); } catch (e) { console.warn('[AFK] summarize showLootPopup error:', e); }
   }
 
   // 切換地圖(關閉 ff 下的 log,switchMap 內部 logSys 會被靜音)

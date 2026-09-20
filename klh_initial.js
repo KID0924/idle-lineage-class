@@ -1932,4 +1932,191 @@
         startupInitial();
     }
 
+    /* ============================================================================
+     *  ⚡ 11. 離線掛機圖片戰利品結算 (Offline Image Loot Popup Hook)
+     * ============================================================================ */
+    (function () {
+        function showLootPopup(items, dGold, dExp, dLv, totalKills) {
+            if (!items || items.length === 0) return;
+            try {
+                var overlay = document.createElement('div');
+                overlay.setAttribute('style', 'position:fixed;inset:0;z-index:100000;background:rgba(2,6,23,0.85);display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif;');
+                
+                var box = document.createElement('div');
+                box.setAttribute('style', 'background:#1e293b;border:1px solid #475569;border-radius:12px;width:100%;max-width:480px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 10px 25px rgba(0,0,0,0.5);');
+
+                var header = document.createElement('div');
+                header.setAttribute('style', 'padding:16px;border-bottom:1px solid #334155;font-size:18px;font-weight:bold;color:#fcd34d;text-align:center;');
+                header.textContent = '離線掛機戰利品';
+                box.appendChild(header);
+
+                var content = document.createElement('div');
+                content.setAttribute('style', 'padding:16px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:12px;justify-content:center;');
+
+                items.forEach(function(item) {
+                    if (item.d <= 0) return;
+                    var d = (typeof DB !== 'undefined' && DB.items && DB.items[item.id]) ? DB.items[item.id] : null;
+                    var iconUrl = '';
+                    if (d) {
+                        try { iconUrl = typeof getIconUrl === 'function' ? getIconUrl(d) : (d.img || ''); } catch (e) {}
+                    }
+                    
+                    var itemDiv = document.createElement('div');
+                    itemDiv.setAttribute('style', 'position:relative;width:56px;height:56px;background:rgba(30,41,59,0.8);border:1px solid #334155;border-radius:8px;display:flex;align-items:center;justify-content:center;');
+                    itemDiv.title = item.n;
+
+                    if (iconUrl) {
+                        var img = document.createElement('img');
+                        img.src = iconUrl;
+                        img.setAttribute('style', 'width:40px;height:40px;object-fit:contain;pointer-events:none;');
+                        try {
+                            var glow = typeof getGlowClass === 'function' ? getGlowClass(item, d) : '';
+                            if (glow) img.className = glow;
+                        } catch (e) {}
+                        itemDiv.appendChild(img);
+                    } else {
+                        var txt = document.createElement('span');
+                        txt.setAttribute('style', 'font-size:10px;color:#94a3b8;text-align:center;line-height:1.2;padding:2px;');
+                        txt.textContent = item.n;
+                        itemDiv.appendChild(txt);
+                    }
+
+                    var badge = document.createElement('div');
+                    badge.setAttribute('style', 'position:absolute;bottom:0;right:0;background:rgba(0,0,0,0.75);color:#fff;font-size:11px;font-weight:bold;padding:1px 4px;border-radius:4px 0 8px 0;line-height:1;');
+                    badge.textContent = 'x' + item.d;
+                    itemDiv.appendChild(badge);
+
+                    content.appendChild(itemDiv);
+                });
+                box.appendChild(content);
+
+                var info = document.createElement('div');
+                info.setAttribute('style', 'padding:12px 16px;background:rgba(15,23,42,0.5);border-top:1px solid #334155;display:flex;flex-wrap:wrap;justify-content:center;gap:16px;font-size:14px;color:#cbd5e1;');
+                
+                function formatNumber(num) {
+                    if (num >= 100000000) return (num / 100000000).toFixed(2).replace(/\.00$/, '') + ' 億';
+                    if (num >= 10000) return (num / 10000).toFixed(2).replace(/\.00$/, '') + ' 萬';
+                    return num.toLocaleString ? num.toLocaleString() : num;
+                }
+
+                function makeStatHtml(label, color, num) {
+                    var shortVal = formatNumber(num);
+                    var longVal = num.toLocaleString ? num.toLocaleString() : num;
+                    if (shortVal === longVal) return '<span>' + label + ' <span style="color:' + color + ';font-weight:bold;">' + shortVal + '</span></span>';
+                    var script = "var s=this.querySelector('span'); var t=s.textContent; s.textContent=this.getAttribute('data-long'); this.setAttribute('data-long', t);";
+                    return '<span title="' + longVal + '" onclick="' + script + '" data-long="' + longVal + '" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">' + label + ' <span style="color:' + color + ';font-weight:bold;">' + shortVal + '</span></span>';
+                }
+
+                var infoHtml = '';
+                if (totalKills > 0) infoHtml += makeStatHtml('擊殺', '#ef4444', totalKills);
+                if (dGold > 0) infoHtml += makeStatHtml('金幣', '#facc15', dGold);
+                if (dExp > 0) infoHtml += makeStatHtml('經驗', '#c084fc', dExp);
+                if (dLv > 0) {
+                    var curLv = (typeof player !== 'undefined') ? player.lv : 0;
+                    var oldLv = curLv - dLv;
+                    infoHtml += '<span>等級 <span style="color:#4ade80;font-weight:bold;">+' + dLv + ' ( Lv ' + oldLv + ' &rarr; ' + curLv + ' )</span></span>';
+                }
+                if (infoHtml) {
+                    info.innerHTML = infoHtml;
+                    box.appendChild(info);
+                }
+
+                var footer = document.createElement('div');
+                footer.setAttribute('style', 'padding:16px;border-top:1px solid #334155;display:flex;justify-content:center;');
+                var btn = document.createElement('button');
+                btn.setAttribute('style', 'padding:10px 32px;background:#475569;color:#f8fafc;font-weight:bold;font-size:16px;border-radius:8px;border:none;cursor:pointer;');
+                btn.textContent = '確定';
+                btn.onclick = function() {
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                };
+                footer.appendChild(btn);
+                box.appendChild(footer);
+
+                overlay.appendChild(box);
+                document.body.appendChild(overlay);
+            } catch (e) {
+                console.warn('[KLH] showLootPopup error:', e);
+            }
+        }
+
+        function klhSnapshot() {
+            var inv = {};
+            try { (player.inv || []).forEach(function (i) { if (i && i.id) inv[i.id] = (inv[i.id] || 0) + (i.cnt || 1); }); } catch (e) {}
+            return { gold: player.gold || 0, exp: player.exp || 0, lv: player.lv || 0, inv: inv };
+        }
+
+        function klhExpTotal(lv, exp) {
+            var t = exp || 0;
+            if (typeof getExpReq === 'function') {
+                for (var i = 1; i < (lv || 1); i++) { var r = getExpReq(i); if (!isFinite(r)) break; t += r; }
+            }
+            return t;
+        }
+
+        function hookOfflineAfterLoad() {
+            if (typeof window.offlineAfterLoad === 'function' && !window.__klh_offlineLootPopup_wrapped) {
+                window.__klh_offlineLootPopup_wrapped = true;
+                
+                var origOfflineAfterLoad = window.offlineAfterLoad;
+                
+                window.offlineAfterLoad = function(pre) {
+                    var klhOfflineBeforeState = klhSnapshot();
+                    var res = origOfflineAfterLoad.apply(this, arguments);
+                    
+                    if (window.__afkKillTally && !window.__klh_loot_popup_active) {
+                        window.__klh_loot_popup_active = true;
+                        var capturedKillTally = {};
+                        var checkInterval = setInterval(function() {
+                            if (window.__afkKillTally) {
+                                for (var k in window.__afkKillTally) {
+                                    capturedKillTally[k] = window.__afkKillTally[k];
+                                }
+                            } else {
+                                clearInterval(checkInterval);
+                                window.__klh_loot_popup_active = false;
+                                try {
+                                    var afterState = klhSnapshot();
+                                    var items = [];
+                                    var ids = {};
+                                    for (var k in klhOfflineBeforeState.inv) ids[k] = 1;
+                                    for (var k2 in afterState.inv) ids[k2] = 1;
+                                    for (var id in ids) {
+                                        var delta = (afterState.inv[id] || 0) - (klhOfflineBeforeState.inv[id] || 0);
+                                        if (delta > 0) {
+                                            var nm = (typeof DB !== 'undefined' && DB.items && DB.items[id]) ? DB.items[id].n : id;
+                                            items.push({ id: id, n: nm, d: delta });
+                                        }
+                                    }
+                                    items.sort(function (a, b) { return b.d - a.d; });
+                                    
+                                    var dGold = (afterState.gold || 0) - (klhOfflineBeforeState.gold || 0);
+                                    var dExp = klhExpTotal(afterState.lv, afterState.exp) - klhExpTotal(klhOfflineBeforeState.lv, klhOfflineBeforeState.exp);
+                                    if (dExp < 0) dExp = 0;
+                                    var dLv = (afterState.lv || 0) - (klhOfflineBeforeState.lv || 0);
+                                    
+                                    var totalKills = 0;
+                                    for (var kn in capturedKillTally) {
+                                        totalKills += capturedKillTally[kn];
+                                    }
+                                    
+                                    if (dGold > 0 || dExp > 0 || dLv > 0 || items.length > 0) {
+                                        showLootPopup(items, dGold, dExp, dLv, totalKills);
+                                    }
+                                } catch (e) {
+                                    console.warn('[KLH] Error in offline loot calculation:', e);
+                                }
+                            }
+                        }, 200);
+                    }
+                    
+                    return res;
+                };
+            } else if (!window.__klh_offlineLootPopup_wrapped) {
+                setTimeout(hookOfflineAfterLoad, 500);
+            }
+        }
+        
+        hookOfflineAfterLoad();
+    })();
+
 })();
