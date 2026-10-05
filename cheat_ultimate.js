@@ -1,16 +1,18 @@
-// 《臺北狂飆》【神級特裝：X鍵/手機觸控 天神飛行 + Z鍵十六光劍 + 常駐1%防彈護盾 + 著彈點自爆衝鋒槍】
+// 《臺北狂飆》【神級特裝：X鍵/手機觸控 天神飛行 + Z鍵十六光劍 + 常駐1%防彈護盾 + 著彈點自爆槍 + 🕶️黑道堂口友軍火力支援】
 // 複製本檔案全部內容，貼到遊戲 F12 的 Console（或手機端瀏覽器 Console）中按 Enter 即可！
 
 (() => {
-  const g = window.__game;
-  if (!g || !g.player || !g.player.combat) {
-    console.error('請先進入遊戲操作畫面後再執行此指令！');
-    return;
-  }
+  function initPlugin() {
+    const g = window.__game;
+    // 確保遊戲、玩家、戰鬥系統以及警察系統皆已完整載入（防止進遊戲前執行腳本導致物理剛體未初始化）
+    if (!g || !g.player || !g.player.combat || !g.police || !g.police._debug || !g.police._debug.roadblocks || !g.police._debug.roadblocks.officers) {
+      setTimeout(initPlugin, 500);
+      return;
+    }
 
-  const p = g.player;
-  const combat = p.combat;
-  const T = window.THREE;
+    const p = g.player;
+    const combat = p.combat;
+    const T = window.THREE;
   const ATTACK_RADIUS = 2.0; // 光劍攻擊半徑 2m
   const SHIELD_RADIUS = 0.92; // 貼身護盾 ~1m
 
@@ -57,8 +59,8 @@
       return;
     }
 
-    // 免疫警察槍擊
-    if (t && (t.source === 'police' || t.weapon === 'rifle' || t.weapon === 'pistol' || t.weapon === 'smg')) {
+    // 免疫警察槍擊（友軍黑道也絕不傷害玩家）
+    if (t && (t.source === 'police' || t.source === 'gang' || t.weapon === 'rifle' || t.weapon === 'pistol' || t.weapon === 'smg')) {
       if (window.__forceFieldMesh) {
         window.__forceFieldMesh.material.opacity = 0.15;
         setTimeout(() => { if (window.__forceFieldMesh) window.__forceFieldMesh.material.opacity = 0.01; }, 60);
@@ -98,122 +100,1913 @@
       sword.add(blade);
       sword.add(hilt);
 
-      const angle = (i * 2 * Math.PI) / SWORD_COUNT;
-      const midDist = 1.35;
-      sword.position.set(Math.sin(angle) * midDist, 0, Math.cos(angle) * midDist);
-      sword.rotation.y = angle;
+      const angle = (i / SWORD_COUNT) * Math.PI * 2;
+      sword.position.set(Math.cos(angle) * SHIELD_RADIUS, 0, Math.sin(angle) * SHIELD_RADIUS);
+      sword.rotation.y = -angle;
+
       window.__swordsGroup.add(sword);
     }
 
     window.__swordsGroup.traverse(c => { c.raycast = () => {}; });
     g.scene.add(window.__swordsGroup);
+    window.__swordsGroup.visible = false;
   }
 
-  // 光劍開關狀態
-  window.__swordsEnabled = true;
-
+  window.__swordsEnabled = false;
   function toggleSwords() {
     window.__swordsEnabled = !window.__swordsEnabled;
     if (window.__swordsGroup) {
       window.__swordsGroup.visible = window.__swordsEnabled;
     }
     updateHudVisuals();
-    console.log(`%c[光劍切換] 十六光劍陣已${window.__swordsEnabled ? '【開啟】' : '【收回】'}（1%防彈護罩常駐中）`, 'color: #00ffff; font-weight: bold;');
-    g.events?.emit('notify', {
-      text: {
-        zh: window.__swordsEnabled ? '⚔️ 十六光劍：已出鞘' : '🛡️ 十六光劍：已收回（防護罩常駐）',
-        en: window.__swordsEnabled ? 'Swords Active' : 'Swords Hidden (Shield Active)'
-      },
-      kind: window.__swordsEnabled ? 'good' : 'info',
-      duration: 2
-    });
+    try {
+      g.audio?.play?.(window.__swordsEnabled ? 'weapon_pickup' : 'ui_menu', { volume: 0.9, rate: 1.2 });
+      g.events?.emit('notify', {
+        text: {
+          zh: window.__swordsEnabled ? '⚔️ 十六光劍陣：已展開！環形高速護體' : '⚔️ 十六光劍陣：已收回！',
+          en: window.__swordsEnabled ? 'Light Swords Deployed!' : 'Light Swords Retracted!'
+        },
+        kind: window.__swordsEnabled ? 'good' : 'neutral',
+        duration: 2.0
+      });
+    } catch (e) {}
+  }
+
+  // 恢復原版車輛生成（取消警車變黑廂型車）
+  if (window.__origVehiclesSpawn) {
+    g.vehicles.spawn = window.__origVehiclesSpawn;
+    delete window.__origVehiclesSpawn;
+  }
+  if (window.__origPoliceSpawnCar && g.police) {
+    g.police.spawnCar = window.__origPoliceSpawnCar;
+    delete window.__origPoliceSpawnCar;
+  }
+  delete window.__blackPoliceVans;
+
+  // ----------------------------------------------------
+  // 4. 🕶️【黑道友軍系統 (採用官方警察全黑特警造型＋警用突擊步槍)】
+  // ----------------------------------------------------
+  // ★ 核心修復：全面恢復所有警察剛體的原生傷害回調，絕不留無敵警察！★
+  const officersMgr = g.police?._debug?.roadblocks?.officers;
+  if (officersMgr && officersMgr.list) {
+    for (let off of officersMgr.list) {
+      if (off && off.body) {
+        // 重設原生傷害回調，確保不管是誰都能正常挨打扣血陣亡！
+        off.body.onDamage = t => {
+          if (off.body.userData?.gangMember?.active) {
+            off.body.userData.gangMember.takeDamage(t);
+          } else {
+            officersMgr.onDamage(off, t);
+          }
+        };
+        off.body.onImpact = (t, n, r) => officersMgr.onImpact(off, t, n, r);
+        delete off.body.userData?.gang;
+        delete off.body.userData?.gangMember;
+        off.hp = 100;
+        off.maxHp = 100;
+        off.posed = false;
+        off.state = 'chase';
+        delete off.dead;
+      }
+    }
+  }
+  
+  // ★ 擴充警方總人力池（破解預設 30 人上限限制）★
+  // 防止我們的 12 名黑道兄弟佔據了原本要生成敵方警察的位置，導致沒有警察可以打！
+  if (officersMgr && officersMgr.list && officersMgr.list.length > 0) {
+    const currentLimit = officersMgr.list.length;
+    const targetLimit = 80; // 擴充到 80 人
+    if (currentLimit < targetLimit) {
+      try {
+        const OfficerClass = officersMgr.list[0].constructor;
+        for (let i = currentLimit; i < targetLimit; i++) {
+          const newOfficer = new OfficerClass(officersMgr);
+          officersMgr.list.push(newOfficer);
+        }
+        console.log(`[整合密技] 警方人力池已從 ${currentLimit} 擴充至 ${targetLimit}，確保敵方火力不減！`);
+      } catch (e) {
+        console.error('擴充警方人力池失敗:', e);
+      }
+    }
+  }
+
+  // 確保 officersMgr.onDamage 能將傷害即時傳遞給黑道兄弟
+  if (officersMgr && !officersMgr.__gangDamageHooked) {
+    officersMgr.__gangDamageHooked = true;
+    const origOnDamage = officersMgr.onDamage;
+    officersMgr.onDamage = function(off, t) {
+      if (off && off.body?.userData?.gangMember?.active) {
+        off.body.userData.gangMember.takeDamage(t);
+        return;
+      }
+      return origOnDamage.apply(this, arguments);
+    };
+  }
+
+  // 清理任何先前殘留的黑道兄弟實例
+  if (window.__gangSystem && window.__gangSystem.members) {
+    for (let m of window.__gangSystem.members) {
+      try { m.destroy(); } catch (e) {}
+    }
+  }
+
+  // ★ 黑道混編模式自訂武器配置表 ★
+  // 當選擇「混編(mixed)」時，會依照以下陣列順序發放武器給小弟（例如第1個拿步槍、第2個拿球棒...），超過人數會循環配置。
+  // 可選武器：'rifle' (步槍), 'pistol' (手槍), 'bat' (球棒), 'fists' (空手)
+  window.__gangMixedWeapons = [
+    'pistol',  // 第1個小弟（唯一的一把槍）
+    'bat',     // 第2個小弟
+    'fists',   // 第3個小弟
+    'bat',     // 第4個小弟
+    'fists',   // 第5個小弟
+    'bat',     // 第6個小弟
+    'fists',   // 第7個小弟
+    'bat',     // 第8個小弟
+    'fists',   // 第9個小弟
+    'bat',     // 第10個小弟
+    'fists',   // 第11個小弟
+    'bat'      // 第12個小弟
+  ];
+
+  window.__gangSystem = {
+    targetCount: 4,          // 預設 4 名兄弟，可透過面板調整 0~12 人
+    maxFollowDistance: 50,   // ★ 限制黑道預設不能超過玩家 50m（可在設定調整 15m~200m）
+    weaponType: 'mixed',      // 武器模式：'mixed'(混編), 'bat'(球棒), 'fists'(空手), 'pistol'(手槍), 'rifle'(步槍)
+    members: [],
+    kills: { police: 0, cars: 0, heli: 0 },
+    activeTaxis: [],         // 計程車援兵車隊
+    godMode: false,          // 友軍無敵開關（預設 false，允許被車輛炸死/被槍打死）
+    isPanelOpen: false
+  };
+
+  const GANG_WEAPONS = {
+    mixed: { id: 'mixed', name: { zh: '🎲 堂口混編 (球棒/步槍/手槍/鐵拳)', en: 'Mixed Squad' } },
+    bat: { id: 'bat', name: { zh: '🏏 暴力球棒 (高暴擊高擊倒)', en: 'Baseball Bat' }, isMelee: true, reach: 2.6, dmg: 65, knockChance: 0.70 },
+    fists: { id: 'fists', name: { zh: '👊 空手狂暴肉搏 (疾速連拳衝鋒)', en: 'Fists' }, isMelee: true, reach: 2.0, dmg: 35, knockChance: 0.35 },
+    pistol: { id: 'pistol', name: { zh: '🔫 警用配槍 (中距精準壓制)', en: 'Pistol' }, isMelee: false, range: 55, dmg: 38 },
+    rifle: { id: 'rifle', name: { zh: '💥 突擊步槍 (遠程全自動掃射)', en: 'Assault Rifle' }, isMelee: false, range: 85, dmg: 55 }
+  };
+
+  // ----------------------------------------------------
+  // ★ 警方 AI 仇恨重定向核心：讓官方警方/特警/警車優先鎖定與圍剿黑道兄弟 ★
+  // ----------------------------------------------------
+  function hookPoliceTargeting() {
+    try {
+      const rb = g.police?._debug?.roadblocks;
+      if (!rb || !rb.officers) return false;
+      const officersMgr = rb.officers;
+      const carsMgr = rb.cars;
+
+      if (!officersMgr.__gangPriorityHooked) {
+        officersMgr.__gangPriorityHooked = true;
+        const origThink = officersMgr.think;
+        officersMgr.think = function (officer, dt) {
+          // 若為我方黑道兄弟，跳過官方警察 AI，由本腳本獨立接管自主巡邏與索敵
+          if (officer.role === 'gang' || officer.body?.userData?.gang) return;
+
+          // 尋找 85 米內距離該警員最近的存活黑道兄弟
+          const gang = window.__gangSystem;
+          let bestMob = null;
+          let minDist = 85;
+
+          if (gang && gang.members) {
+            for (let m of gang.members) {
+              if (m.active && m.officer && m.hp > 0) {
+                const dx = m.officer.x - officer.x;
+                const dz = m.officer.z - officer.z;
+                const dist = Math.hypot(dx, dz);
+                if (dist < minDist) {
+                  minDist = dist;
+                  bestMob = m;
+                }
+              }
+            }
+          }
+
+          if (bestMob) {
+            // 警方偵測到黑道兄弟！將思考目標臨時置換為該黑道兄弟
+            const realP = this.S.P;
+            const mobTarget = {
+              x: bestMob.officer.x,
+              y: bestMob.officer.y,
+              z: bestMob.officer.z,
+              vx: bestMob.officer.vx || 0,
+              vz: bestMob.officer.vz || 0,
+              speed: Math.hypot(bestMob.officer.vx || 0, bestMob.officer.vz || 0),
+              heading: bestMob.officer.heading || 0,
+              onFoot: true,
+              inVehicle: false,
+              vehicle: null,
+              twoWheeler: false,
+              alive: bestMob.hp > 0,
+              armed: true,    // 標記持械極度危險，誘使警官第一時間拔槍迎戰
+              sinceShot: 0.1,  // 視同剛開火，警方優先開槍壓制
+              body: bestMob.body,
+              stillT: 0,
+              teleported: false,
+              damage: dmg => bestMob.takeDamage(dmg)
+            };
+
+            try {
+              this.S.P = mobTarget;
+              origThink.call(this, officer, dt);
+            } finally {
+              this.S.P = realP;
+            }
+          } else {
+            origThink.call(this, officer, dt);
+          }
+        };
+      }
+
+      if (carsMgr && !carsMgr.__gangPriorityHooked) {
+        carsMgr.__gangPriorityHooked = true;
+        const origPursue = carsMgr.pursue;
+        carsMgr.pursue = function (car, dt, dist) {
+          const gang = window.__gangSystem;
+          let bestMob = null;
+          let minDist = 110;
+
+          if (gang && gang.members && car.v?.body) {
+            for (let m of gang.members) {
+              if (m.active && m.officer && m.hp > 0) {
+                const dx = m.officer.x - car.v.body.x;
+                const dz = m.officer.z - car.v.body.z;
+                const d = Math.hypot(dx, dz);
+                if (d < minDist) {
+                  minDist = d;
+                  bestMob = m;
+                }
+              }
+            }
+          }
+
+          if (bestMob) {
+            const realP = this.S.P;
+            const mobTarget = {
+              x: bestMob.officer.x,
+              y: bestMob.officer.y,
+              z: bestMob.officer.z,
+              vx: bestMob.officer.vx || 0,
+              vz: bestMob.officer.vz || 0,
+              speed: Math.hypot(bestMob.officer.vx || 0, bestMob.officer.vz || 0),
+              heading: bestMob.officer.heading || 0,
+              onFoot: true,
+              inVehicle: false,
+              vehicle: null,
+              twoWheeler: false,
+              alive: bestMob.hp > 0,
+              armed: true,
+              sinceShot: 0.1,
+              body: bestMob.body,
+              stillT: 0,
+              teleported: false,
+              damage: dmg => bestMob.takeDamage(dmg)
+            };
+
+            try {
+              this.S.P = mobTarget;
+              origPursue.call(this, car, dt, dist);
+            } finally {
+              this.S.P = realP;
+            }
+          } else {
+            origPursue.call(this, car, dt, dist);
+          }
+        };
+      }
+
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 黑道兄弟：原生警員骨架模型（不改動骨架動畫，金色戰袍+頭頂「江湖黑道」牌匾，地圖專屬「黑」字圖標）
+  class GangMember {
+    constructor(index, customSpawn = null) {
+      this.index = index;
+      this.active = true;
+      this.hp = 50;        // ★ 黑道是普通警察(100HP)的 0.5 倍血量！
+      this.maxHp = 50;
+      this.officer = null;
+      this.body = null;
+      this.weapon = 'rifle';
+      this.isMelee = false;
+      this.batMesh = null;
+      this.titleSprite = null; // 頭頂「江湖黑道」牌匾
+      this.goldArmor = null;   // 金色風衣/戰甲 3D 模型
+      this.swingTime = 0;
+      this.walkPhase = Math.random() * Math.PI * 2;
+      this.attackTimer = Date.now() + 400 + Math.random() * 400;
+      this.target = null;
+      this.blipId = `gang-member-blip-${this.index}-${Date.now()}`;
+      this._outfitTinted = false;
+
+      const heading = p.rotation?.y || 0;
+      const offsetAngle = (this.index - 1.5) * 0.55;
+      const followDist = 3.2 + (this.index % 2) * 1.5;
+      let spawnX = p.position.x + Math.sin(heading + Math.PI + offsetAngle) * followDist;
+      let spawnZ = p.position.z - Math.cos(heading + Math.PI + offsetAngle) * followDist;
+
+      if (customSpawn && Number.isFinite(customSpawn.x) && Number.isFinite(customSpawn.z)) {
+        spawnX = customSpawn.x;
+        spawnZ = customSpawn.z;
+      }
+
+      // 輪替 SWAT 特警 Persona (4: swat-a, 5: swat-b) 避免單一模型實例限制
+      const swatPersona = (this.index % 2 === 0) ? 4 : 5;
+
+      // ★ 核心 100% 精準捕獲：直接透過 officersMgr.list 比對前後活化實例！★
+      const officersList = g.police?._debug?.roadblocks?.officers?.list || [];
+      const assignedOfficers = new Set((window.__gangSystem?.members || []).map(m => m.officer).filter(Boolean));
+      const beforeActive = new Set(officersList.filter(o => o.active));
+
+      // 調用警方系統生成實例：variant: 1（全黑重裝防彈作戰服）
+      try {
+        g.police?._debug?.spawnOfficer?.(
+          spawnX - p.position.x,
+          spawnZ - p.position.z,
+          'chase',
+          1,
+          'foot'
+        );
+      } catch (e) {}
+
+      // 精準命中：剛剛從 inactive 變為 active 且尚未被其他黑道兄弟指派的官方 officer！
+      let matchedOfficer = officersList.find(o => o.active && !beforeActive.has(o) && !assignedOfficers.has(o));
+
+      // 容錯搜尋：任一 active 且未被分配的 officer
+      if (!matchedOfficer) {
+        matchedOfficer = officersList.find(o => o.active && !assignedOfficers.has(o));
+      }
+
+      this.officer = matchedOfficer;
+      this.body = matchedOfficer ? matchedOfficer.body : null;
+
+      // 若警方實體池未成功啟動，標記無效
+      if (!this.officer || !this.body) {
+        this.active = false;
+        return;
+      }
+
+      // ★ 核心關鍵：將 posed 設為 true，徹底遮斷原版警察 AI think() 邏輯，完全由本腳本接管！
+      this.officer.posed = true;
+      this.officer.active = true;
+      this.officer.dead = false;          // ★ 關鍵修復：徹底清空 dead 標記，防止重用物件被誤判陣亡！
+      this.officer.deadT = 0;
+      this.officer.fall = 0;
+      this.officer.downT = 0;
+      this.officer.flinch = 0;
+      this.officer.variant = 1;           // 原生特警骨架模型
+      this.officer.persona = swatPersona; // 4 或 5
+      this.officer.rest = 0;              // ★ 強制清零站崗姿勢，絕不背手/抱胸！
+      this.officer.aim = 0.0;             // 平常自然巡邏持槍
+      this.officer.crouch = 0.0;
+      this.officer.role = 'gang';
+      // ★ 核心修復：將原生 state 設為 'return'！
+      // 原版引擎逮捕檢測：if (n !== 'dead' && n !== 'down' && n !== 'return' && n !== 'leave' && dist < 1.6)
+      // 設為 'return' 後，引擎 100% 排除黑道兄弟，兄弟貼身保護大哥時絕不會誤跳「警察正在逮捕你！快跑！」
+      this.officer.state = 'return';
+      this.officer.hp = 50;               // ★ 0.5倍血量！
+      this.officer.maxHp = 50;
+      this.officer.x = spawnX;
+      this.officer.z = spawnZ;
+      this.officer.y = p.position.y;
+      this.officer.heading = heading;
+
+      if (this.body) {
+        this.body.x = spawnX;
+        this.body.z = spawnZ;
+        this.body.y = p.position.y;
+      }
+
+      // 復位 3D 骨架姿勢（從倒地橫躺復位至直立，防止重用時趴在地上）
+      const rootObj = this.officer.hero?.rc?.root || this.officer.mesh;
+      if (rootObj) {
+        try {
+          rootObj.rotation.x = 0;
+          rootObj.rotation.y = 0;
+          rootObj.rotation.z = 0;
+          rootObj.position.y = 0;
+        } catch (e) {}
+      }
+
+      // 標記物理實體為友軍玩家側單位
+      this.body.kind = 'ped';
+      this.body.owner = 'player';
+      this.body.userData = this.body.userData || {};
+      this.body.userData.gang = true;
+      this.body.userData.gangMember = this;
+      this.body.userData.officer = this.officer;
+      
+      this._handleDmg = dmg => this.takeDamage(dmg);
+      this.body.onDamage = this._handleDmg;
+      this.body.damage = this._handleDmg;
+      if (this.officer) {
+        this.officer.damage = this._handleDmg;
+        this.officer.onDamage = this._handleDmg;
+      }
+
+      // 分配武器模式（空手/球棒/手槍/步槍/混編）
+      this.assignWeapon();
+
+      // 建立金色戰袍外觀與頭頂「江湖黑道」牌匾
+      this.createVisuals();
+
+      // ★ 地圖圖標：「警」徹底改為「黑」（純金高反光底色配粗黑字，醒目霸氣）★
+      try {
+        g.ui?.addBlip?.(this.blipId, {
+          x: spawnX,
+          z: spawnZ,
+          icon: 'police',
+          color: '#FFD700',
+          glyph: '黑',
+          label: { zh: `江湖黑道 #${this.index + 1}`, en: `Mobster #${this.index + 1}` }
+        });
+      } catch (e) {}
+
+      // 自主漫遊與戰術走位變數
+      const initAng = Math.random() * Math.PI * 2;
+      const initRad = 5 + Math.random() * 12;
+      this.wanderX = spawnX + Math.sin(initAng) * initRad;
+      this.wanderZ = spawnZ - Math.cos(initAng) * initRad;
+      this.wanderTimer = Date.now() + 5000 + Math.random() * 4000;
+      this.pauseTimer = 0;
+      this.strafeDir = Math.random() < 0.5 ? -1 : 1;
+      this.strafeTimer = Date.now() + 2000;
+    }
+
+    // 建立頭頂「江湖黑道」牌匾與金色戰袍 Overlay
+    createVisuals() {
+      if (!this.titleSprite) {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 512;
+          canvas.height = 140;
+          const ctx = canvas.getContext('2d');
+
+          // 深黑曜石圓角底板
+          ctx.fillStyle = 'rgba(10, 12, 18, 0.90)';
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(14, 14, 484, 112, 18);
+          } else {
+            ctx.rect(14, 14, 484, 112);
+          }
+          ctx.fill();
+
+          // 霸氣雙重純金立體邊框
+          ctx.strokeStyle = '#ffd700';
+          ctx.lineWidth = 4.5;
+          ctx.stroke();
+
+          ctx.strokeStyle = 'rgba(255, 215, 0, 0.5)';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(22, 22, 468, 96);
+
+          // 四角裝飾金釘
+          ctx.fillStyle = '#ffb300';
+          [[26, 26], [486, 26], [26, 114], [486, 114]].forEach(([x, y]) => {
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fill();
+          });
+
+          // 清晰高對比字體「江湖黑道」（去除散光光暈，改用粗黑描邊保證遠處清晰可讀）
+          const fontFam = '"Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif';
+          ctx.font = `bold 64px ${fontFam}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          // 先繪製深黑厚描邊（防止筆畫黏在一起，徹底消除散光感）
+          ctx.shadowBlur = 0;
+          ctx.lineWidth = 8;
+          ctx.strokeStyle = '#000000';
+          ctx.lineJoin = 'round';
+          ctx.strokeText('江 湖 黑 道', 256, 70);
+
+          // 核心填色：亮金色，確保遠距離依然分明
+          const grad = ctx.createLinearGradient(0, 40, 0, 100);
+          grad.addColorStop(0, '#FFFFFF');
+          grad.addColorStop(0.3, '#FFF066');
+          grad.addColorStop(1, '#FFB700');
+          ctx.fillStyle = grad;
+          ctx.fillText('江 湖 黑 道', 256, 70);
+
+          const texture = new T.CanvasTexture(canvas);
+          texture.minFilter = T.LinearFilter;
+          texture.magFilter = T.LinearFilter;
+          texture.needsUpdate = true;
+          const spriteMat = new T.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthWrite: false
+          });
+          this.titleSprite = new T.Sprite(spriteMat);
+          this.titleSprite.scale.set(1.8, 0.49, 1.0);
+          g.scene.add(this.titleSprite);
+        } catch (e) {}
+      }
+
+      // ★ 頭頂血量條 Sprite（動態更新 HP 百分比）★
+      if (!this.hpBarSprite) {
+        try {
+          const hpCanvas = document.createElement('canvas');
+          hpCanvas.width = 256;
+          hpCanvas.height = 40;
+          this._hpCanvas = hpCanvas;
+          this._hpCtx = hpCanvas.getContext('2d');
+          this._hpTexture = new T.CanvasTexture(hpCanvas);
+          this._hpTexture.needsUpdate = true;
+          const hpMat = new T.SpriteMaterial({
+            map: this._hpTexture,
+            transparent: true,
+            depthWrite: false
+          });
+          this.hpBarSprite = new T.Sprite(hpMat);
+          this.hpBarSprite.scale.set(1.2, 0.19, 1.0);
+          g.scene.add(this.hpBarSprite);
+          this._lastHpDraw = -1;
+        } catch (e) {}
+      }
+    }
+
+    // 更新血量條 canvas（僅在 HP 變化時重繪，節省效能）
+    updateHpBar() {
+      if (!this._hpCanvas || !this._hpCtx) return;
+      const ratio = Math.max(0, Math.min(1, this.hp / this.maxHp));
+      const drawKey = Math.round(ratio * 100);
+      if (drawKey === this._lastHpDraw) return;
+      this._lastHpDraw = drawKey;
+
+      const ctx = this._hpCtx;
+      const w = 256, h = 40;
+      ctx.clearRect(0, 0, w, h);
+
+      // 外框背景
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.70)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(4, 4, w - 8, h - 8, 8);
+      else ctx.rect(4, 4, w - 8, h - 8);
+      ctx.fill();
+
+      // HP 填充條（綠 > 黃 > 紅）
+      const barW = (w - 16) * ratio;
+      const color = ratio > 0.5 ? '#33ff66' : ratio > 0.25 ? '#ffcc00' : '#ff3333';
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(8, 8, barW, h - 16, 5);
+      else ctx.rect(8, 8, barW, h - 16);
+      ctx.fill();
+
+      // HP 數值文字（取整 Math.max(0, Math.ceil(this.hp))，消除浮點小數）
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${Math.max(0, Math.ceil(this.hp))}/${this.maxHp}`, w / 2, h / 2);
+
+      if (this._hpTexture) this._hpTexture.needsUpdate = true;
+    }
+
+    removeVisuals() {
+      if (this.titleSprite) {
+        try { g.scene.remove(this.titleSprite); } catch (e) {}
+        this.titleSprite = null;
+      }
+      if (this.hpBarSprite) {
+        try { g.scene.remove(this.hpBarSprite); } catch (e) {}
+        this.hpBarSprite = null;
+        this._hpCanvas = null;
+        this._hpCtx = null;
+        this._hpTexture = null;
+      }
+    }
+
+    // 武器動態裝配（支援混編/球棒/空手/手槍/步槍）
+    assignWeapon() {
+      const sys = window.__gangSystem;
+      const mode = sys?.weaponType || 'mixed';
+
+      if (mode === 'mixed') {
+        const pool = window.__gangMixedWeapons || ['bat', 'rifle', 'pistol', 'fists'];
+        this.weapon = pool[this.index % pool.length];
+      } else {
+        this.weapon = mode;
+      }
+      this.isMelee = (this.weapon === 'fists' || this.weapon === 'bat');
+
+      // 球棒 3D 模型管理
+      if (this.weapon === 'bat') {
+        this.createBatMesh();
+      } else {
+        this.removeBatMesh();
+      }
+
+      if (this.officer) {
+        if (this.weapon === 'rifle') {
+          this.officer.gun = 2;    // 雙手握持突擊步槍
+          this.officer.weapon = 2;
+        } else if (this.weapon === 'pistol') {
+          this.officer.gun = 1;    // 單手握持手槍
+          this.officer.weapon = 1;
+        } else {
+          this.officer.gun = 0;    // 空手/持棍姿態
+          this.officer.weapon = 0;
+        }
+      }
+    }
+
+    // 建立右手持握的真實棒球棍 3D 模型
+    createBatMesh() {
+      if (this.batMesh) return;
+      try {
+        const batGroup = new T.Group();
+
+        // 棒頭主體（金屬深灰防暴棒）
+        const headGeo = new T.CylinderGeometry(0.038, 0.022, 0.72, 10);
+        const headMat = new T.MeshStandardMaterial({
+          color: 0x2d3035,
+          metalness: 0.85,
+          roughness: 0.35
+        });
+        const headMesh = new T.Mesh(headGeo, headMat);
+        headMesh.position.y = 0.36;
+        batGroup.add(headMesh);
+
+        // 握把（防滑握帶）
+        const handleGeo = new T.CylinderGeometry(0.019, 0.02, 0.22, 10);
+        const handleMat = new T.MeshStandardMaterial({
+          color: 0xd4d0c8,
+          metalness: 0.1,
+          roughness: 0.85
+        });
+        const handleMesh = new T.Mesh(handleGeo, handleMat);
+        handleMesh.position.y = -0.11;
+        batGroup.add(handleMesh);
+
+        // 握把尾端防滑圓鈕
+        const knobGeo = new T.SphereGeometry(0.026, 8, 8);
+        const knobMesh = new T.Mesh(knobGeo, headMat);
+        knobMesh.position.y = -0.22;
+        batGroup.add(knobMesh);
+
+        g.scene.add(batGroup);
+        this.batMesh = batGroup;
+      } catch (e) {}
+    }
+
+    removeBatMesh() {
+      if (this.batMesh) {
+        try { g.scene.remove(this.batMesh); } catch (e) {}
+        this.batMesh = null;
+      }
+    }
+
+    takeDamage(dmg) {
+      // 若該兄弟已被釋放或不活躍，絕不攔截傷害！直接對原生實體扣血，防止變成無敵殭屍警察
+      if (!this.active) {
+        if (this.officer) {
+          const amt = (typeof dmg === 'number' ? dmg : (dmg?.amount || dmg?.damage || 30));
+          this.officer.hp = Math.max(0, (this.officer.hp || 100) - amt);
+          if (this.officer.hp <= 0) {
+            this.officer.state = 'dead';
+            this.officer.active = false;
+          }
+        }
+        return;
+      }
+      if (window.__gangSystem.godMode) return; // 僅在開啟友軍無敵時免疫
+      if (dmg && dmg.source === 'gang') return; // 黑道隊友間不互傷
+
+      let amount = 30;
+      if (typeof dmg === 'number') {
+        amount = dmg;
+      } else if (dmg) {
+        if (typeof dmg.amount === 'number') amount = dmg.amount;
+        else if (typeof dmg.damage === 'number') amount = dmg.damage;
+        else if (typeof dmg.hp === 'number') amount = dmg.hp;
+      }
+
+      this.hp -= amount;
+      this.updateHpBar();
+      if (this.officer) {
+        this.officer.hp = Math.max(0, this.hp);
+        this.officer.flinch = 1.0; // 受擊抖動反饋
+      }
+      
+      // ★ 核心修復：血量低於 1 或被致死傷害命中時，立即執行陣亡判定！★
+      if (this.hp < 1) {
+        this.die();
+      }
+    }
+
+    die() {
+      if (!this.active) return;
+      this.active = false;
+      this.hp = 0;
+      this.removeBatMesh();
+      this.removeVisuals();
+      try { g.ui?.removeBlip?.(this.blipId); } catch (e) {}
+      try {
+        g.audio?.play?.('ped_scream', {
+          x: this.officer?.x || p.position.x,
+          y: (this.officer?.y || p.position.y) + 1,
+          z: this.officer?.z || p.position.z,
+          rate: 0.85
+        });
+      } catch (e) {}
+
+      if (this.officer) {
+        this.officer.hp = 0;
+        this.officer.active = false;
+        this.officer.posed = false;
+        delete this.officer.dead; // ★ 徹底刪除自定義標記，絕不污染池子物件
+        this.officer.state = 'dead';
+        this.officer.deadT = 0.1;
+        this.officer.rest = 0;
+        this.officer.gun = 0;
+        this.officer.aim = 0;
+        this.officer.reach = 0;
+        this.officer.stride = 0;
+        this.officer.vx = 0;
+        this.officer.vz = 0;
+
+        // 倒地橫躺姿勢
+        const rootObj = this.officer.hero?.rc?.root || this.officer.mesh;
+        if (rootObj) {
+          try {
+            rootObj.rotation.x = -Math.PI / 2;
+            rootObj.position.y = Math.max(0, this.officer.y - 0.7);
+          } catch (e) {}
+        }
+      }
+
+      if (this.body) {
+        delete this.body.userData.gang;
+        delete this.body.userData.gangMember;
+        this.body.kind = 'police';
+        this.body.owner = 'police';
+        this.body.active = false;
+        try { g.dynamics?.remove?.(this.body); } catch (e) {}
+      }
+
+      // 同步更新堂口 HUD 剩餘人數，讓玩家可隨時按 X 派計程車補兵！
+      updateGangUI();
+    }
+
+    destroy() {
+      this.active = false;
+      this.removeBatMesh();
+      this.removeVisuals();
+      try { g.ui?.removeBlip?.(this.blipId); } catch (e) {}
+      if (this.officer) {
+        this.officer.active = false;
+        this.officer.posed = false;
+        this.officer.rest = 0;
+        this.officer.gun = 0;
+        this.officer.weapon = 1;
+        this.officer.hp = 100;
+        this.officer.maxHp = 100;
+        this.officer.state = 'idle';
+        if (this.body) {
+          delete this.body.userData.gang;
+          delete this.body.userData.gangMember;
+          delete this.body.onDamage; // 拔除自定義傷害鉤子，防止其變成無敵實體
+          delete this.body.damage;
+          this.body.kind = 'police';
+          this.body.owner = 'police';
+          this.body.active = false;
+          try { g.dynamics?.remove?.(this.body); } catch (e) {}
+        }
+      }
+    }
+
+    // 索敵邏輯改版：
+    // 拿槍的兄弟：直升機 (140m) > 警車 (85m) > 警察 (75m)
+    // 拿近戰的兄弟：警察 (75m)
+    findTarget() {
+      if (!this.officer) return null;
+      const dynList = g.dynamics?.list || [];
+
+      // 遠程持槍兄弟索敵邏輯：直升機 > 警車 > 警察
+      if (!this.isMelee) {
+        // 1. 直升機 (140米內)
+        for (let b of dynList) {
+          if (!b || !b.active) continue;
+          if (b.userData?.heli || (b.owner === 'police' && b.height > 2.2 && b.mass > 1500)) {
+            const dx = b.x - this.officer.x;
+            const dz = b.z - this.officer.z;
+            const dist = Math.hypot(dx, dz);
+            if (dist < 140) {
+              return { body: b, x: b.x, y: b.y + 1.0, z: b.z, kind: 'heli', dist };
+            }
+          }
+        }
+        
+        // 2. 警車 (85米內)
+        const vehList = g.vehicles?.list || [];
+        for (let v of vehList) {
+          if (!v || v.destroyed || !v.body) continue;
+          const isPolice = v.kind === 'police' || v.sirenOn || v.lightsOn || g.police?.isPoliceVehicle?.(v.id);
+          if (isPolice) {
+            const dx = v.body.x - this.officer.x;
+            const dz = v.body.z - this.officer.z;
+            const dist = Math.hypot(dx, dz);
+            if (dist < 85) {
+              return { body: v.body, vehicle: v, x: v.body.x, y: v.body.y + 0.8, z: v.body.z, kind: 'car', dist };
+            }
+          }
+        }
+      }
+
+      // 3. 警察（近戰兄弟唯一目標，遠程兄弟的第三順位，75米內）
+      let targetOfficer = null;
+      let minDist = 75;
+      for (let b of dynList) {
+        if (!b || !b.active || b.kind !== 'police' || b.userData?.heli || b.userData?.gang) continue;
+        const dx = b.x - this.officer.x;
+        const dz = b.z - this.officer.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < minDist) {
+          minDist = dist;
+          targetOfficer = { body: b, x: b.x, y: b.y + 1.2, z: b.z, kind: 'police', dist };
+        }
+      }
+      return targetOfficer;
+    }
+
+    // 近戰打擊（空手拳頭 👊 / 暴力球棒 🏏）
+    meleeAttack(target) {
+      if (!target || !this.active || !this.officer) return;
+
+      const isBat = (this.weapon === 'bat');
+      const dmg = isBat ? 65 : 35;
+      const knockChance = isBat ? 0.70 : 0.35;
+      this.swingTime = 0.25;
+
+      const targetX = target.x;
+      const targetY = target.y;
+      const targetZ = target.z;
+      const pt = { x: targetX, y: targetY + 0.8, z: targetZ };
+
+      const dx = (targetX - this.officer.x) || 0.1;
+      const dz = (targetZ - this.officer.z) || 0.1;
+      const dLen = Math.hypot(dx, dz) || 1;
+      const dir = { x: dx / dLen, y: 0.25, z: dz / dLen };
+
+      // 出手突擊動作
+      this.officer.reach = 1.0;
+
+      // 拳肉相搏音效與火花特效
+      try {
+        g.fx?.punch?.(pt, true);
+        g.fx?.impact?.(pt, { x: 0, y: 1, z: 0 }, 'flesh');
+        g.audio?.play?.('punch', { x: targetX, y: targetY, z: targetZ, rate: isBat ? 0.82 : 1.15, volume: 1.0 });
+      } catch (e) {}
+
+      if (target.kind === 'car') {
+        try { g.audio?.play?.('crash_light', { x: targetX, y: targetY, z: targetZ, volume: 0.75 }); } catch (e) {}
+        if (target.vehicle?.damage) {
+          target.vehicle.damage({ amount: dmg, source: 'gang', weapon: isBat ? 'bat' : 'fists', point: pt, dir });
+        } else if (target.body?.onDamage) {
+          target.body.onDamage({ amount: dmg, source: 'gang', weapon: isBat ? 'bat' : 'fists', dir, point: pt });
+        }
+        if (target.vehicle && (target.vehicle.health <= 0 || target.vehicle.destroyed)) {
+          window.__gangSystem.kills.cars++;
+          updateGangUI();
+        }
+      } else if (target.kind === 'police') {
+        if (target.body?.onDamage) {
+          target.body.onDamage({ amount: dmg, source: 'gang', weapon: isBat ? 'bat' : 'fists', dir, point: pt });
+        }
+        // 物理擊飛與擊倒判定
+        if (Math.random() < knockChance) {
+          target.body?.onImpact?.(dir.x * (isBat ? 450 : 250), dir.z * (isBat ? 450 : 250), this.body);
+        }
+
+        if (target.body?.userData?.officer) {
+          const off = target.body.userData.officer;
+          off.hp -= dmg;
+          off.flinch = 1.0;
+          if (off.hp <= 0 && off.active && off.state !== 'dead') {
+            off.hp = 0;
+            off.state = 'dead';
+            off.deadT = 0;
+            off.gun = 0;
+            off.body.active = false;
+            try { g.audio?.play?.('ped_scream', { x: off.x, y: off.y + 1.5, z: off.z, rate: 0.75, volume: 0.7 }); } catch (e) {}
+            window.__gangSystem.kills.police++;
+            updateGangUI();
+          }
+        }
+      }
+    }
+
+    // 遠程開火（警用配槍 🔫 / 突擊步槍 💥）
+    fireAt(target) {
+      if (!target || !this.active || !this.officer) return;
+      const isPistol = (this.weapon === 'pistol');
+      const dmg = isPistol ? 38 : 55;
+      const soundRate = isPistol ? 1.02 : 1.25;
+
+      const muzzleX = this.officer.x + Math.sin(this.officer.heading) * 0.45;
+      const muzzleY = this.officer.y + 1.35;
+      const muzzleZ = this.officer.z - Math.cos(this.officer.heading) * 0.45;
+
+      const targetX = target.x + (Math.random() - 0.5) * (isPistol ? 0.45 : 0.7);
+      const targetY = target.y + (Math.random() - 0.5) * 0.5;
+      const targetZ = target.z + (Math.random() - 0.5) * (isPistol ? 0.45 : 0.7);
+
+      // 槍口閃光與彈道軌跡
+      try {
+        g.fx?.flash?.(muzzleX, muzzleY, muzzleZ, isPistol ? 2.5 : 3.5, 2.0, 1.0, 0.4, 0.07);
+        g.fx?.tracer?.(muzzleX, muzzleY, muzzleZ, targetX, targetY, targetZ);
+        g.fx?.flash?.(targetX, targetY, targetZ, 2.0, 1.6, 1.0, 0.3, 0.06);
+        g.audio?.play?.('gunshot', { x: muzzleX, y: muzzleY, z: muzzleZ, rate: soundRate + (Math.random() - 0.5) * 0.1, volume: 0.95 });
+        g.audio?.play?.('bullet_impact', { x: targetX, y: targetY, z: targetZ, volume: 0.75 });
+      } catch (e) {}
+
+      // 實質傷害判定
+      const aimDir = {
+        x: (targetX - muzzleX) || 0.1,
+        y: (targetY - muzzleY) || 0.1,
+        z: (targetZ - muzzleZ) || 0.1
+      };
+
+      const wpnKind = isPistol ? 'pistol' : 'rifle';
+
+      if (target.kind === 'heli') {
+        if (target.body?.onDamage) {
+          target.body.onDamage({ amount: isPistol ? 25 : 35, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
+        }
+        if (target.body?.userData?.heli) {
+          const h = target.body.userData;
+          if (h.hp !== undefined) {
+            h.hp -= (isPistol ? 25 : 35);
+            if (h.hp <= 0 && h.state !== 'crash' && h.state !== 'wreck') {
+              h.state = 'crash';
+              window.__gangSystem.kills.heli++;
+              updateGangUI();
+            }
+          }
+        }
+      } else if (target.kind === 'car') {
+        const carDmg = isPistol ? 32 : 45;
+        if (target.vehicle?.damage) {
+          target.vehicle.damage({ amount: carDmg, source: 'gang', weapon: wpnKind, point: { x: targetX, y: targetY, z: targetZ }, dir: aimDir });
+        } else if (target.body?.onDamage) {
+          target.body.onDamage({ amount: carDmg, source: 'gang', weapon: wpnKind });
+        }
+        if (target.vehicle && (target.vehicle.health <= 0 || target.vehicle.destroyed)) {
+          window.__gangSystem.kills.cars++;
+          updateGangUI();
+        }
+      } else if (target.kind === 'police') {
+        if (target.body?.onDamage) {
+          target.body.onDamage({ amount: dmg, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
+        }
+        if (target.body?.userData?.officer) {
+          const off = target.body.userData.officer;
+          off.hp -= dmg;
+          if (off.hp <= 0 && off.active && off.state !== 'dead') {
+            off.hp = 0;
+            off.state = 'dead';
+            off.deadT = 0;
+            off.gun = 0;
+            off.body.active = false;
+            try { g.audio?.play?.('ped_scream', { x: off.x, y: off.y + 1.5, z: off.z, rate: 0.75, volume: 0.7 }); } catch (e) {}
+            window.__gangSystem.kills.police++;
+            updateGangUI();
+          }
+        }
+      }
+    }
+
+    // 每幀更新循環
+    update(dt) {
+      if (!this.active) return;
+
+      // ★ 動態修補：確保剛體回調絕對不會被引擎覆蓋，徹底解決「第一波招募無敵」問題！
+      if (this.body && this.body.onDamage !== this._handleDmg) {
+        this.body.onDamage = this._handleDmg;
+        this.body.damage = this._handleDmg;
+        if (this.officer) {
+          this.officer.onDamage = this._handleDmg;
+          this.officer.damage = this._handleDmg;
+        }
+      }
+
+      // ★ 核心修復：隨時同步原生 officer 生命值與死亡/受傷狀態 ★
+      if (this.officer) {
+        // 若原生 officer 的 hp 受到車撞、爆炸波及扣血，即時同步至黑道自身 hp
+        if (typeof this.officer.hp === 'number' && this.officer.hp < this.hp) {
+          this.hp = this.officer.hp;
+          this.updateHpBar();
+        }
+
+        if (this.hp < 1) {
+          this.die();
+          return;
+        }
+
+        // 維持 return 狀態以防誤判逮捕
+        this.officer.state = 'return';
+        this.officer.active = true;
+        // ★ 核心修復：處理被車撞倒或受擊擊倒狀態（state==='down'），倒地1秒後自動拍灰站起繼續戰鬥！絕不躺在地上裝死！★
+        if (this.officer.state === 'down' || (this.officer.fall && this.officer.fall > 0.25)) {
+          if (!this.downTimer) this.downTimer = Date.now() + 1000;
+          if (Date.now() > this.downTimer) {
+            this.officer.state = 'patrol';
+            this.officer.fall = 0;
+            this.officer.posed = true;
+            this.officer.downT = 0;
+            this.downTimer = 0;
+          } else {
+            return; // 倒地過渡中，暫時停止位移與索敵
+          }
+        } else {
+          this.downTimer = 0;
+        }
+      } else if (this.hp < 1) {
+        this.die();
+        return;
+      }
+
+      const playerX = p.position.x;
+      const playerY = p.position.y;
+      const playerZ = p.position.z;
+
+      const distToPlayer = Math.hypot(playerX - this.officer.x, playerZ - this.officer.z);
+
+      // 衰減揮擊與出拳動作計時
+      if (this.swingTime > 0) {
+        this.swingTime = Math.max(0, this.swingTime - dt);
+      } else if (this.officer.reach > 0) {
+        this.officer.reach = Math.max(0, this.officer.reach - dt * 4);
+      }
+
+      // ★ 限制黑道預設不能超過玩家 50m（可在設定面板自訂 15m~200m）★
+      const maxFollowDist = window.__gangSystem.maxFollowDistance || 50;
+      const isExceedingDistance = distToPlayer > maxFollowDist;
+
+      // 檢查是否卡在街區建築物牆角：若距離玩家 > 18m 且卡在原地超過 2 秒沒移動，判定為卡牆
+      if (!this._lastCheckX) {
+        this._lastCheckX = this.officer.x;
+        this._lastCheckZ = this.officer.z;
+        this._lastCheckTime = Date.now();
+      } else if (Date.now() - this._lastCheckTime > 2000) {
+        const movedDist = Math.hypot(this.officer.x - this._lastCheckX, this.officer.z - this._lastCheckZ);
+        this.isStuck = (distToPlayer > 18 && movedDist < 0.6);
+        this._lastCheckX = this.officer.x;
+        this._lastCheckZ = this.officer.z;
+        this._lastCheckTime = Date.now();
+      }
+
+      // 若遠超距離上限（> maxFollowDist + 15m）或被建築物卡住脫節，立即瞬移到大哥身邊防掉隊！
+      if (isExceedingDistance || this.isStuck || distToPlayer > (maxFollowDist + 15)) {
+        this.isStuck = false;
+        const ang = (this.index / 12) * Math.PI * 2 + Math.random() * 0.4;
+        const safeDist = 4.5 + Math.random() * 5.0;
+        this.officer.x = playerX + Math.sin(ang) * safeDist;
+        this.officer.z = playerZ - Math.cos(ang) * safeDist;
+        const gh = g.plan?.groundHeight?.(this.officer.x, this.officer.z);
+        this.officer.y = (gh !== undefined && Number.isFinite(gh)) ? gh : playerY;
+        this.wanderX = this.officer.x;
+        this.wanderZ = this.officer.z;
+        if (this.body) {
+          this.body.x = this.officer.x;
+          this.body.z = this.officer.z;
+          this.body.y = this.officer.y;
+          this.body.vx = 0;
+          this.body.vz = 0;
+        }
+      }
+
+      // 1. 索敵戰鬥循環（若超過限制距離則強制放棄遠程目標，優先回防大哥身邊）
+      const target = isExceedingDistance ? null : this.findTarget();
+      this.target = target;
+
+      let moveSpeed = 0;
+      let goalX = this.officer.x;
+      let goalZ = this.officer.z;
+
+      if (target) {
+        const dx = target.x - this.officer.x;
+        const dz = target.z - this.officer.z;
+        const horizDist = Math.max(0.2, Math.hypot(dx, dz));
+        const targetHeading = Math.atan2(dx, -dz);
+
+        this.officer.heading = targetHeading;
+
+        if (this.isMelee) {
+          // --- 近戰武器（空手肉搏 👊 / 暴力球棒 🏏）戰鬥 AI ---
+          this.officer.gun = 0;
+          this.officer.aim = 0.0;
+          this.officer.pitch = 0.0;
+
+          const attackReach = (this.weapon === 'bat') ? 2.5 : 1.9;
+
+          if (horizDist > attackReach) {
+            // 疾速狂暴衝鋒接近目標！
+            goalX = target.x;
+            goalZ = target.z;
+            moveSpeed = 6.4 + (this.index % 3) * 0.5; // 狂暴衝鋒步速 ~6.6 m/s
+          } else {
+            // 貼身打擊！正面猛烈出拳/揮棒砸擊
+            moveSpeed = 0.6;
+            if (Date.now() > this.attackTimer) {
+              this.meleeAttack(target);
+              this.attackTimer = Date.now() + (this.weapon === 'bat' ? 440 : 310) + Math.random() * 110;
+            }
+          }
+        } else {
+          // --- 遠程槍械（警用手槍 🔫 / 突擊步槍 💥）戰鬥 AI ---
+          this.officer.aim = 1.0;
+          this.officer.gun = (this.weapon === 'pistol') ? 1 : 2;
+
+          // 計算對空或對人仰角
+          const pitch = Math.atan2(target.y - (this.officer.y + 1.35), horizDist);
+          this.officer.pitch = pitch;
+
+          if (Date.now() > this.attackTimer) {
+            this.fireAt(target);
+            this.attackTimer = Date.now() + (this.weapon === 'pistol' ? 280 : 180) + Math.random() * 120;
+          }
+
+          // 戰鬥走位切換計時
+          if (Date.now() > this.strafeTimer) {
+            this.strafeDir = Math.random() < 0.5 ? -1 : 1;
+            this.strafeTimer = Date.now() + 1500 + Math.random() * 2000;
+          }
+          const rightX = -Math.sin(targetHeading + Math.PI / 2);
+          const rightZ = Math.cos(targetHeading + Math.PI / 2);
+
+          if (target.kind !== 'heli' && horizDist > 32) {
+            // 太遠時自主前推尋求壓制
+            goalX = this.officer.x + Math.sin(targetHeading) * 4.0;
+            goalZ = this.officer.z - Math.cos(targetHeading) * 4.0;
+            moveSpeed = 4.2;
+          } else if (target.kind !== 'heli' && horizDist < 9) {
+            // 太近時戰術後撤保證射擊安全距離
+            goalX = this.officer.x - Math.sin(targetHeading) * 3.5;
+            goalZ = this.officer.z + Math.cos(targetHeading) * 3.5;
+            moveSpeed = 3.6;
+          } else {
+            // 左右戰術側向滑步走位壓制
+            goalX = this.officer.x + rightX * this.strafeDir * 2.8;
+            goalZ = this.officer.z + rightZ * this.strafeDir * 2.8;
+            moveSpeed = 2.6;
+          }
+        }
+      } else {
+        // 非戰鬥狀態 或 超過跟隨距離限制回防
+        this.officer.aim = 0.0;
+        this.officer.pitch = 0.0;
+        this.officer.gun = this.isMelee ? 0 : (this.weapon === 'pistol' ? 1 : 2);
+        this.officer.rest = 0; // ★ 強制保持 0，絕不允許手背身後或抱胸站崗！
+
+        if (isExceedingDistance || distToPlayer > 36) {
+          // 超過限制距離或距離過遠：疾速狂奔跟上大哥！
+          const toPlayerAngle = Math.atan2(playerX - this.officer.x, -(playerZ - this.officer.z));
+          this.officer.heading = toPlayerAngle;
+          this.wanderX = playerX;
+          this.wanderZ = playerZ;
+          this.pauseTimer = 0;
+          goalX = playerX;
+          goalZ = playerZ;
+          moveSpeed = isExceedingDistance ? Math.min(14.0, distToPlayer * 0.35 + 5.0) : Math.min(12.5, distToPlayer * 0.38 + 3.8);
+        } else {
+          // 玩家身處附近：在街區範圍（5~25米）自由自主巡邏探索
+          if (Date.now() > this.pauseTimer) {
+            const distToWander = Math.hypot(this.wanderX - this.officer.x, this.wanderZ - this.officer.z);
+            if (distToWander < 1.2 || Date.now() > this.wanderTimer) {
+              // 到達巡邏點，原地駐足停步觀察 2.5~5 秒
+              this.pauseTimer = Date.now() + 2500 + Math.random() * 3200;
+              this.wanderTimer = this.pauseTimer + 7000 + Math.random() * 6000;
+
+              // 隨機選取街區下一個巡邏漫遊點（5~22米範圍隨機探勘）
+              const ang = Math.random() * Math.PI * 2;
+              const rad = 5 + Math.random() * 18;
+              this.wanderX = playerX + Math.sin(ang) * rad;
+              this.wanderZ = playerZ - Math.cos(ang) * rad;
+            } else {
+              // 悠閒巡邏步行
+              goalX = this.wanderX;
+              goalZ = this.wanderZ;
+              moveSpeed = 2.2 + (this.index % 3) * 0.35;
+            }
+          } else {
+            // 駐足警戒停步中：自然微轉頭環顧四周街景
+            moveSpeed = 0;
+            this.officer.heading += dt * 0.32 * (this.index % 2 === 0 ? 1 : -1);
+          }
+        }
+      }
+
+      // 兄弟成員間的自然防擠壓排斥力，避免兩人重疊卡位
+      let sepX = 0, sepZ = 0;
+      const allMembers = window.__gangSystem.members || [];
+      for (let other of allMembers) {
+        if (other === this || !other.active || !other.officer) continue;
+        const ox = this.officer.x - other.officer.x;
+        const oz = this.officer.z - other.officer.z;
+        const d2 = ox * ox + oz * oz;
+        if (d2 < 3.5 && d2 > 0.01) {
+          const d = Math.sqrt(d2);
+          sepX += (ox / d) * (1.9 - d) * 1.6;
+          sepZ += (oz / d) * (1.9 - d) * 1.6;
+        }
+      }
+
+      const toGoalX = (goalX - this.officer.x) + sepX;
+      const toGoalZ = (goalZ - this.officer.z) + sepZ;
+      const distToGoal = Math.hypot(toGoalX, toGoalZ);
+
+      if (distToPlayer > 120) {
+        // 瞬間脫離過遠（如玩家瞬移或光速飛行）：戰術集結瞬移
+        const ang = Math.random() * Math.PI * 2;
+        const rad = 6 + Math.random() * 8;
+        this.officer.x = playerX + Math.sin(ang) * rad;
+        this.officer.z = playerZ - Math.cos(ang) * rad;
+        this.officer.y = playerY;
+        this.wanderX = this.officer.x;
+        this.wanderZ = this.officer.z;
+      } else if (distToGoal > 0.4 && moveSpeed > 0) {
+        const currentSpeed = Math.min(moveSpeed, distToGoal * 2.6);
+        const moveDirX = toGoalX / distToGoal;
+        const moveDirZ = toGoalZ / distToGoal;
+
+        this.officer.vx = moveDirX * currentSpeed;
+        this.officer.vz = moveDirZ * currentSpeed;
+        this.officer.x += this.officer.vx * dt;
+        this.officer.z += this.officer.vz * dt;
+
+        if (!target) {
+          this.officer.heading = Math.atan2(this.officer.vx, -this.officer.vz);
+        }
+
+        // 自然擺腿與踏步動畫
+        this.walkPhase += dt * currentSpeed * 2.5;
+        this.officer.phase = this.walkPhase;
+        this.officer.stride = Math.min(1.0, currentSpeed / 4.8);
+      } else {
+        this.officer.vx *= 0.5;
+        this.officer.vz *= 0.5;
+        this.officer.stride = 0;
+      }
+
+      // 地面高程貼合
+      let groundY = playerY;
+      try {
+        groundY = g.groundAt ? g.groundAt(this.officer.x, this.officer.z, this.officer.y) : (g.plan?.groundHeight?.(this.officer.x, this.officer.z) || playerY);
+      } catch (e) {}
+      this.officer.y += (groundY - this.officer.y) * Math.min(1, dt * 14);
+
+      // 同步物理 Body
+      if (this.body) {
+        this.body.x = this.officer.x;
+        this.body.y = this.officer.y;
+        this.body.z = this.officer.z;
+        this.body.heading = this.officer.heading;
+      }
+
+      // 同步手持棒球棍 3D 模型位置與揮擊姿態
+      if (this.batMesh && this.officer) {
+        const h = this.officer.heading;
+        const isSwinging = this.swingTime > 0;
+        const rx = Math.sin(h + 0.55) * 0.42;
+        const rz = -Math.cos(h + 0.55) * 0.42;
+        const handY = this.officer.y + 0.95 + (isSwinging ? 0.25 : 0);
+        this.batMesh.position.set(this.officer.x + rx, handY, this.officer.z + rz);
+
+        if (isSwinging) {
+          const swingProg = 1 - (this.swingTime / 0.25);
+          this.batMesh.rotation.y = h - 1.2 + swingProg * 2.4;
+          this.batMesh.rotation.x = 0.3 - Math.sin(swingProg * Math.PI) * 0.7;
+          this.batMesh.rotation.z = -0.4;
+        } else {
+          this.batMesh.rotation.y = h;
+          this.batMesh.rotation.x = 0.5;
+          this.batMesh.rotation.z = -0.3;
+        }
+      }
+
+      // 同步頭頂「江湖黑道」霸氣牌匾
+      if (this.titleSprite && this.officer) {
+        this.titleSprite.position.set(this.officer.x, this.officer.y + 2.35, this.officer.z);
+      }
+
+      // 同步血量條位置與重繪
+      if (this.hpBarSprite && this.officer) {
+        this.hpBarSprite.position.set(this.officer.x, this.officer.y + 1.95, this.officer.z);
+        this.updateHpBar();
+      }
+
+
+
+      // 同步地圖圖標（「警」改成「黑」）
+      try {
+        g.ui?.updateBlip?.(this.blipId, this.officer.x, this.officer.z);
+      } catch (e) {}
+    }
+  }
+
+  // 堂口陣列管理（僅在手動點擊面板設定人數、或初始載入時同步，戰鬥中陣亡請呼叫計程車支援）
+  function syncGangMemberCount(manual = false) {
+    const sys = window.__gangSystem;
+    if (!sys) return;
+    const target = sys.targetCount;
+
+    // 縮減人數：若當前人數大於目標，解散多餘人員
+    while (sys.members.length > target) {
+      const m = sys.members.pop();
+      try { m.destroy(); } catch (e) {}
+    }
+
+    // 只有手動調整人數時，才主動補充新成員；戰鬥中陣亡請呼叫計程車支援
+    if (manual) {
+      sys.members = sys.members.filter(m => m && m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead');
+      let added = 0;
+      while (sys.members.length < target && added < 12) {
+        added++;
+        const idx = sys.members.length;
+        const mob = new GangMember(idx);
+        if (mob.active && mob.officer) {
+          sys.members.push(mob);
+        }
+      }
+    }
+
+    updateGangUI();
+    hookPoliceTargeting();
   }
 
   // ----------------------------------------------------
-  // 4. 【極致順暢·天神飛行系統】（支援 PC 鍵盤 + 手機搖桿/觸控按鈕）
+  // 地圖「警」改「黑」圖標管理系統（Minimap & Fullmap Blips）
   // ----------------------------------------------------
-  window.__flyModeEnabled = false;
-  window.__fallImmuneUntil = 0;
-  window.__mobileTurboEnabled = false; // 手機音速衝刺切換狀態
-  let mobileVert = 0;                 // 手機爬升/下降觸控輸入 (-1: 下降, 0: 無, 1: 爬升)
+  const __blipCanvasCache = new Map();
 
-  // 飛行物理參數
-  const flyVel = new T.Vector3(0, 0, 0);     // 當前平滑速度向量
-  const flyTarget = new T.Vector3(0, 0, 0);  // 目標期望速度
-  const camDir = new T.Vector3();           // 相機朝向向量
-  const camRight = new T.Vector3();         // 相機右側橫移向量
-  const worldUp = new T.Vector3(0, 1, 0);
+  function getCrispBlackBlip(size, isGang) {
+    const s = Math.max(16, size || 24);
+    const key = `${s}_${isGang}`;
+    if (__blipCanvasCache.has(key)) return __blipCanvasCache.get(key);
 
-  const NORMAL_SPEED = 24.0; // 巡航飛行速度（約 86 km/h，細膩穿梭西門町與大街小巷）
-  const BOOST_SPEED  = 68.0; // 音速衝刺（約 245 km/h，極速直衝臺北101頂端）
-  const SLOW_SPEED   = 8.0;  // Alt 慢速懸停模式（精細停泊樓頂、賞景拍照）
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = s;
+    const ctx = cv.getContext('2d');
+    const r = s * 0.44;
+    ctx.translate(s / 2, s / 2);
 
-  function toggleFlyMode() {
-    window.__flyModeEnabled = !window.__flyModeEnabled;
-    if (window.__flyModeEnabled) {
-      // 升空微抬 1.2 米，脫離地面接觸
-      p.position.y += 1.2;
-      p.visY = p.position.y;
-      p.vy = 0;
-      flyVel.set(0, 0, 0);
-      try { g.audio?.play?.('pickup', { volume: 0.9 }); } catch (e) {}
-      console.log('%c[飛行切換] 🪽 天神飛行模式【已啟動】！', 'color: #33ff99; font-weight: bold; font-size: 15px;');
-      g.events?.emit('notify', {
-        text: {
-          zh: '🪽 天神飛行：已啟動（手機左搖桿移動/右側滑動轉向，右側浮鈕升降/音速）',
-          en: 'Flight Mode On (Joystick to move, Look to steer, Side buttons for Up/Down/Turbo)'
-        },
-        kind: 'good',
-        duration: 4
+    // 圓形底色：黑道兄弟純金底黑字 / 敵對警察深曜石底白字
+    ctx.fillStyle = isGang ? '#FFD700' : '#141824';
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 粗邊框
+    ctx.lineWidth = Math.max(1.5, s * 0.09);
+    ctx.strokeStyle = isGang ? '#000000' : '#4da3ff';
+    ctx.stroke();
+
+    // 醒目巨大「黑」字（填滿 66% 比例，小地圖一眼看清）
+    const fontFam = '"Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif';
+    ctx.font = `900 ${Math.round(s * 0.66)}px ${fontFam}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = isGang ? '#000000' : '#FFFFFF';
+    ctx.fillText('黑', 0, s * 0.04);
+
+    __blipCanvasCache.set(key, cv);
+    return cv;
+  }
+
+  // 攔截並改寫 g.ui.addBlip，確保所有警方圖標 glyph 全部改為「黑」
+  if (g.ui && !window.__origAddBlip) {
+    window.__origAddBlip = g.ui.addBlip.bind(g.ui);
+    g.ui.addBlip = function (id, data) {
+      if (data && (data.icon === 'police' || (id && String(id).includes('police')))) {
+        data.glyph = '黑';
+        if (id && (String(id).includes('gang') || String(id).includes('mobster'))) {
+          data.color = '#FFD700';
+        }
+      }
+      return window.__origAddBlip(id, data);
+    };
+  }
+
+  function syncMinimapBlips() {
+    try {
+      const blipsHolder = g.ui?._debug?.minimap?.blips;
+      if (!blipsHolder || !blipsHolder.map) return;
+      const map = blipsHolder.map;
+      const bpIconSize = g.ui?._debug?.minimap?.bp?.icon || 24;
+
+      const gang = window.__gangSystem;
+      const gangBlipIds = new Set();
+
+      if (gang && gang.members) {
+        for (let m of gang.members) {
+          if (m.active) {
+            gangBlipIds.add(m.blipId);
+            if (m.officer && m.officer.blipId) gangBlipIds.add(m.officer.blipId);
+          }
+        }
+      }
+
+      // 1. 確保所有現有地圖上的 police blip 都寫「黑」
+      for (let [id, b] of map.entries()) {
+        const isGangBlip = gangBlipIds.has(id) || String(id).startsWith('gang-');
+        if (isGangBlip || b.icon === 'police' || String(id).includes('police')) {
+          b.glyph = '黑';
+          if (isGangBlip) {
+            b.color = '#FFD700';
+          }
+          // 強制替換超清晰高對比「黑」圖標 Canvas，徹底防止小地圖顯示舊版「警」
+          b.spr = getCrispBlackBlip(bpIconSize, isGangBlip);
+          b.sprPx = bpIconSize;
+        }
+      }
+
+      // 2. 確保每個存活的黑道兄弟都有 blip 且座標精確同步
+      if (gang && gang.members) {
+        for (let m of gang.members) {
+          if (m.active && m.officer) {
+            const ox = m.officer.x;
+            const oz = m.officer.z;
+            if (!map.has(m.blipId)) {
+              g.ui.addBlip(m.blipId, {
+                x: ox,
+                z: oz,
+                icon: 'police',
+                color: '#FFD700',
+                glyph: '黑',
+                label: { zh: `江湖黑道 #${m.index + 1}`, en: `Mobster #${m.index + 1}` }
+              });
+            } else {
+              g.ui.updateBlip(m.blipId, ox, oz);
+            }
+            const gb = map.get(m.blipId);
+            if (gb) {
+              gb.x = ox;
+              gb.z = oz;
+              gb.glyph = '黑';
+              gb.color = '#FFD700';
+              gb.spr = getCrispBlackBlip(bpIconSize, true);
+              gb.sprPx = bpIconSize;
+            }
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // ----------------------------------------------------
+  // ★ 計程車支援系統（車頂黃金皇冠、玩家可開可破壞、20秒防塞車超時下車）★
+  // ----------------------------------------------------
+  window.__activeTaxiReinforcements = [];
+
+  // 建立車頂 3D 尊貴黃金皇冠模型
+  function createTaxiCrownMesh() {
+    try {
+      const crownGroup = new T.Group();
+
+      // 純金高反光材質
+      const goldMat = new T.MeshStandardMaterial({
+        color: 0xffd700,
+        metalness: 0.92,
+        roughness: 0.15,
+        emissive: 0x332200
       });
-    } else {
-      window.__fallImmuneUntil = Date.now() + 8000; // 關閉飛行後提供 8 秒防摔傷保護
-      flyVel.set(0, 0, 0);
-      window.__mobileTurboEnabled = false;
-      try { g.audio?.play?.('pickup', { volume: 0.7 }); } catch (e) {}
-      console.log('%c[飛行切換] 🪽 天神飛行模式【已關閉】（已施加 8 秒安全著陸防摔傷保護）', 'color: #ffaa33; font-weight: bold;');
-      g.events?.emit('notify', {
+      // 皇家璀璨紅寶石材質
+      const rubyMat = new T.MeshStandardMaterial({
+        color: 0xff1133,
+        metalness: 0.75,
+        roughness: 0.15,
+        emissive: 0x440011
+      });
+
+      // 1. 皇冠底部金質底座環
+      const baseGeo = new T.CylinderGeometry(0.24, 0.26, 0.08, 16);
+      const baseMesh = new T.Mesh(baseGeo, goldMat);
+      baseMesh.position.y = 0.04;
+      crownGroup.add(baseMesh);
+
+      // 2. 底圈飾邊珍珠金珠 (環繞 8 顆)
+      for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * Math.PI * 2;
+        const beadGeo = new T.SphereGeometry(0.025, 8, 8);
+        const beadMesh = new T.Mesh(beadGeo, goldMat);
+        beadMesh.position.set(Math.sin(ang) * 0.25, 0.04, Math.cos(ang) * 0.25);
+        crownGroup.add(beadMesh);
+      }
+
+      // 3. 皇冠王冠尖角 (5 個向外外擴的立體金錐)
+      const numPoints = 5;
+      for (let i = 0; i < numPoints; i++) {
+        const ang = (i / numPoints) * Math.PI * 2;
+        const ptGeo = new T.ConeGeometry(0.045, 0.22, 5);
+        const ptMesh = new T.Mesh(ptGeo, goldMat);
+        ptMesh.position.set(Math.sin(ang) * 0.22, 0.18, Math.cos(ang) * 0.22);
+        ptMesh.rotation.z = -Math.sin(ang) * 0.24;
+        ptMesh.rotation.x = Math.cos(ang) * 0.24;
+        crownGroup.add(ptMesh);
+
+        // 尖端璀璨紅寶石
+        const gemGeo = new T.SphereGeometry(0.030, 8, 8);
+        const gemMesh = new T.Mesh(gemGeo, rubyMat);
+        gemMesh.position.set(Math.sin(ang) * 0.255, 0.29, Math.cos(ang) * 0.255);
+        crownGroup.add(gemMesh);
+      }
+
+      // 4. 皇冠中央大寶石球
+      const centerGemGeo = new T.SphereGeometry(0.058, 10, 10);
+      const centerGem = new T.Mesh(centerGemGeo, rubyMat);
+      centerGem.position.set(0, 0.16, 0);
+      crownGroup.add(centerGem);
+
+      // 縮放並抬高至計程車車頂（燈牌後方車頂位置）
+      crownGroup.scale.set(1.45, 1.45, 1.45);
+      crownGroup.position.set(0, 1.44, -0.05);
+      return crownGroup;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function callTaxiReinforcements() {
+    const sys = window.__gangSystem;
+    if (!sys) return;
+
+    // ★ 核心改版：按 B 直接補人 + 附近生成裝飾計程車 ★
+    // 先清洗已陣亡或無效實體
+    sys.members = sys.members.filter(m => m.active && m.officer && m.officer.active && m.hp >= 1 && m.officer.state !== 'dead');
+
+    const target = sys.targetCount;
+    const aliveBefore = sys.members.length;
+    const deadCount = Math.max(0, target - aliveBefore);
+
+    if (deadCount === 0) {
+      g.events?.emit?.('notify', {
         text: {
-          zh: '🪽 天神飛行：已關閉（安全落地保護生效中）',
-          en: 'Flight Mode Off (Safe Landing Active)'
+          zh: `🕶️ 目前黑道兄弟全員在線 (${aliveBefore}/${target})，無人員陣亡！`,
+          en: `All squad members alive (${aliveBefore}/${target})!`
         },
-        kind: 'info',
-        duration: 2.5
+        kind: 'neutral',
+        duration: 2.8
+      });
+      return;
+    }
+
+    // ── 第一步：直接在玩家身邊補齊黑道兄弟（與初始生成相同的可靠方式）──
+    syncGangMemberCount(true);
+
+    const aliveAfter = sys.members.filter(m => m.active && m.officer && m.officer.active && m.hp >= 1 && m.officer.state !== 'dead').length;
+    const actualSpawned = aliveAfter - aliveBefore;
+
+    // ── 第二步：在附近擺放裝飾性皇冠計程車（不需要開過來，直接原地生成）──
+    const taxiCount = Math.min(deadCount, 3); // 最多生成 3 台裝飾計程車
+    const heading = p.rotation?.y || 0;
+    const playerX = p.position.x;
+    const playerZ = p.position.z;
+    let taxisSpawned = 0;
+
+    for (let i = 0; i < taxiCount; i++) {
+      const angleSpread = (i - (taxiCount - 1) / 2) * 0.65;
+      const spawnAngle = heading + Math.PI + angleSpread;
+      const spawnDist = 12 + i * 4 + Math.random() * 4; // 稍微拉開距離（12~24m），避免與剛出生的兄弟擠在一起
+      const spawnX = playerX + Math.sin(spawnAngle) * spawnDist;
+      const spawnZ = playerZ - Math.cos(spawnAngle) * spawnDist;
+      const spawnHeading = Math.atan2(playerX - spawnX, -(playerZ - spawnZ));
+
+      let taxiObj = null;
+      try {
+        taxiObj = g.vehicles?.spawn?.('taxi', spawnX, spawnZ, spawnHeading, {
+          driver: 'none',
+          speed: 0,
+          locked: false
+        });
+      } catch (e) {}
+
+      if (!taxiObj) {
+        try {
+          taxiObj = g.vehicles?.spawn?.('sedan', spawnX, spawnZ, spawnHeading, {
+            driver: 'none',
+            speed: 0,
+            color: 15909376,
+            locked: false
+          });
+        } catch (e) {}
+      }
+
+      if (taxiObj) {
+        taxiObj.locked = false;
+        if (taxiObj.body) taxiObj.body.locked = false;
+        taxiObj.speed = 0;
+        if (taxiObj.body) { taxiObj.body.vx = 0; taxiObj.body.vz = 0; }
+
+        // 車頂加裝皇冠
+        if (taxiObj.object) {
+          const crown = createTaxiCrownMesh();
+          if (crown) taxiObj.object.add(crown);
+        }
+
+        // 調整地面高度
+        const gh = g.plan?.groundHeight?.(spawnX, spawnZ);
+        if (gh !== undefined && Number.isFinite(gh) && taxiObj.body) {
+          taxiObj.body.y = gh;
+          if (taxiObj.object) taxiObj.object.position.y = gh;
+        }
+
+        taxisSpawned++;
+      }
+    }
+
+    try {
+      g.audio?.play?.('horn', { volume: 0.85 });
+      g.audio?.play?.('car_door_close', { volume: 0.8 });
+    } catch (e) {}
+
+    // 說出台詞
+    if (actualSpawned > 0) {
+      g.events?.emit?.('subtitle', {
+        text: '大哥我們來幫你了！',
+        speaker: '黑道堂口兄弟',
+        duration: 4.5
       });
     }
-    updateHudVisuals();
+
+    g.events?.emit?.('notify', {
+      text: {
+        zh: `🕶️ 已補充 ${actualSpawned} 名黑道兄弟！(${aliveAfter}/${target}) ${taxisSpawned > 0 ? `+ ${taxisSpawned} 輛皇冠計程車護駕` : ''}`,
+        en: `Spawned ${actualSpawned} mobsters! (${aliveAfter}/${target}) ${taxisSpawned > 0 ? `+ ${taxisSpawned} Crown Taxis` : ''}`
+      },
+      kind: 'good',
+      duration: 4.5
+    });
+
+    updateGangUI();
+  }
+
+  // updateTaxiReinforcements 現已精簡：裝飾計程車不再需要駕駛/下車流程
+  function updateTaxiReinforcements(dt) {
+    // 裝飾計程車已直接在玩家身邊生成，無需駕駛更新
   }
 
   // ----------------------------------------------------
-  // 5. 【手機/觸控專屬 HUD 懸浮操控系統】（精美透明、不擋視線）
+  // ★ 地圖點選傳送核心（滑鼠右鍵直接傳送 / 頂部按鈕切換瞬移模式，0衝突·完美解鎖移動）★
   // ----------------------------------------------------
-  const HUD_CONTAINER_ID = '__tgta_cheat_mobile_hud';
-  const existingHud = document.getElementById(HUD_CONTAINER_ID);
+  window.__mapTeleportEnabled = false; // ★ 預設為 false（原版導航模式），絕不與正常查看地圖/設導航衝突！
+
+  function teleportPlayerTo(targetX, targetZ) {
+    if (!Number.isFinite(targetX) || !Number.isFinite(targetZ)) return;
+
+    let targetY = p.position.y;
+    try {
+      const gh = g.plan?.groundHeight?.(targetX, targetZ);
+      if (gh !== undefined && Number.isFinite(gh)) {
+        targetY = gh + 1.0;
+      } else if (g.groundAt) {
+        const ga = g.groundAt(targetX, targetZ, p.position.y);
+        if (ga !== undefined && Number.isFinite(ga)) targetY = ga + 1.0;
+      }
+    } catch (e) {}
+
+    // 1. 同步玩家所在載具（開車/騎車時連車帶人傳送）
+    const veh = g.vehicles?.playerVehicle;
+    if (veh && veh.body) {
+      veh.body.x = targetX;
+      veh.body.z = targetZ;
+      veh.body.y = targetY;
+      veh.body.vx = 0;
+      veh.body.vy = 0;
+      veh.body.vz = 0;
+      if (veh.object) {
+        veh.object.position.set(targetX, targetY, targetZ);
+      }
+    }
+
+    // 2. 傳送玩家本體並重設物理剛體狀態
+    p.position.set(targetX, targetY, targetZ);
+    if (p.body) {
+      p.body.x = targetX;
+      p.body.y = targetY;
+      p.body.z = targetZ;
+      p.body.vx = 0;
+      p.body.vy = 0;
+      p.body.vz = 0;
+      p.body.falling = false;
+      p.body.grounded = true;
+    }
+    p.airborne = false;
+    p.grounded = true;
+
+    // 3. 落地安全保護：免疫墜落與撞擊傷害 6 秒
+    window.__fallImmuneUntil = Date.now() + 6000;
+
+    // 4. 同步召集並傳送存活的江湖黑道兄弟護駕
+    const gang = window.__gangSystem;
+    if (gang && gang.members) {
+      const aliveMembers = gang.members.filter(m => m.active && m.officer);
+      aliveMembers.forEach((m, idx) => {
+        const ang = (idx / (aliveMembers.length || 1)) * Math.PI * 2;
+        const rad = 3.5 + (idx % 2) * 1.5;
+        const ox = targetX + Math.sin(ang) * rad;
+        const oz = targetZ - Math.cos(ang) * rad;
+        m.officer.x = ox;
+        m.officer.z = oz;
+        m.officer.y = targetY;
+        m.wanderX = ox;
+        m.wanderZ = oz;
+        if (m.body) {
+          m.body.x = ox;
+          m.body.y = targetY;
+          m.body.z = oz;
+          m.body.vx = 0;
+          m.body.vz = 0;
+        }
+      });
+    }
+
+    // 5. 播放瞬移科幻音效
+    try {
+      g.audio?.play?.('nitro', { volume: 0.85, rate: 1.5 });
+      g.audio?.play?.('pickup', { volume: 0.9 });
+    } catch (e) {}
+
+    // 6. 彈出遊戲原生通知
+    g.events?.emit?.('notify', {
+      text: {
+        zh: `⚡ 已瞬移抵達目標街區！[${Math.round(targetX)}, ${Math.round(targetZ)}]`,
+        en: `Teleported to [${Math.round(targetX)}, ${Math.round(targetZ)}]!`
+      },
+      kind: 'good',
+      duration: 3.5
+    });
+
+    // 7. ★★★ 徹底關閉地圖、彈出 nav.scope、完全解鎖角色移動與空白鍵！★★★
+    const fullmap = g.ui?._debug?.fullmap;
+    if (fullmap) {
+      try {
+        fullmap.gps?.set?.(null); // 清除衝突的導航點，避免留下雜亂導航線
+      } catch (e) {}
+
+      // 關鍵核心：呼叫 fullmap.close() 執行 this.nav.pop(this.scope) 彈出輸入攔截！
+      try {
+        fullmap.close();
+      } catch (e) {}
+
+      // 同步呼叫全域 UI 關閉
+      try {
+        g.ui?.closeMenu?.();
+      } catch (e) {}
+
+      // 觸發右上角原生關閉鈕，確保事件鏈完整
+      try {
+        const closeBtn = document.querySelector('.fm-close');
+        if (closeBtn) closeBtn.click();
+      } catch (e) {}
+
+      // 強制清空地圖按鍵快取，防止按 Space 跳躍誤判為地圖按鍵！
+      if (fullmap.keys) fullmap.keys.clear();
+      if (fullmap.pointers) fullmap.pointers.clear();
+      fullmap.isOpen = false;
+      if (fullmap.el) fullmap.el.classList.remove('show');
+    }
+
+    // 確保視窗焦點與玩家控制器立刻恢復靈敏響應
+    try {
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+      window.focus();
+      if (g.input?.focus) g.input.focus();
+    } catch (e) {}
+  }
+
+  function setupMapTeleportHook() {
+    try {
+      const fullmap = g.ui?._debug?.fullmap;
+      if (!fullmap) return;
+
+      // 1. Hook toggleWaypointAt（左鍵點擊地圖時）
+      if (!fullmap.__origToggleWaypoint) {
+        fullmap.__origToggleWaypoint = fullmap.toggleWaypointAt.bind(fullmap);
+        fullmap.toggleWaypointAt = function (clientX, clientY) {
+          // 只有在地圖開啟中才允許動作
+          if (!this.isOpen) return;
+
+          // 若玩家主動切換為「點圖瞬移模式」，左鍵直接瞬移前往
+          if (window.__mapTeleportEnabled) {
+            const worldPos = this.screenToWorld(clientX, clientY);
+            if (worldPos && Number.isFinite(worldPos.x) && Number.isFinite(worldPos.z)) {
+              teleportPlayerTo(worldPos.x, worldPos.z);
+              return;
+            }
+          }
+          // 否則維持原版設定 GPS 導航路線，雙方絕不衝突！
+          return this.__origToggleWaypoint(clientX, clientY);
+        };
+      }
+
+      // 2. ★ 支援滑鼠右鍵直接瞬移（左鍵導航、右鍵瞬移，分工明確，0衝突！）★
+      if (fullmap.canvas && !fullmap.canvas.__hasTeleportRightClick) {
+        fullmap.canvas.__hasTeleportRightClick = true;
+        fullmap.canvas.addEventListener('contextmenu', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!fullmap.isOpen) return;
+          const worldPos = fullmap.screenToWorld(e.clientX, e.clientY);
+          if (worldPos && Number.isFinite(worldPos.x) && Number.isFinite(worldPos.z)) {
+            teleportPlayerTo(worldPos.x, worldPos.z);
+          }
+        }, { capture: true });
+      }
+
+      // 3. 在大地圖介面上建立瞬移模式切換膠囊按鈕
+      if (fullmap.el && !document.getElementById('tgta-map-tp-badge')) {
+        const tpBadge = document.createElement('div');
+        tpBadge.id = 'tgta-map-tp-badge';
+        tpBadge.className = 'fm-teleport-badge tp-off';
+        tpBadge.innerHTML = `
+          <span class="tp-badge-icon" style="font-size:16px;">⚡</span>
+          <span id="tp-badge-label">左鍵瞬移模式：<strong style="color:#aaa;">【關閉】(右鍵隨時可傳送)</strong></span>
+        `;
+        tpBadge.title = '點擊切換左鍵模式：【關閉】左鍵為原版設定導航 / 【開啟】左鍵點擊直接傳送（地圖上隨時點擊右鍵皆可直接瞬移！）';
+
+        tpBadge.addEventListener('click', e => {
+          e.stopPropagation();
+          e.preventDefault();
+          window.__mapTeleportEnabled = !window.__mapTeleportEnabled;
+          updateTpBadgeVisuals();
+          try { g.audio?.play?.('ui_click', { volume: 0.7 }); } catch (err) {}
+        });
+
+        fullmap.el.appendChild(tpBadge);
+        updateTpBadgeVisuals();
+      }
+    } catch (e) {}
+  }
+
+  function updateTpBadgeVisuals() {
+    const badge = document.getElementById('tgta-map-tp-badge');
+    const label = document.getElementById('tp-badge-label');
+    const fullmap = g.ui?._debug?.fullmap;
+    const isEnabled = window.__mapTeleportEnabled;
+
+    if (badge) {
+      badge.classList.toggle('tp-off', !isEnabled);
+      badge.style.borderColor = isEnabled ? '#00e5ff' : 'rgba(255, 255, 255, 0.3)';
+      badge.style.boxShadow = isEnabled ? '0 0 22px rgba(0, 229, 255, 0.65)' : 'none';
+      badge.style.background = isEnabled ? 'rgba(8, 22, 36, 0.95)' : 'rgba(15, 20, 28, 0.88)';
+    }
+    if (label) {
+      label.innerHTML = isEnabled
+        ? `左鍵瞬移模式：<strong style="color:#00ffcc;">【開啟】左鍵點擊即刻前往</strong>`
+        : `左鍵瞬移模式：<strong style="color:#bbb;">【關閉】原版導航路線 (右鍵直接瞬移)</strong>`;
+    }
+    if (fullmap && fullmap.canvas) {
+      fullmap.canvas.style.cursor = isEnabled ? 'crosshair' : 'default';
+    }
+  }
+
+  // ----------------------------------------------------
+  // 5. 手機與 PC 整合控制面板（HUD：頂部固定式，取消黑廂型車）
+  // ----------------------------------------------------
+  const OLD_HUD_ID = 'tgta-cheat-hud-root';
+  const existingHud = document.getElementById(OLD_HUD_ID);
   if (existingHud) existingHud.remove();
 
   const hudWrap = document.createElement('div');
-  hudWrap.id = HUD_CONTAINER_ID;
+  hudWrap.id = OLD_HUD_ID;
   hudWrap.innerHTML = `
     <style>
-      #__tgta_cheat_mobile_hud {
+      #${OLD_HUD_ID} {
         position: fixed;
-        inset: 0;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
         pointer-events: none;
         z-index: 99999;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif;
         user-select: none;
         -webkit-user-select: none;
-        touch-action: none;
+        transition: opacity 0.25s ease, visibility 0.25s ease;
+      }
+      #${OLD_HUD_ID}.menu-hidden {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
       }
       .tgta-btn {
-        pointer-events: auto;
+        background: rgba(18, 22, 32, 0.85);
+        border: 2px solid rgba(0, 255, 255, 0.4);
+        color: #ffffff;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(10, 16, 28, 0.75);
-        border: 1.5px solid rgba(0, 255, 255, 0.4);
-        border-radius: 12px;
-        color: #ffffff;
         font-weight: 700;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 255, 255, 0.2);
         backdrop-filter: blur(6px);
@@ -225,18 +2018,19 @@
       .tgta-btn:active {
         transform: scale(0.92);
       }
-      /* 右上角快捷選單列 */
+      /* ★ 頂部快捷選單列：100% 固定式（頂部置中固定，不飄移、不擋右上地圖鍵） ★ */
       .tgta-top-dock {
         position: absolute;
-        top: max(10px, env(safe-area-inset-top));
-        right: max(10px, env(safe-area-inset-right));
+        top: max(12px, env(safe-area-inset-top));
+        left: 50%;
+        transform: translateX(-50%);
         display: flex;
         gap: 8px;
         pointer-events: auto;
       }
       .tgta-dock-btn {
         height: 38px;
-        padding: 0 12px;
+        padding: 0 13px;
         font-size: 13px;
         letter-spacing: 0.05em;
         border-radius: 20px;
@@ -253,6 +2047,165 @@
         background: rgba(10, 45, 70, 0.85);
         box-shadow: 0 0 16px rgba(0, 255, 255, 0.6);
       }
+      .tgta-dock-btn.gang-active {
+        border-color: #ff9933;
+        color: #ffcc66;
+        background: rgba(50, 25, 10, 0.88);
+        box-shadow: 0 0 18px rgba(255, 153, 51, 0.7);
+      }
+      .tgta-dock-btn.map-btn {
+        border-color: #00e5ff;
+        color: #00e5ff;
+        background: rgba(10, 35, 50, 0.82);
+      }
+      .tgta-dock-btn.map-btn:hover {
+        background: rgba(0, 229, 255, 0.3);
+        box-shadow: 0 0 16px rgba(0, 229, 255, 0.7);
+      }
+
+      /* ⚡ 大地圖點圖瞬移膠囊按鈕樣式（浮現在大地圖正上方） */
+      .fm-teleport-badge {
+        position: absolute;
+        top: 68px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 20px;
+        background: rgba(8, 14, 24, 0.92);
+        border: 2px solid #00e5ff;
+        box-shadow: 0 0 22px rgba(0, 229, 255, 0.55), inset 0 0 10px rgba(0, 229, 255, 0.2);
+        border-radius: 28px;
+        color: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", "Segoe UI", sans-serif;
+        font-size: 13.5px;
+        font-weight: 800;
+        cursor: pointer;
+        z-index: 1000;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        user-select: none;
+        transition: all 0.25s ease;
+        letter-spacing: 0.03em;
+      }
+      .fm-teleport-badge:hover {
+        transform: translateX(-50%) scale(1.05);
+        box-shadow: 0 0 30px rgba(0, 229, 255, 0.85);
+        background: rgba(12, 22, 38, 0.96);
+      }
+      .fm-teleport-badge.tp-off {
+        border-color: rgba(255, 255, 255, 0.28);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+        color: #8899a6;
+        background: rgba(15, 20, 28, 0.88);
+      }
+
+      /* 🕶️ 黑道堂口固定式設定面板（緊貼頂部選單正下方置中） */
+      .tgta-gang-panel {
+        position: absolute;
+        top: max(56px, calc(env(safe-area-inset-top) + 46px));
+        left: 50%;
+        transform: translateX(-50%);
+        width: 310px;
+        background: rgba(15, 18, 26, 0.94);
+        border: 2px solid #ff9933;
+        border-radius: 14px;
+        padding: 12px 14px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 153, 51, 0.35);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        pointer-events: auto;
+        color: #f0f4f8;
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+        font-size: 13px;
+      }
+      .tgta-gang-panel.open {
+        display: flex;
+      }
+      .tgta-gang-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: #ffaa33;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(255, 153, 51, 0.3);
+        padding-bottom: 6px;
+      }
+      .tgta-stepper {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(0, 0, 0, 0.4);
+        border-radius: 8px;
+        padding: 4px 6px;
+      }
+      .tgta-step-btn {
+        width: 36px;
+        height: 32px;
+        font-size: 16px;
+        border-radius: 6px;
+        border-color: #ff9933;
+      }
+      .tgta-count-val {
+        font-size: 15px;
+        font-weight: 800;
+        color: #00ffcc;
+      }
+      .tgta-presets {
+        display: flex;
+        gap: 6px;
+        justify-content: space-between;
+      }
+      .tgta-preset-btn {
+        flex: 1;
+        height: 28px;
+        font-size: 11px;
+        border-radius: 6px;
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+      .tgta-wpn-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #ffaa33;
+        margin-top: 2px;
+      }
+      .tgta-wpn-row {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+        justify-content: space-between;
+      }
+      .tgta-wpn-btn {
+        flex: 1 1 calc(20% - 4px);
+        min-width: 50px;
+        height: 28px;
+        font-size: 11px;
+        border-radius: 6px;
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+      .tgta-wpn-btn.active {
+        border-color: #00ffcc;
+        color: #00ffcc;
+        background: rgba(0, 255, 204, 0.25);
+        box-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
+      }
+      .tgta-gang-stats {
+        font-size: 11px;
+        color: #aaa;
+        background: rgba(0, 0, 0, 0.35);
+        padding: 6px 8px;
+        border-radius: 6px;
+        line-height: 1.5;
+      }
+      .tgta-stat-hl {
+        color: #ffaa33;
+        font-weight: bold;
+      }
+
       /* 右側飛行高度與衝刺控制群（飛行開啟時自動浮現） */
       .tgta-fly-dock {
         position: absolute;
@@ -304,10 +2257,74 @@
       }
     </style>
 
-    <!-- 頂部快捷開關 -->
+    <!-- ★ 頂部快捷開關（固定置中式） ★ -->
     <div class="tgta-top-dock">
       <div id="btn-toggle-fly" class="tgta-btn tgta-dock-btn">🪽 飛行</div>
       <div id="btn-toggle-swords" class="tgta-btn tgta-dock-btn">⚔️ 光劍</div>
+      <div id="btn-toggle-gang" class="tgta-btn tgta-dock-btn">🕶️ 黑道堂口</div>
+      <div id="btn-toggle-tp-map" class="tgta-btn tgta-dock-btn map-btn">🗺️ 傳送地圖</div>
+    </div>
+
+    <!-- 🕶️ 黑道堂口專屬設定面板（固定置中） -->
+    <div id="tgta-gang-card" class="tgta-gang-panel">
+      <div class="tgta-gang-title">
+        <span>🕶️ 堂口支援 (多樣化武器武裝部隊)</span>
+        <span id="btn-close-gang" style="cursor:pointer;font-size:16px;">✕</span>
+      </div>
+
+      <div class="tgta-stepper">
+        <div id="btn-gang-minus" class="tgta-btn tgta-step-btn">➖</div>
+        <div class="tgta-count-val">兄弟人數：<span id="gang-count-txt">4</span> 人</div>
+        <div id="btn-gang-plus" class="tgta-btn tgta-step-btn">➕</div>
+      </div>
+
+      <div class="tgta-presets">
+        <div class="tgta-btn tgta-preset-btn" data-cnt="0">解散</div>
+        <div class="tgta-btn tgta-preset-btn" data-cnt="2">2人</div>
+        <div class="tgta-btn tgta-preset-btn" data-cnt="4">4人</div>
+        <div class="tgta-btn tgta-preset-btn" data-cnt="8">8人</div>
+        <div class="tgta-btn tgta-preset-btn" data-cnt="12">12人</div>
+      </div>
+
+      <div class="tgta-wpn-title">武器設定：</div>
+      <div class="tgta-wpn-row">
+        <div class="tgta-btn tgta-wpn-btn active" data-wpn="mixed" title="堂口混編各顯神通">🎲混編</div>
+        <div class="tgta-btn tgta-wpn-btn" data-wpn="bat" title="手持球棒猛力擊倒">🏏球棒</div>
+        <div class="tgta-btn tgta-wpn-btn" data-wpn="fists" title="空手鐵拳疾速肉搏">👊空手</div>
+        <div class="tgta-btn tgta-wpn-btn" data-wpn="pistol" title="警用手槍精準壓制">🔫手槍</div>
+        <div class="tgta-btn tgta-wpn-btn" data-wpn="rifle" title="突擊步槍全自動掃射">💥步槍</div>
+      </div>
+
+      <div class="tgta-wpn-title" style="margin-top:6px;">跟隨限制距離：</div>
+      <div class="tgta-stepper">
+        <div id="btn-gang-dist-minus" class="tgta-btn tgta-step-btn">➖</div>
+        <div class="tgta-count-val">活動限制：<span id="stat-gang-dist">50m</span></div>
+        <div id="btn-gang-dist-plus" class="tgta-btn tgta-step-btn">➕</div>
+      </div>
+
+      <div class="tgta-presets">
+        <div class="tgta-btn tgta-preset-dist-btn" data-dist="25">25m</div>
+        <div class="tgta-btn tgta-preset-dist-btn" data-dist="50">50m(預設)</div>
+        <div class="tgta-btn tgta-preset-dist-btn" data-dist="80">80m</div>
+        <div class="tgta-btn tgta-preset-dist-btn" data-dist="120">120m</div>
+      </div>
+
+      <div id="btn-call-taxi" class="tgta-btn" style="margin-top:8px; height:36px; background:linear-gradient(135deg, #f5c518, #d49a00); color:#1a1400; font-weight:900; font-size:13px; border:2px solid #ffe066; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+        🕶️ 補充兄弟+計程車 (快捷鍵: B)
+      </div>
+
+      <div id="gang-stats-box" class="tgta-gang-stats" style="margin-top:8px;">
+        兄弟造型：<span class="tgta-stat-hl" style="color:#ffd700;">★ 耀眼純金戰袍 (頭頂「江湖黑道」)</span><br>
+        地圖標記：<span class="tgta-stat-hl" style="color:#00ffcc;">★ 專屬金底黑字「黑」圖標</span><br>
+        裝備武器：<span id="stat-gang-weapon" class="tgta-stat-hl">🎲 堂口混編 (球棒/步槍/手槍/鐵拳)</span><br>
+        活動上限：<span id="stat-gang-dist-val" class="tgta-stat-hl" style="color:#00ffcc;">50m (超距自動狂奔回防)</span><br>
+        兄弟血量：<span class="tgta-stat-hl">150 HP (警察 1.5 倍血量)</span><br>
+        警方仇恨：<span class="tgta-stat-hl" style="color:#ff4466;">★ 警方優先攻擊黑道</span><br>
+        兄弟存活：<span id="stat-gang-alive" class="tgta-stat-hl">4</span> 人<br>
+        殲滅員警：<span id="stat-gang-cops" class="tgta-stat-hl">0</span> 名 | 
+        摧毀警車：<span id="stat-gang-cars" class="tgta-stat-hl">0</span> 輛<br>
+        擊落空勤直升機：<span id="stat-gang-heli" class="tgta-stat-hl">0</span> 架
+      </div>
     </div>
 
     <!-- 飛行專用升降與音速鍵（飛行時自動出現） -->
@@ -321,10 +2338,63 @@
 
   const btnFly = document.getElementById('btn-toggle-fly');
   const btnSwords = document.getElementById('btn-toggle-swords');
+  const btnGang = document.getElementById('btn-toggle-gang');
+  const btnTpMap = document.getElementById('btn-toggle-tp-map');
+  const gangCard = document.getElementById('tgta-gang-card');
+  const btnCloseGang = document.getElementById('btn-close-gang');
+  const btnGangMinus = document.getElementById('btn-gang-minus');
+  const btnGangPlus = document.getElementById('btn-gang-plus');
+  const gangCountTxt = document.getElementById('gang-count-txt');
+
   const flyPanel = document.getElementById('tgta-fly-panel');
   const btnUp = document.getElementById('btn-fly-up');
   const btnDown = document.getElementById('btn-fly-down');
   const btnTurbo = document.getElementById('btn-fly-turbo');
+
+  // 更新黑道 UI 數字統計
+  function updateGangUI() {
+    const sys = window.__gangSystem;
+    if (gangCountTxt) gangCountTxt.innerText = sys.targetCount;
+    const statWpn = document.getElementById('stat-gang-weapon');
+    if (statWpn) {
+      const curWpn = GANG_WEAPONS[sys.weaponType || 'mixed'];
+      statWpn.innerText = curWpn ? curWpn.name.zh : '🎲 堂口混編';
+    }
+    const statDist = document.getElementById('stat-gang-dist');
+    const statDistVal = document.getElementById('stat-gang-dist-val');
+    if (statDist) statDist.innerText = `${sys.maxFollowDistance || 50}m`;
+    if (statDistVal) statDistVal.innerText = `${sys.maxFollowDistance || 50}m (超距自動狂奔回防)`;
+
+    const statAlive = document.getElementById('stat-gang-alive');
+    const statCops = document.getElementById('stat-gang-cops');
+    const statCars = document.getElementById('stat-gang-cars');
+    const statHeli = document.getElementById('stat-gang-heli');
+    const aliveCount = sys.members.filter(m => m.active && m.officer && m.officer.active && m.hp >= 1 && m.officer.state !== 'dead').length;
+    if (statAlive) statAlive.innerText = aliveCount;
+    if (statCops) statCops.innerText = sys.kills.police;
+    if (statCars) statCars.innerText = sys.kills.cars;
+    if (statHeli) statHeli.innerText = sys.kills.heli;
+
+    const btnCallTaxi = document.getElementById('btn-call-taxi');
+    if (btnCallTaxi) {
+      const dead = Math.max(0, sys.targetCount - aliveCount);
+      btnCallTaxi.innerText = dead > 0 ? `🕶️ 補充兄弟+計程車 (${dead}人陣亡·按B)` : `🕶️ 補充兄弟+計程車 (全員在線·按B)`;
+    }
+  }
+
+  // 監聽選單/大地圖狀態，開啟時自動隱藏 HUD，關閉時自動還原
+  const updateMenuVisibility = () => {
+    const isMenuOpen = !!document.querySelector('.fm.show, .ph-wrap.show, .pause-wrap.show, .ti-wrap.show');
+    if (hudWrap) {
+      hudWrap.classList.toggle('menu-hidden', isMenuOpen);
+    }
+  };
+  const menuObserver = new MutationObserver(updateMenuVisibility);
+  menuObserver.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
+  const menuCheckTimer = setInterval(updateMenuVisibility, 300);
+  window.__tgtaMenuObserver = menuObserver;
+  window.__tgtaMenuTimer = menuCheckTimer;
+  updateMenuVisibility();
 
   function updateHudVisuals() {
     if (btnFly) {
@@ -334,6 +2404,10 @@
     if (btnSwords) {
       if (window.__swordsEnabled) btnSwords.classList.add('swords-active');
       else btnSwords.classList.remove('swords-active');
+    }
+    if (btnGang) {
+      if (window.__gangSystem.targetCount > 0) btnGang.classList.add('gang-active');
+      else btnGang.classList.remove('gang-active');
     }
     if (flyPanel) {
       if (window.__flyModeEnabled) flyPanel.classList.remove('hud-hidden');
@@ -345,10 +2419,10 @@
     }
   }
 
-  // 綁定觸控事件（支援手機 Touch 與滑鼠 Click）
+  // 綁定觸控與點擊事件
   function bindTouchTap(el, fn) {
     if (!el) return;
-    el.addEventListener('pointerdown', e => {
+    el.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
       fn();
@@ -372,41 +2446,130 @@
     el.addEventListener('pointerleave', release);
   }
 
+  // 綁定頂部快捷按鈕
   bindTouchTap(btnFly, toggleFlyMode);
   bindTouchTap(btnSwords, toggleSwords);
+  bindTouchTap(btnGang, () => {
+    window.__gangSystem.isPanelOpen = !window.__gangSystem.isPanelOpen;
+    gangCard.classList.toggle('open', window.__gangSystem.isPanelOpen);
+    updateGangUI();
+  });
+  bindTouchTap(btnTpMap, () => {
+    const fullmap = g.ui?._debug?.fullmap;
+    if (fullmap) {
+      window.__mapTeleportEnabled = true;
+      setupMapTeleportHook();
+      updateTpBadgeVisuals();
+      if (!fullmap.isOpen) {
+        fullmap.open();
+      } else {
+        fullmap.requestClose();
+      }
+    }
+  });
+  bindTouchTap(btnCloseGang, () => {
+    window.__gangSystem.isPanelOpen = false;
+    gangCard.classList.remove('open');
+  });
 
-  // 升空按鈕（按住上升）
-  bindTouchHold(btnUp, () => { mobileVert = 1; }, () => { if (mobileVert === 1) mobileVert = 0; });
+  // 黑道人數增減
+  bindTouchTap(btnGangMinus, () => {
+    if (window.__gangSystem.targetCount > 0) {
+      window.__gangSystem.targetCount--;
+      syncGangMemberCount(true);
+      updateHudVisuals();
+    }
+  });
+  bindTouchTap(btnGangPlus, () => {
+    if (window.__gangSystem.targetCount < 12) {
+      window.__gangSystem.targetCount++;
+      syncGangMemberCount(true);
+      updateHudVisuals();
+    }
+  });
 
-  // 降落按鈕（按住下降）
-  bindTouchHold(btnDown, () => { mobileVert = -1; }, () => { if (mobileVert === -1) mobileVert = 0; });
-
-  // 音速衝刺按鈕（點擊切換音速模式，手機不必辛苦死按著不放）
-  bindTouchTap(btnTurbo, () => {
-    window.__mobileTurboEnabled = !window.__mobileTurboEnabled;
-    updateHudVisuals();
-    try { g.audio?.play?.('pickup', { volume: 0.8 }); } catch (e) {}
-    g.events?.emit('notify', {
-      text: {
-        zh: window.__mobileTurboEnabled ? '⚡ 音速衝刺：已開啟 (68 m/s)' : '🚗 音速衝刺：已恢復普通巡航 (24 m/s)',
-        en: window.__mobileTurboEnabled ? 'Turbo Boost On (68 m/s)' : 'Cruise Speed (24 m/s)'
-      },
-      kind: window.__mobileTurboEnabled ? 'good' : 'info',
-      duration: 2
+  // 預設人數快捷鈕
+  hudWrap.querySelectorAll('.tgta-preset-btn').forEach(btn => {
+    bindTouchTap(btn, () => {
+      const cnt = parseInt(btn.getAttribute('data-cnt'), 10);
+      window.__gangSystem.targetCount = cnt;
+      syncGangMemberCount(true);
+      updateHudVisuals();
     });
   });
 
+  // 跟隨距離調整按鈕
+  const btnDistMinus = document.getElementById('btn-gang-dist-minus');
+  const btnDistPlus = document.getElementById('btn-gang-dist-plus');
+  const btnCallTaxi = document.getElementById('btn-call-taxi');
+
+  bindTouchTap(btnDistMinus, () => {
+    window.__gangSystem.maxFollowDistance = Math.max(15, (window.__gangSystem.maxFollowDistance || 50) - 10);
+    updateGangUI();
+  });
+  bindTouchTap(btnDistPlus, () => {
+    window.__gangSystem.maxFollowDistance = Math.min(200, (window.__gangSystem.maxFollowDistance || 50) + 10);
+    updateGangUI();
+  });
+  hudWrap.querySelectorAll('.tgta-preset-dist-btn').forEach(btn => {
+    bindTouchTap(btn, () => {
+      const dist = parseInt(btn.getAttribute('data-dist'), 10);
+      window.__gangSystem.maxFollowDistance = dist;
+      updateGangUI();
+    });
+  });
+  bindTouchTap(btnCallTaxi, () => {
+    callTaxiReinforcements();
+  });
+
+  // 堂口武器切換按鈕綁定（混編/球棒/空手/手槍/步槍 即時秒切換）
+  hudWrap.querySelectorAll('.tgta-wpn-btn').forEach(btn => {
+    bindTouchTap(btn, () => {
+      const wpn = btn.getAttribute('data-wpn');
+      window.__gangSystem.weaponType = wpn;
+      hudWrap.querySelectorAll('.tgta-wpn-btn').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-wpn') === wpn);
+      });
+      for (let m of window.__gangSystem.members) {
+        if (m.active) {
+          m.assignWeapon();
+        }
+      }
+      updateGangUI();
+      try {
+        g.audio?.play?.('ui_menu', { volume: 0.85 });
+      } catch (e) {}
+    });
+  });
+
+  // 升空按鈕（按住上升）
+  bindTouchHold(btnUp, () => { mobileVert = 1; }, () => { if (mobileVert === 1) mobileVert = 0; });
+  // 降落按鈕（按住下降）
+  bindTouchHold(btnDown, () => { mobileVert = -1; }, () => { if (mobileVert === -1) mobileVert = 0; });
+  // 渦輪音速衝刺切換鈕
+  bindTouchTap(btnTurbo, () => {
+    window.__mobileTurboEnabled = !window.__mobileTurboEnabled;
+    updateHudVisuals();
+    try {
+      g.audio?.play?.('nitro', { volume: 0.8, rate: window.__mobileTurboEnabled ? 1.2 : 0.8 });
+    } catch (e) {}
+  });
+
+  // 初始同步友軍黑道人數與地圖傳送 Hook
+  syncGangMemberCount(true);
   updateHudVisuals();
+  setupMapTeleportHook();
+  setInterval(setupMapTeleportHook, 1000);
 
   // ----------------------------------------------------
-  // 6. 鍵盤事件監聽（電腦端依然完美相容 X / Z / WASD / Shift）
+  // 6. 鍵盤事件監聽（PC 端相容 X / Z / G / WASD / Shift）
   // ----------------------------------------------------
   if (!window.__flyKeys) window.__flyKeys = new Set();
   const pressedKeys = window.__flyKeys;
 
-  function isDown(...keys) {
-    for (const k of keys) {
-      if (pressedKeys.has(k)) return true;
+  function isKeyDown(...keys) {
+    for (let k of keys) {
+      if (pressedKeys.has(k) || pressedKeys.has(k.toLowerCase())) return true;
       if (g.input?.keys?.has?.(k)) return true;
     }
     return false;
@@ -419,13 +2582,23 @@
         pressedKeys.add(e.code);
         pressedKeys.add(e.key.toLowerCase());
 
-        // X 鍵：飛行模式開關
+        // X 鍵：切換穿牆全載具飛行模式（空戰/空中巡邏）
         if (e.key === 'x' || e.key === 'X') {
           toggleFlyMode();
+        }
+        // B 鍵：直接補充黑道兄弟 + 附近生成皇冠計程車護駕
+        if (e.key === 'b' || e.key === 'B') {
+          callTaxiReinforcements();
         }
         // Z 鍵：十六光劍開關
         if (e.key === 'z' || e.key === 'Z') {
           toggleSwords();
+        }
+        // G 鍵：黑道堂口面板開關 / 增減友軍
+        if (e.key === 'g' || e.key === 'G') {
+          window.__gangSystem.isPanelOpen = !window.__gangSystem.isPanelOpen;
+          gangCard.classList.toggle('open', window.__gangSystem.isPanelOpen);
+          updateGangUI();
         }
       },
       up: e => {
@@ -449,139 +2622,267 @@
   }
 
   p.integrate = function (rawDt) {
-    // 飛行模式關閉時，回歸原版物理
     if (!window.__flyModeEnabled) {
       return window.__origPlayerIntegrate.apply(this, arguments);
+    }
+    if (g.vehicles?.playerVehicle) {
+      return;
     }
 
     const dt = Math.min(Math.max(Number.isFinite(rawDt) ? rawDt : 1 / 60, 0.001), 0.1);
 
-    // 1. 取得相機真實 3D 瞄準方向（手機右側滑動轉視角時自動跟隨）
     if (g.camera) {
       g.camera.getWorldDirection(camDir);
     } else {
       const yaw = p.cam?.yaw || 0;
       camDir.set(Math.sin(yaw), 0, -Math.cos(yaw));
     }
-    camRight.crossVectors(camDir, worldUp).normalize();
+    camDir.y = 0;
+    camDir.normalize();
 
-    // 2. 判定操作輸入：【鍵盤 WASD】 + 【手機左側虛擬搖桿】完美整合！
-    let fwd = 0;
-    if (isDown('KeyW', 'w', 'ArrowUp')) fwd += 1;
-    if (isDown('KeyS', 's', 'ArrowDown')) fwd -= 1;
+    camRight.set(-camDir.z, 0, camDir.x);
 
-    // 手機左側虛擬搖桿（推向前 joyY > 0，推向後 joyY < 0）
-    const joyY = p.act?.moveY || g.input?.virtual?.moveY || 0;
-    fwd += joyY;
+    let moveX = 0;
+    let moveZ = 0;
 
-    let side = 0;
-    if (isDown('KeyD', 'd', 'ArrowRight')) side += 1;
-    if (isDown('KeyA', 'a', 'ArrowLeft')) side -= 1;
-
-    // 手機左側虛擬搖桿（推向右 joyX > 0，推向左 joyX < 0）
-    const joyX = p.act?.moveX || g.input?.virtual?.moveX || 0;
-    side += joyX;
-
-    // 垂直升降：【鍵盤空白鍵 / C鍵】 + 【手機右側 ▲ / ▼ 觸控鍵】
-    let vert = mobileVert;
-    if (isDown('Space', ' ')) vert += 1;
-    if (isDown('KeyC', 'c', 'ControlLeft', 'ControlRight', 'KeyQ', 'q')) vert -= 1;
-
-    // 音速衝刺：【鍵盤 Shift】或【手機點擊 ⚡ 切換的 Turbo】
-    const isSprint = isDown('ShiftLeft', 'ShiftRight', 'shift') || window.__mobileTurboEnabled;
-    const isSlow = isDown('AltLeft', 'AltRight', 'alt');
-    const curSpeed = isSprint ? BOOST_SPEED : (isSlow ? SLOW_SPEED : NORMAL_SPEED);
-
-    // 3. 計算目標 3D 向量
-    flyTarget.set(0, 0, 0);
-    if (fwd !== 0) flyTarget.addScaledVector(camDir, fwd);
-    if (side !== 0) flyTarget.addScaledVector(camRight, side);
-    if (vert !== 0) flyTarget.y += vert;
-
-    if (flyTarget.lengthSq() > 1e-4) {
-      flyTarget.normalize().multiplyScalar(curSpeed);
+    let joyX = 0;
+    let joyY = 0;
+    if (g.input?.stick) {
+      joyX = g.input.stick.x || 0;
+      joyY = g.input.stick.y || 0;
+    }
+    if (g.input?.move) {
+      if (Math.abs(g.input.move.x || 0) > Math.abs(joyX)) joyX = g.input.move.x;
+      if (Math.abs(g.input.move.y || 0) > Math.abs(joyY)) joyY = g.input.move.y;
+    }
+    if (Math.hypot(joyX, joyY) > 0.1) {
+      moveX += camRight.x * joyX + camDir.x * (-joyY);
+      moveZ += camRight.z * joyX + camDir.z * (-joyY);
     }
 
-    // 4. 平滑慣性阻尼過渡（無論手機搖桿還是鍵盤，手感都極度絲滑，完全無頓挫）
-    const smoothFactor = 1 - Math.exp(-12.5 * dt);
-    flyVel.lerp(flyTarget, smoothFactor);
-    if (flyVel.lengthSq() < 1e-4 && flyTarget.lengthSq() === 0) {
-      flyVel.set(0, 0, 0);
+    if (isKeyDown('KeyW', 'ArrowUp', 'w')) { moveX += camDir.x; moveZ += camDir.z; }
+    if (isKeyDown('KeyS', 'ArrowDown', 's')) { moveX -= camDir.x; moveZ -= camDir.z; }
+    if (isKeyDown('KeyA', 'ArrowLeft', 'a')) { moveX -= camRight.x; moveZ -= camRight.z; }
+    if (isKeyDown('KeyD', 'ArrowRight', 'd')) { moveX += camRight.x; moveZ += camRight.z; }
+
+    const horizLen = Math.hypot(moveX, moveZ);
+    if (horizLen > 0.001) {
+      moveX /= horizLen;
+      moveZ /= horizLen;
     }
 
-    // 5. 更新玩家真實座標
-    p.position.x += flyVel.x * dt;
-    p.position.y += flyVel.y * dt;
-    p.position.z += flyVel.z * dt;
-
-    // 6. 地面防墜入保護（自動偵測地面高度，貼地滑行不穿模）
-    let groundY = -999;
-    try {
-      groundY = (g.groundAt ? g.groundAt(p.position.x, p.position.z) : g.plan?.groundHeight(p.position.x, p.position.z)) ?? 0;
-    } catch (e) {}
-    if (p.position.y < groundY + 0.25) {
-      p.position.y = groundY + 0.25;
-      if (flyVel.y < 0) flyVel.y = 0;
+    let moveY = 0;
+    if (mobileVert !== 0) {
+      moveY = mobileVert;
+    } else {
+      if (isKeyDown('Space', ' ')) moveY += 1;
+      if (isKeyDown('KeyC', 'c', 'ShiftRight')) moveY -= 1;
     }
 
-    // 7. 同步相機、網格與角色動態
-    p.visY = p.position.y;
-    p.vy = 0;
-    p.airTime = 0;
+    const isTurbo = window.__mobileTurboEnabled || isKeyDown('ShiftLeft', 'Shift', 'KeyE', 'e');
+    const flySpeed = isTurbo ? 68.0 : 25.0;
+
+    p.position.x += moveX * flySpeed * dt;
+    p.position.y += moveY * flySpeed * dt;
+    p.position.z += moveZ * flySpeed * dt;
+
+    if (horizLen > 0.001 && p.rotation) {
+      p.rotation.y = Math.atan2(moveX, -moveZ);
+    }
+
+    p.velocity?.set?.(moveX * flySpeed, moveY * flySpeed, moveZ * flySpeed);
+    if (p.body) {
+      p.body.x = p.position.x;
+      p.body.y = p.position.y;
+      p.body.z = p.position.z;
+      p.body.vx = moveX * flySpeed;
+      p.body.vy = moveY * flySpeed;
+      p.body.vz = moveZ * flySpeed;
+    }
+
+    p.airborne = true;
     p.grounded = false;
-    p.velocity.set(flyVel.x, 0, flyVel.z);
-    p.hSpeed = Math.hypot(flyVel.x, flyVel.z);
-
-    // 8. 角色模型平滑面朝飛行前進方向
-    const horizSpeed = Math.hypot(flyVel.x, flyVel.z);
-    if (horizSpeed > 0.3) {
-      const targetHeading = Math.atan2(flyVel.x, -flyVel.z);
-      p.heading = targetHeading;
-      p.lastHeading = targetHeading;
-      if (p.object) p.object.rotation.y = -targetHeading;
-    }
-
-    // 9. 每幀即時同步十六光劍陣與貼身護盾位置（高速飛行零延遲緊貼身側！）
-    const px = p.position.x, py = p.position.y, pz = p.position.z;
-    if (window.__shieldGroup) window.__shieldGroup.position.set(px, py + 0.95, pz);
-    if (window.__swordsGroup) {
-      window.__swordsGroup.position.set(px, py + 0.95, pz);
-      window.__swordsGroup.rotation.y += dt * 3.0; // 飛行時光劍群組優雅自旋
-    }
-
-    p.syncBody?.();
   };
 
   // ----------------------------------------------------
-  // 8. 位置跟隨與光劍斬殺循環（定時群體打擊）
+  // 8. 全載具飛行核心＋黑道兄弟/光劍即時更新主循環
   // ----------------------------------------------------
-  if (window.__swordInterval) clearInterval(window.__swordInterval);
-  const queryBodies = [];
-  window.__swordInterval = setInterval(() => {
-    try {
-      if (!p || p.health <= 0) return;
-      const px = p.position.x;
-      const py = p.position.y;
-      const pz = p.position.z;
+  let camDir = new T.Vector3();
+  let camRight = new T.Vector3();
+  let mobileVert = 0;
 
-      // 護盾與光劍跟隨玩家
+  function toggleFlyMode() {
+    window.__flyModeEnabled = !window.__flyModeEnabled;
+    const isFlying = window.__flyModeEnabled;
+
+    if (isFlying) {
+      try {
+        p.position.y += 2.0;
+        if (p.body) p.body.y += 2.0;
+      } catch (e) {}
+    } else {
+      window.__fallImmuneUntil = Date.now() + 8000;
+      mobileVert = 0;
+    }
+
+    updateHudVisuals();
+
+    try {
+      g.audio?.play?.(isFlying ? 'whoosh' : 'ui_menu', { volume: 0.9, rate: isFlying ? 1.3 : 0.9 });
+      g.events?.emit('notify', {
+        text: {
+          zh: isFlying ? '🪽 天神全載具飛行：已啟動！（徒步/機車/轎車皆支援飛行）' : '🪽 天神全載具飛行：已降落關閉（獲得 8 秒安全著陸防摔傷）',
+          en: isFlying ? 'Vehicle & Foot Flight Activated!' : 'Flight Deactivated!'
+        },
+        kind: isFlying ? 'good' : 'neutral',
+        duration: 3.0
+      });
+    } catch (e) {}
+  }
+
+  // 載具飛行輔助變數
+  const vForward = new T.Vector3();
+
+  if (window.__ultimateMainLoop) {
+    clearInterval(window.__ultimateMainLoop);
+  }
+
+  window.__ultimateMainLoop = setInterval(() => {
+    try {
+      const dt = 0.05; // 50ms 步長
+      const veh = g.vehicles?.playerVehicle;
+      const isFlying = !!window.__flyModeEnabled;
+
+      // 1. 全載具飛行接管
+      if (isFlying && veh && veh.body) {
+        veh.health = Math.max(veh.health || 100, 100);
+        veh.destroyed = false;
+        veh.onFire = false;
+        veh.sinking = 0;
+
+        const heading = veh.heading !== undefined ? veh.heading : (veh.body.heading || 0);
+        vForward.set(Math.sin(heading), 0, -Math.cos(heading)).normalize();
+
+        let joyX = 0;
+        let joyY = 0;
+        if (g.input?.stick) { joyX = g.input.stick.x || 0; joyY = g.input.stick.y || 0; }
+        if (g.input?.move) {
+          if (Math.abs(g.input.move.x || 0) > Math.abs(joyX)) joyX = g.input.move.x;
+          if (Math.abs(g.input.move.y || 0) > Math.abs(joyY)) joyY = g.input.move.y;
+        }
+
+        let steer = 0;
+        if (isKeyDown('KeyA', 'ArrowLeft', 'a')) steer += 1;
+        if (isKeyDown('KeyD', 'ArrowRight', 'd')) steer -= 1;
+        if (Math.abs(joyX) > 0.15) steer -= joyX;
+
+        const turnSpeed = (veh.spec?.twoWheeler ? 3.0 : 2.4) * dt;
+        veh.heading = heading + steer * turnSpeed;
+        veh.body.heading = veh.heading;
+        if (veh.object) veh.object.rotation.y = veh.heading;
+
+        let throttle = 0;
+        if (isKeyDown('KeyW', 'ArrowUp', 'w')) throttle += 1;
+        if (isKeyDown('KeyS', 'ArrowDown', 's')) throttle -= 1;
+        if (g.input?.throttle) throttle += g.input.throttle;
+        if (g.input?.brake) throttle -= g.input.brake;
+        if (Math.abs(joyY) > 0.2) throttle += (-joyY);
+
+        const isTurbo = window.__mobileTurboEnabled || isKeyDown('ShiftLeft', 'Shift', 'KeyE', 'e');
+        const topFlightSpeed = isTurbo ? 65.0 : 32.0;
+
+        let curSpeed = Math.hypot(veh.body.vx || 0, veh.body.vz || 0);
+        let targetSpeed = throttle > 0 ? (topFlightSpeed * throttle) : (throttle < 0 ? -15.0 : 0);
+        curSpeed += (targetSpeed - curSpeed) * Math.min(1, dt * 5);
+
+        let vertMove = 0;
+        if (mobileVert !== 0) vertMove = mobileVert;
+        else {
+          if (isKeyDown('Space', ' ')) vertMove += 1;
+          if (isKeyDown('KeyC', 'c', 'ShiftRight')) vertMove -= 1;
+        }
+        const vertSpeed = vertMove * (isTurbo ? 32.0 : 18.0);
+
+        veh.body.vx = vForward.x * curSpeed;
+        veh.body.vz = vForward.z * curSpeed;
+        veh.body.vy = vertSpeed;
+
+        veh.body.x += veh.body.vx * dt;
+        veh.body.z += veh.body.vz * dt;
+        veh.body.y += vertSpeed * dt;
+
+        veh.speed = curSpeed;
+        if (veh.object) {
+          veh.object.position.set(veh.body.x, veh.body.y, veh.body.z);
+          veh.object.rotation.x = 0;
+          veh.object.rotation.z = 0;
+        }
+
+        if (veh.spec?.twoWheeler) {
+          veh.lean = 0;
+          veh.wheelieA = 0;
+        }
+      }
+
+      // 2. 堂口黑道兄弟每幀更新與索敵
+      const gang = window.__gangSystem;
+      if (gang && gang.members) {
+        for (let m of gang.members) {
+          if (m.active) {
+            m.update(dt);
+          }
+        }
+      }
+      hookPoliceTargeting();
+      syncMinimapBlips();
+      updateTaxiReinforcements(dt);
+
+      // 黑道兄弟已採用 officer.state = 'return'，引擎逮捕檢測自然豁免友軍，無需壓制玩家犯罪星級，警察通緝完全正常運行
+
+      // ★ 更新 HUD 浮動存活人數計數器（真實活體過濾，絕不虛報）★
+      try {
+        const aliveCount = gang ? gang.members.filter(m => m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead').length : 0;
+        let counterEl = document.getElementById('tgta-gang-alive-float');
+        if (aliveCount > 0) {
+          if (!counterEl) {
+            counterEl = document.createElement('div');
+            counterEl.id = 'tgta-gang-alive-float';
+            counterEl.style.cssText = 'position:fixed;top:max(58px,env(safe-area-inset-top,0px));right:max(14px,env(safe-area-inset-right,0px));background:rgba(10,12,18,0.85);color:#ffd700;font-size:14px;font-weight:800;padding:6px 14px;border-radius:10px;border:1.5px solid rgba(255,215,0,0.6);z-index:99999;pointer-events:none;font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;text-shadow:0 0 8px rgba(255,215,0,0.4);';
+            document.body.appendChild(counterEl);
+          }
+          counterEl.textContent = `🕶️ 江湖黑道 ${aliveCount}/${gang.targetCount} 存活`;
+          counterEl.style.display = '';
+        } else if (counterEl) {
+          counterEl.style.display = 'none';
+        }
+      } catch (e) {}
+
+      // 3. 護盾與光劍跟隨玩家或載具
+      const px = veh ? veh.body.x : p.position.x;
+      const py = veh ? veh.y : p.position.y;
+      const pz = veh ? veh.body.z : p.position.z;
+
       if (window.__shieldGroup) window.__shieldGroup.position.set(px, py + 0.95, pz);
       if (window.__swordsGroup) window.__swordsGroup.position.set(px, py + 0.95, pz);
 
-      // 若光劍收回則不觸發斬擊
+      if (window.__swordsGroup && window.__swordsEnabled) {
+        window.__swordsGroup.rotation.y += dt * 8.0; // 高速旋轉
+      }
+
+      // 4. 光劍環形攻擊判定
       if (!window.__swordsEnabled) return;
+      const currentAttackRadius = veh ? 4.5 : ATTACK_RADIUS;
 
-      // 破壞障礙物
-      try { breakables?.blast?.(px, pz, ATTACK_RADIUS); } catch (e) {}
+      try { breakables?.blast?.(px, pz, currentAttackRadius); } catch (e) {}
 
-      // 2m 群體斬擊
       queryBodies.length = 0;
-      const count = g.dynamics.query(px, pz, ATTACK_RADIUS, queryBodies);
+      const count = g.dynamics.query(px, pz, currentAttackRadius, queryBodies);
       let hitAny = false;
       for (let i = 0; i < count; i++) {
         const body = queryBodies[i];
-        if (!body || body === p.body) continue;
-        if (Math.abs(body.y - py) > 2.5) continue;
+        if (!body || body === p.body || (veh && body === veh.body)) continue;
+        if (body.userData?.gang) continue; // 不傷友軍黑道兄弟
+        if (Math.abs(body.y - py) > 3.0) continue;
 
         if (body.kind === 'ped' || body.kind === 'police') {
           hitAny = true;
@@ -589,7 +2890,7 @@
           const dir = { x: (body.x - px) || 0.1, y: 0.2, z: (body.z - pz) || 0.1 };
 
           body.onDamage?.({ amount: 150, point: pt, dir: dir, weapon: 'bat', source: 'player' });
-          body.onImpact?.(dir.x * 25, dir.z * 25, p.body);
+          body.onImpact?.(dir.x * 25, dir.z * 25, veh ? veh.body : p.body);
           try { g.fx?.punch?.(pt, true); } catch (e) {}
           try { g.fx?.impact?.(pt, { x: 0, y: 1, z: 0 }, 'flesh'); } catch (e) {}
         }
@@ -599,7 +2900,9 @@
         try { g.audio?.play?.('punch', { x: px, y: py, z: pz, volume: 0.8 }); } catch (e) {}
       }
     } catch (e) {}
-  }, 200);
+  }, 50);
+
+  const queryBodies = [];
 
   // ----------------------------------------------------
   // 9. 【高爆自爆衝鋒槍】（Hook combat.fire）
@@ -608,8 +2911,8 @@
   combat.mag.smg = 30;
   p.switchWeapon('smg');
 
-  const EXPLOSION_RADIUS = 6.0; // 爆炸半徑 6 米
-  const MAX_DAMAGE = 350;       // 爆炸最高傷害
+  const EXPLOSION_RADIUS = 6.0;
+  const MAX_DAMAGE = 350;
   const blastBodies = [];
 
   function triggerExplosion(x, y, z) {
@@ -624,6 +2927,7 @@
     for (let i = 0; i < count; i++) {
       const body = blastBodies[i];
       if (!body || body === p.body) continue;
+      if (body.userData?.gang && window.__gangSystem.godMode) continue; // 若無開啟友軍無敵，黑道會正常受到車輛爆炸波及！
 
       const dx = body.x - x;
       const dz = body.z - z;
@@ -653,7 +2957,6 @@
   combat.fire = function () {
     window.__origCombatFire.apply(this, arguments);
 
-    // 衝鋒槍自爆效果
     if (this.p.weapon === 'smg') {
       this.mag.smg = 30;
       this.p.ammo.smg = 9999;
@@ -668,24 +2971,25 @@
   // ----------------------------------------------------
   // 10. 控制台完整說明與就緒通知
   // ----------------------------------------------------
-  console.log('%c🌟🪽📱⚔️💥【終極整合神級密技（支援手機觸控＋PC雙模式）】已啟動成功！', 'color: #00ffff; font-size: 18px; font-weight: bold;');
+  console.log('%c🌟🪽🚗🏍️🕶️⚔️💥【終極整合神級密技：全載具飛行＋光劍＋特警全黑黑道友軍＋自爆槍】已就緒！', 'color: #00ffff; font-size: 18px; font-weight: bold;');
   console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #666;');
-  console.log('%c📱【手機模式操控方式】：', 'color: #33ff99; font-size: 14px; font-weight: bold;');
-  console.log('   • 螢幕右上角：點【🪽 飛行】按鈕立即起飛/降落，點【⚔️ 光劍】開關十六光劍！');
-  console.log('   • 左手推動虛擬搖桿：自然朝相機瞄準方向 3D 自由前進/後退/平移！');
-  console.log('   • 右手滑動螢幕：自由旋轉相機視角（仰頭即爬升，低頭即俯衝）！');
-  console.log('   • 右側半透明浮鈕：');
-  console.log('       ▲ ：按住垂直升空拉高海拔');
-  console.log('       ▼ ：按住垂直降落貼近地面');
-  console.log('       ⚡ ：點擊切換【音速衝刺 68m/s】（極速直達 101 大樓尖頂，無須死按按鈕！）');
-  console.log('%c💻【PC 鍵盤操控方式】：', 'color: #00ffff; font-size: 14px; font-weight: bold;');
-  console.log('   • X 鍵切換飛行，Z 鍵切換光劍，WASD 全向飛行，空白鍵上升，C鍵下降，Shift音速衝刺！');
-  console.log('   • 貼心防摔傷：關閉飛行或高空降落時自動提供 8 秒跌落傷害免疫！');
+  console.log('%c🕶️【黑道堂口友軍火力支援】：', 'color: #ff9933; font-size: 14px; font-weight: bold;');
+  console.log('   • 造型升級：採用遊戲官方高精細 Police 3D 模型，純黑 SWAT 特警作戰服配備，質感完全無縫融合！');
+  console.log('   • 武器升級：手持官方【警用突擊步槍】，全自動索敵射擊警察、警車與空中警用直升機！');
+  console.log('   • 固定式選單：頂部【🪽 飛行】【⚔️ 光劍】【🕶️ 黑道堂口】為固定式置中按鈕，不阻擋大地圖！');
+  console.log('   • 人數隨意設定：支援 0 ~ 12 人自由調整，點擊 ➕ ➖ 或預設按鈕立即刷出兄弟！');
+  console.log('   • 空戰支援：當直升機盤旋時，黑道兄弟會抬高槍口仰角向天空傾瀉火力擊落直升機！');
+  console.log('%c🚗🏍️【騎車與開車空戰飛行】：', 'color: #33ff99; font-size: 14px; font-weight: bold;');
+  console.log('   • 任何機車、轎車，上車後立即支援飛行！W/S 前後，A/D 轉向，空白鍵上升，C鍵下降，Shift 音速衝刺！');
   console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #666;');
 
   g.events?.emit('notify', {
-    text: { zh: '🪽 天神飛行 & 光劍護盾已就緒！（手機螢幕已產生專屬懸浮按鈕）', en: 'Flight Ready! Mobile touch HUD active.' },
+    text: { zh: '🕶️ 黑道堂口兄弟已集合！（官方全黑特警造型·標配警用突擊步槍）', en: 'SWAT Black Mobster Squad Ready!' },
     kind: 'good',
     duration: 4.5
   });
+
+  } // end of initPlugin
+  
+  initPlugin();
 })();
