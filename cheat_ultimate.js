@@ -1270,8 +1270,8 @@
       } catch (e) {}
 
       // 實質傷害判定
-      // ★ 命中率：手槍 20%，步槍連發 10%
-      const hitChance = isPistol ? 0.20 : 0.10;
+      // ★ 命中率 (*1.5倍)：手槍 30% (原20%)，步槍連發 15% (原10%)
+      const hitChance = isPistol ? 0.30 : 0.15;
       if (Math.random() > hitChance) return; // 沒打中就直接結束，不扣血
 
       const aimDir = {
