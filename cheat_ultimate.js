@@ -241,8 +241,8 @@
 
   const GANG_WEAPONS = {
     mixed: { id: 'mixed', name: { zh: '🎲 堂口混編 (步槍/手槍)', en: 'Mixed Squad' } },
-    rifle: { id: 'rifle', name: { zh: '💥 突擊步槍 (遠程全自動掃射)', en: 'Assault Rifle' }, isMelee: false, range: 85, dmg: 55 },
-    pistol: { id: 'pistol', name: { zh: '🔫 警用配槍 (中距精準壓制)', en: 'Pistol' }, isMelee: false, range: 55, dmg: 38 }
+    rifle: { id: 'rifle', name: { zh: '💥 突擊步槍 (遠程全自動掃射)', en: 'Assault Rifle' }, range: 85, dmg: 20 },
+    pistol: { id: 'pistol', name: { zh: '🔫 警用配槍 (中距精準壓制)', en: 'Pistol' }, range: 55, dmg: 15 }
   };
 
   // ----------------------------------------------------
@@ -654,11 +654,8 @@
       this.officer = null;
       this.body = null;
       this.weapon = 'rifle';
-      this.isMelee = false;
-      this.batMesh = null;
       this.titleSprite = null; // 頭頂「江湖黑道」牌匾
       this.goldArmor = null;   // 金色風衣/戰甲 3D 模型
-      this.swingTime = 0;
       this.isFling = false;     // ★ 被車輛高速撞擊擊飛狀態
       this.flingVx = 0;
       this.flingVz = 0;
@@ -959,7 +956,7 @@
       }
     }
 
-    // 武器動態裝配（預設突擊步槍，僅支援 步槍/手槍/混編）
+    // 武器動態裝配（預設突擊步槍，僅支援 突擊步槍/警用配槍/雙槍混編）
     assignWeapon() {
       const sys = window.__gangSystem;
       let mode = sys?.weaponType || 'rifle';
@@ -976,8 +973,6 @@
       } else {
         this.weapon = 'rifle';
       }
-      this.isMelee = false;
-      this.removeBatMesh();
 
       if (this.officer) {
         if (this.weapon === 'rifle') {
@@ -987,52 +982,6 @@
           this.officer.gun = 1;    // 單手握持手槍
           this.officer.weapon = 1;
         }
-      }
-    }
-
-    // 建立右手持握的真實棒球棍 3D 模型
-    createBatMesh() {
-      if (this.batMesh) return;
-      try {
-        const batGroup = new T.Group();
-
-        // 棒頭主體（金屬深灰防暴棒）
-        const headGeo = new T.CylinderGeometry(0.038, 0.022, 0.72, 10);
-        const headMat = new T.MeshStandardMaterial({
-          color: 0x2d3035,
-          metalness: 0.85,
-          roughness: 0.35
-        });
-        const headMesh = new T.Mesh(headGeo, headMat);
-        headMesh.position.y = 0.36;
-        batGroup.add(headMesh);
-
-        // 握把（防滑握帶）
-        const handleGeo = new T.CylinderGeometry(0.019, 0.02, 0.22, 10);
-        const handleMat = new T.MeshStandardMaterial({
-          color: 0xd4d0c8,
-          metalness: 0.1,
-          roughness: 0.85
-        });
-        const handleMesh = new T.Mesh(handleGeo, handleMat);
-        handleMesh.position.y = -0.11;
-        batGroup.add(handleMesh);
-
-        // 握把尾端防滑圓鈕
-        const knobGeo = new T.SphereGeometry(0.026, 8, 8);
-        const knobMesh = new T.Mesh(knobGeo, headMat);
-        knobMesh.position.y = -0.22;
-        batGroup.add(knobMesh);
-
-        g.scene.add(batGroup);
-        this.batMesh = batGroup;
-      } catch (e) {}
-    }
-
-    removeBatMesh() {
-      if (this.batMesh) {
-        try { g.scene.remove(this.batMesh); } catch (e) {}
-        this.batMesh = null;
       }
     }
 
@@ -1078,7 +1027,6 @@
       if (!this.active) return;
       this.active = false;
       this.hp = 0;
-      this.removeBatMesh();
       this.removeVisuals();
       try { g.ui?.removeBlip?.(this.blipId); } catch (e) {}
       try {
@@ -1130,7 +1078,6 @@
 
     destroy() {
       this.active = false;
-      this.removeBatMesh();
       this.removeVisuals();
       try { g.ui?.removeBlip?.(this.blipId); } catch (e) {}
       if (this.officer) {
@@ -1155,13 +1102,40 @@
       }
     }
 
-    // 索敵邏輯：全員優先打直升機 (140m)；
-    // 剩餘存活黑道對半戰術分工：50% 人>車，50% 車>人 (直升機 > 車 > 人)
+    // 索敵邏輯：
+    // 0. 極限最高優先級：若警察太靠近 (20m 以內)，黑道全員優先擊斃警察（自衛防禦與拔除近身威脅）
+    // 1. 次高優先級：空中警用直升機 (140m 內，全員防空集火)；
+    // 2. 剩餘存活黑道對半戰術分工：50% 車>人 (85m)，50% 人>車 (75m)
     findTarget() {
       if (!this.officer) return null;
       const dynList = g.dynamics?.list || [];
 
-      // 1. 最高優先級：空中警用直升機 (140m 內，全員防空集火)
+      // 搜尋地面警察輔助函式（自動過濾死亡與友軍黑道，優先鎖定最近者）
+      const findPolice = (maxRange = 75) => {
+        let targetOfficer = null;
+        let minDist = maxRange;
+        for (let b of dynList) {
+          if (!b || !b.active || b.kind !== 'police' || b.userData?.heli || b.userData?.gang) continue;
+          if (b.userData?.officer && (b.userData.officer.state === 'dead' || b.userData.officer.hp <= 0)) continue;
+          if (typeof b.hp === 'number' && b.hp <= 0) continue;
+          const dx = b.x - this.officer.x;
+          const dz = b.z - this.officer.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist <= minDist) {
+            minDist = dist;
+            targetOfficer = { body: b, x: b.x, y: b.y + 1.2, z: b.z, kind: 'police', dist };
+          }
+        }
+        return targetOfficer;
+      };
+
+      // 0. ★ 最高優先級：若警察太靠近 (20m 以內)，黑道優先擊斃警察！
+      const closeCop = findPolice(20);
+      if (closeCop) {
+        return closeCop;
+      }
+
+      // 1. 次高優先級：空中警用直升機 (140m 內，全員防空集火)
       for (let b of dynList) {
         if (!b || !b.active) continue;
         if (b.userData?.heli || (b.owner === 'police' && b.height > 2.2 && b.mass > 1500)) {
@@ -1173,23 +1147,6 @@
           }
         }
       }
-
-      // 搜尋地面警察 (75m 內)
-      const findPolice = () => {
-        let targetOfficer = null;
-        let minDist = 75;
-        for (let b of dynList) {
-          if (!b || !b.active || b.kind !== 'police' || b.userData?.heli || b.userData?.gang) continue;
-          const dx = b.x - this.officer.x;
-          const dz = b.z - this.officer.z;
-          const dist = Math.hypot(dx, dz);
-          if (dist < minDist) {
-            minDist = dist;
-            targetOfficer = { body: b, x: b.x, y: b.y + 1.2, z: b.z, kind: 'police', dist };
-          }
-        }
-        return targetOfficer;
-      };
 
       // 搜尋警車 (85m 內)
       const findCar = () => {
@@ -1210,8 +1167,8 @@
       };
 
       // 2. 依當前「存活黑道」動態精確對半分工：
-      // 一半兄弟：直升機 > 人 > 車
-      // 另一半兄弟：直升機 > 車 > 人
+      // 一半兄弟：直升機 > 車 > 人
+      // 另一半兄弟：直升機 > 人 > 車
       const aliveMembers = window.__gangSystem?.members?.filter(m => m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead') || [];
       const myRank = aliveMembers.indexOf(this);
       const preferCar = (myRank >= 0) ? (myRank % 2 !== 0) : (this.index % 2 !== 0);
@@ -1220,11 +1177,11 @@
         // ★ 戰術反載具小組：車 > 人
         const car = findCar();
         if (car) return car;
-        const cop = findPolice();
+        const cop = findPolice(75);
         if (cop) return cop;
       } else {
         // ★ 戰術反步兵小組：人 > 車
-        const cop = findPolice();
+        const cop = findPolice(75);
         if (cop) return cop;
         const car = findCar();
         if (car) return car;
@@ -1233,94 +1190,11 @@
       return null;
     }
 
-    // 近戰打擊（空手拳頭 👊 / 暴力球棒 🏏）
-    meleeAttack(target) {
-      if (!target || !this.active || !this.officer) return;
-
-      const isBat = (this.weapon === 'bat');
-      // ★ 削弱近戰攻擊力與擊倒率，避免太快秒殺警察
-      const dmg = isBat ? 25 : 15;            // 球棒 25 (原本65)，空手 15 (原本35)
-      const knockChance = isBat ? 0.35 : 0.15; // 球棒 35% 擊倒，空手 15% 擊倒
-      this.swingTime = 0.25;
-
-      const targetX = target.x;
-      const targetY = target.y;
-      const targetZ = target.z;
-      const pt = { x: targetX, y: targetY + 0.8, z: targetZ };
-
-      const dx = (targetX - this.officer.x) || 0.1;
-      const dz = (targetZ - this.officer.z) || 0.1;
-      const dLen = Math.hypot(dx, dz) || 1;
-      const dir = { x: dx / dLen, y: 0.25, z: dz / dLen };
-
-      // 出手突擊動作
-      this.officer.reach = 1.0;
-
-      // 拳肉相搏音效與火花特效
-      try {
-        g.fx?.punch?.(pt, true);
-        g.fx?.impact?.(pt, { x: 0, y: 1, z: 0 }, 'flesh');
-        g.audio?.play?.('punch', { x: targetX, y: targetY, z: targetZ, rate: isBat ? 0.82 : 1.15, volume: 1.0 });
-      } catch (e) {}
-
-      if (target.kind === 'car') {
-        try { g.audio?.play?.('crash_light', { x: targetX, y: targetY, z: targetZ, volume: 0.75 }); } catch (e) {}
-        if (target.vehicle?.damage) {
-          target.vehicle.damage({ amount: Math.ceil(dmg / 3), source: 'gang', weapon: isBat ? 'bat' : 'fists', point: pt, dir });
-        } else if (target.body?.onDamage) {
-          target.body.onDamage({ amount: Math.ceil(dmg / 3), source: 'gang', weapon: isBat ? 'bat' : 'fists', dir, point: pt });
-        }
-        if (target.vehicle && (target.vehicle.health <= 0 || target.vehicle.destroyed)) {
-          window.__gangSystem.kills.cars++;
-          updateGangUI();
-        }
-      } else if (target.kind === 'police') {
-        // 為了避免觸發原版遊戲引擎對「球棒/空手」的「一擊必殺」硬派設定，
-        // 這裡我們完全不呼叫 target.body.onDamage，而是完全自己接管血量計算與死亡判定。
-
-        // 物理擊飛與擊倒判定
-        if (Math.random() < knockChance) {
-          if (target.body) {
-            target.body.vx += dir.x * (isBat ? 18 : 10);
-            target.body.vz += dir.z * (isBat ? 18 : 10);
-          }
-          if (target.body?.userData?.officer) {
-            const off = target.body.userData.officer;
-            if (off.state !== 'dead') {
-              off.state = 'down';
-              off.fall = 1.0;
-              off.downT = 0;
-            }
-          }
-        }
-
-        // 手動扣血與死亡判定
-        if (target.body?.userData?.officer) {
-          const off = target.body.userData.officer;
-          off.hp -= dmg;
-          off.flinch = 1.0;
-          if (off.hp <= 0 && off.active && off.state !== 'dead') {
-            off.hp = 0;
-            off.state = 'dead';
-            off.deadT = 0;
-            off.gun = 0;
-            off.body.active = false;
-            try { g.audio?.play?.('ped_scream', { x: off.x, y: off.y + 1.5, z: off.z, rate: 0.75, volume: 0.7 }); } catch (e) {}
-            if (window.__gangSystem) {
-              window.__gangSystem.kills.police++;
-              updateGangUI();
-            }
-          }
-        }
-      }
-    }
-
     // 遠程開火（警用配槍 🔫 / 突擊步槍 💥）
     fireAt(target) {
       if (!target || !this.active || !this.officer) return;
       const isPistol = (this.weapon === 'pistol');
-      // ★ 削弱遠程攻擊力
-      const dmg = isPistol ? 15 : 20;  // 手槍 15 (原本38)，步槍 20 (原本55)
+      const dmg = isPistol ? 15 : 20;  // 手槍 15，步槍 20 (基準 1 倍傷害)
       const soundRate = isPistol ? 1.02 : 1.25;
 
       const muzzleX = this.officer.x + Math.sin(this.officer.heading) * 0.45;
@@ -1354,15 +1228,16 @@
       const wpnKind = isPistol ? 'pistol' : 'rifle';
 
       if (target.kind === 'heli') {
+        // ★ 恢復對直升機 1 倍傷害（步槍 20 / 手槍 15）
         window.__lastHeliAttacker = this;
         window.__lastHeliAttackTime = Date.now();
         if (target.body?.onDamage) {
-          target.body.onDamage({ amount: isPistol ? 12 : 17, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
+          target.body.onDamage({ amount: dmg, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
         }
         if (target.body?.userData?.heli) {
           const h = target.body.userData;
           if (h.hp !== undefined) {
-            h.hp -= (isPistol ? 12 : 17);
+            h.hp -= dmg;
             if (h.hp <= 0 && h.state !== 'crash' && h.state !== 'wreck') {
               h.state = 'crash';
               window.__gangSystem.kills.heli++;
@@ -1371,21 +1246,27 @@
           }
         }
       } else if (target.kind === 'car') {
-        const carDmg = isPistol ? 16 : 22;
+        // ★ 恢復對警車 1 倍傷害（步槍 20 / 手槍 15）
         if (target.vehicle?.damage) {
-          target.vehicle.damage({ amount: carDmg, source: 'gang', weapon: wpnKind, point: { x: targetX, y: targetY, z: targetZ }, dir: aimDir });
+          target.vehicle.damage({ amount: dmg, source: 'gang', weapon: wpnKind, point: { x: targetX, y: targetY, z: targetZ }, dir: aimDir });
         } else if (target.body?.onDamage) {
-          target.body.onDamage({ amount: carDmg, source: 'gang', weapon: wpnKind });
+          target.body.onDamage({ amount: dmg, source: 'gang', weapon: wpnKind });
         }
         if (target.vehicle && (target.vehicle.health <= 0 || target.vehicle.destroyed)) {
           window.__gangSystem.kills.cars++;
           updateGangUI();
         }
       } else if (target.kind === 'police') {
+        // 對警察 1 倍傷害
+        const off = target.body?.userData?.officer;
+        const wasAlive = off ? (off.state !== 'dead' && off.hp > 0) : true;
         if (target.body?.onDamage) {
           target.body.onDamage({ amount: dmg, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
         }
-        // 引擎的 onDamage 已扣血，這裡不再重複扣血 (off.hp -= dmg)
+        if (wasAlive && off && (off.state === 'dead' || off.hp <= 0)) {
+          window.__gangSystem.kills.police++;
+          updateGangUI();
+        }
       }
     }
 
@@ -1528,12 +1409,7 @@
 
       const distToPlayer = Math.hypot(playerX - this.officer.x, playerZ - this.officer.z);
 
-      // 衰減揮擊與出拳動作計時
-      if (this.swingTime > 0) {
-        this.swingTime = Math.max(0, this.swingTime - dt);
-      } else if (this.officer.reach > 0) {
-        this.officer.reach = Math.max(0, this.officer.reach - dt * 4);
-      }
+
 
       // ★ 限制黑道預設不能超過玩家 50m（可在設定面板自訂 15m~200m）★
       const maxFollowDist = window.__gangSystem.maxFollowDistance || 50;
@@ -1588,71 +1464,48 @@
 
         this.officer.heading = targetHeading;
 
-        if (this.isMelee) {
-          // --- 近戰武器（空手肉搏 👊 / 暴力球棒 🏏）戰鬥 AI ---
-          this.officer.gun = 0;
-          this.officer.aim = 0.0;
-          this.officer.pitch = 0.0;
+        // --- 全員遠程槍械（警用配槍 🔫 / 突擊步槍 💥）戰鬥 AI ---
+        this.officer.aim = 1.0;
+        this.officer.gun = (this.weapon === 'pistol') ? 1 : 2;
 
-          const attackReach = (this.weapon === 'bat') ? 2.5 : 1.9;
+        // 計算對空或對人仰角
+        const pitch = Math.atan2(target.y - (this.officer.y + 1.35), horizDist);
+        this.officer.pitch = pitch;
 
-          if (horizDist > attackReach) {
-            // 疾速狂暴衝鋒接近目標！
-            goalX = target.x;
-            goalZ = target.z;
-            moveSpeed = 6.4 + (this.index % 3) * 0.5; // 狂暴衝鋒步速 ~6.6 m/s
-          } else {
-            // 貼身打擊！正面猛烈出拳/揮棒砸擊
-            moveSpeed = 0.6;
-            if (Date.now() > this.attackTimer) {
-              this.meleeAttack(target);
-              this.attackTimer = Date.now() + (this.weapon === 'bat' ? 440 : 310) + Math.random() * 110;
-            }
-          }
+        if (Date.now() > this.attackTimer) {
+          this.fireAt(target);
+          this.attackTimer = Date.now() + (this.weapon === 'pistol' ? 280 : 180) + Math.random() * 120;
+        }
+
+        // 戰鬥走位切換計時
+        if (Date.now() > this.strafeTimer) {
+          this.strafeDir = Math.random() < 0.5 ? -1 : 1;
+          this.strafeTimer = Date.now() + 1500 + Math.random() * 2000;
+        }
+        const rightX = -Math.sin(targetHeading + Math.PI / 2);
+        const rightZ = Math.cos(targetHeading + Math.PI / 2);
+
+        if (target.kind !== 'heli' && horizDist > 32) {
+          // 太遠時自主前推尋求壓制
+          goalX = this.officer.x + Math.sin(targetHeading) * 4.0;
+          goalZ = this.officer.z - Math.cos(targetHeading) * 4.0;
+          moveSpeed = 4.2;
+        } else if (target.kind !== 'heli' && horizDist < 9) {
+          // 太近時戰術後撤保證射擊安全距離
+          goalX = this.officer.x - Math.sin(targetHeading) * 3.5;
+          goalZ = this.officer.z + Math.cos(targetHeading) * 3.5;
+          moveSpeed = 3.6;
         } else {
-          // --- 遠程槍械（警用手槍 🔫 / 突擊步槍 💥）戰鬥 AI ---
-          this.officer.aim = 1.0;
-          this.officer.gun = (this.weapon === 'pistol') ? 1 : 2;
-
-          // 計算對空或對人仰角
-          const pitch = Math.atan2(target.y - (this.officer.y + 1.35), horizDist);
-          this.officer.pitch = pitch;
-
-          if (Date.now() > this.attackTimer) {
-            this.fireAt(target);
-            this.attackTimer = Date.now() + (this.weapon === 'pistol' ? 280 : 180) + Math.random() * 120;
-          }
-
-          // 戰鬥走位切換計時
-          if (Date.now() > this.strafeTimer) {
-            this.strafeDir = Math.random() < 0.5 ? -1 : 1;
-            this.strafeTimer = Date.now() + 1500 + Math.random() * 2000;
-          }
-          const rightX = -Math.sin(targetHeading + Math.PI / 2);
-          const rightZ = Math.cos(targetHeading + Math.PI / 2);
-
-          if (target.kind !== 'heli' && horizDist > 32) {
-            // 太遠時自主前推尋求壓制
-            goalX = this.officer.x + Math.sin(targetHeading) * 4.0;
-            goalZ = this.officer.z - Math.cos(targetHeading) * 4.0;
-            moveSpeed = 4.2;
-          } else if (target.kind !== 'heli' && horizDist < 9) {
-            // 太近時戰術後撤保證射擊安全距離
-            goalX = this.officer.x - Math.sin(targetHeading) * 3.5;
-            goalZ = this.officer.z + Math.cos(targetHeading) * 3.5;
-            moveSpeed = 3.6;
-          } else {
-            // 左右戰術側向滑步走位壓制
-            goalX = this.officer.x + rightX * this.strafeDir * 2.8;
-            goalZ = this.officer.z + rightZ * this.strafeDir * 2.8;
-            moveSpeed = 2.6;
-          }
+          // 左右戰術側向滑步走位壓制
+          goalX = this.officer.x + rightX * this.strafeDir * 2.8;
+          goalZ = this.officer.z + rightZ * this.strafeDir * 2.8;
+          moveSpeed = 2.6;
         }
       } else {
         // 非戰鬥狀態 或 超過跟隨距離限制回防
         this.officer.aim = 0.0;
         this.officer.pitch = 0.0;
-        this.officer.gun = this.isMelee ? 0 : (this.weapon === 'pistol' ? 1 : 2);
+        this.officer.gun = (this.weapon === 'pistol' ? 1 : 2);
         this.officer.rest = 0; // ★ 強制保持 0，絕不允許手背身後或抱胸站崗！
 
         if (isExceedingDistance || distToPlayer > 36) {
@@ -1760,26 +1613,7 @@
         this.body.heading = this.officer.heading;
       }
 
-      // 同步手持棒球棍 3D 模型位置與揮擊姿態
-      if (this.batMesh && this.officer) {
-        const h = this.officer.heading;
-        const isSwinging = this.swingTime > 0;
-        const rx = Math.sin(h + 0.55) * 0.42;
-        const rz = -Math.cos(h + 0.55) * 0.42;
-        const handY = this.officer.y + 0.95 + (isSwinging ? 0.25 : 0);
-        this.batMesh.position.set(this.officer.x + rx, handY, this.officer.z + rz);
 
-        if (isSwinging) {
-          const swingProg = 1 - (this.swingTime / 0.25);
-          this.batMesh.rotation.y = h - 1.2 + swingProg * 2.4;
-          this.batMesh.rotation.x = 0.3 - Math.sin(swingProg * Math.PI) * 0.7;
-          this.batMesh.rotation.z = -0.4;
-        } else {
-          this.batMesh.rotation.y = h;
-          this.batMesh.rotation.x = 0.5;
-          this.batMesh.rotation.z = -0.3;
-        }
-      }
 
       // 同步頭頂「江湖黑道」霸氣牌匾
       if (this.titleSprite && this.officer) {
