@@ -2383,27 +2383,46 @@
         font-weight: bold;
       }
 
-      /* 右側飛行高度與衝刺控制群（飛行開啟時自動浮現） */
+      /* 右側飛行高度與衝刺控制群（飛行開啟時自動浮現，整合防穿透膠囊底板） */
       .tgta-fly-dock {
         position: absolute;
-        right: max(18px, env(safe-area-inset-right));
-        top: 50%;
+        right: max(14px, env(safe-area-inset-right));
+        top: 42%;
         transform: translateY(-50%);
         display: flex;
         flex-direction: column;
+        align-items: center;
         gap: 12px;
+        padding: 10px 8px;
+        background: rgba(10, 15, 24, 0.88);
+        border: 2px solid rgba(0, 255, 255, 0.45);
+        border-radius: 36px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 16px rgba(0, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
         transition: opacity 0.25s ease, transform 0.25s ease;
+        z-index: 100000;
+        pointer-events: auto !important;
+        touch-action: none !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -webkit-touch-callout: none !important;
       }
       .tgta-fly-dock.hud-hidden {
         opacity: 0;
-        pointer-events: none;
+        pointer-events: none !important;
         transform: translateY(-50%) translateX(25px);
       }
       .tgta-round-btn {
-        width: 52px;
-        height: 52px;
+        width: 54px;
+        height: 54px;
         border-radius: 50%;
-        font-size: 20px;
+        font-size: 22px;
+        pointer-events: auto !important;
+        touch-action: none !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -webkit-touch-callout: none !important;
       }
       .tgta-up-btn {
         border-color: #33ff99;
@@ -2424,7 +2443,12 @@
       .tgta-turbo-btn {
         border-color: #ff3366;
         color: #ff6688;
-        font-size: 18px;
+        font-size: 20px;
+        pointer-events: auto !important;
+        touch-action: manipulation;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -webkit-touch-callout: none !important;
       }
       .tgta-turbo-btn.turbo-on {
         background: rgba(255, 51, 102, 0.45);
@@ -2432,34 +2456,80 @@
         color: #ffffff;
         box-shadow: 0 0 22px #ff3366;
       }
+      .tgta-dock-btn.hide-dock-btn {
+        border-color: rgba(255, 255, 255, 0.35);
+        color: #bbb;
+        background: rgba(25, 20, 25, 0.85);
+      }
+      .tgta-dock-btn.hide-dock-btn:hover, .tgta-dock-btn.hide-dock-btn:active {
+        background: rgba(50, 25, 40, 0.9);
+        border-color: #ff5588;
+        color: #fff;
+      }
+      .tgta-restore-dock {
+        position: absolute;
+        top: max(12px, env(safe-area-inset-top));
+        left: 50%;
+        transform: translateX(-50%);
+        height: 38px;
+        padding: 0 16px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        border-radius: 20px;
+        border: 2px solid #ff9933 !important;
+        color: #ffcc66 !important;
+        background: rgba(25, 18, 12, 0.92) !important;
+        box-shadow: 0 0 18px rgba(255, 153, 51, 0.6) !important;
+        pointer-events: auto !important;
+        z-index: 100000;
+        cursor: pointer;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
       .tgta-hide-ui-btn {
         position: absolute;
-        top: max(15px, env(safe-area-inset-top));
-        right: max(15px, env(safe-area-inset-right));
-        width: 40px;
-        height: 40px;
-        background: rgba(15, 18, 26, 0.7);
-        border: 2px solid rgba(255, 255, 255, 0.2);
+        top: max(14px, env(safe-area-inset-top));
+        right: max(14px, env(safe-area-inset-right));
+        width: 48px;
+        height: 48px;
+        background: rgba(15, 18, 26, 0.92);
+        border: 2px solid rgba(0, 255, 255, 0.6);
         border-radius: 50%;
         color: #fff;
-        font-size: 18px;
+        font-size: 22px;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        z-index: 10001;
-        user-select: none;
+        z-index: 100000;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -webkit-touch-callout: none !important;
+        pointer-events: auto !important;
+        touch-action: manipulation;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.7), 0 0 14px rgba(0, 255, 255, 0.35);
+        transition: transform 0.15s ease, background 0.15s ease, opacity 0.2s ease;
       }
       .tgta-hide-ui-btn:active {
-        background: rgba(255, 255, 255, 0.2);
+        transform: scale(0.9);
+        background: rgba(0, 255, 255, 0.3);
       }
       .hud-wrap-hidden .tgta-top-dock,
       .hud-wrap-hidden .tgta-gang-panel,
-      .hud-wrap-hidden .tgta-fly-dock {
+      .hud-wrap-hidden .tgta-fly-dock,
+      .hud-wrap-hidden #tgta-gang-alive-float {
         display: none !important;
+      }
+      .hud-wrap-hidden .tgta-restore-dock {
+        display: flex !important;
       }
     </style>
 
+    <!-- ★ 隱藏時顯示的頂部居中展開小膠囊 ★ -->
+    <div id="btn-restore-hud" class="tgta-btn tgta-restore-dock" title="點擊展開外掛UI">🕶️ 展開外掛</div>
     <div id="btn-toggle-hud" class="tgta-hide-ui-btn" title="隱藏外掛UI">👁️</div>
     <!-- ★ 頂部快捷開關（固定置中式） ★ -->
     <div class="tgta-top-dock">
@@ -2467,6 +2537,7 @@
       <div id="btn-toggle-swords" class="tgta-btn tgta-dock-btn">⚔️ 光劍</div>
       <div id="btn-toggle-gang" class="tgta-btn tgta-dock-btn">🕶️ 黑道堂口</div>
       <div id="btn-toggle-tp-map" class="tgta-btn tgta-dock-btn map-btn">🗺️ 傳送地圖</div>
+      <div id="btn-dock-hide" class="tgta-btn tgta-dock-btn hide-dock-btn" title="隱藏外掛所有按鈕">👁️ 隱藏UI</div>
     </div>
 
     <!-- 🕶️ 黑道堂口專屬設定面板（固定置中） -->
@@ -2625,31 +2696,93 @@
     }
   }
 
-  // 綁定觸控與點擊事件
+  // 綁定觸控與點擊事件（雙重相容觸控螢幕與滑鼠點擊，加入防抖機制徹底杜絕 touchend + click 雙重觸發）
   function bindTouchTap(el, fn) {
     if (!el) return;
+    let lastFireTime = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+
+    const fire = (e) => {
+      const now = Date.now();
+      // 至少間隔 350ms，徹底防止 touchend 後瀏覽器自動補派發 click 事件造成的二段反轉
+      if (now - lastFireTime < 350) return;
+      lastFireTime = now;
+      if (e) {
+        try { e.preventDefault(); } catch (err) {}
+        try { e.stopPropagation(); } catch (err) {}
+      }
+      fn(e);
+    };
+
+    el.addEventListener('touchstart', e => {
+      if (e.changedTouches && e.changedTouches[0]) {
+        const t = e.changedTouches[0];
+        touchStartX = t.clientX;
+        touchStartY = t.clientY;
+      }
+      touchStartTime = Date.now();
+    }, { passive: true });
+
+    el.addEventListener('touchend', e => {
+      if (e.changedTouches && e.changedTouches[0]) {
+        const t = e.changedTouches[0];
+        const dist = Math.hypot(t.clientX - touchStartX, t.clientY - touchStartY);
+        if (dist < 30 && Date.now() - touchStartTime < 700) {
+          fire(e);
+        }
+      }
+    }, { passive: false });
+
     el.addEventListener('click', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      fn();
+      fire(e);
     });
   }
 
   function bindTouchHold(el, onHold, onRelease) {
     if (!el) return;
-    el.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      e.stopPropagation();
+    let isHolding = false;
+    const start = e => {
+      if (isHolding) return;
+      isHolding = true;
+      if (e) {
+        try { e.preventDefault(); } catch(err) {}
+        try { e.stopPropagation(); } catch(err) {}
+      }
       el.classList.add('holding');
       onHold();
-    });
-    const release = e => {
+    };
+    const end = e => {
+      if (!isHolding) return;
+      isHolding = false;
+      if (e) {
+        try { e.preventDefault(); } catch(err) {}
+        try { e.stopPropagation(); } catch(err) {}
+      }
       el.classList.remove('holding');
       onRelease();
     };
-    el.addEventListener('pointerup', release);
-    el.addEventListener('pointercancel', release);
-    el.addEventListener('pointerleave', release);
+
+    // 禁用長按系統氣泡與選單（防止手機長按彈出放大鏡或複製選單導致中斷）
+    el.addEventListener('contextmenu', e => {
+      try { e.preventDefault(); e.stopPropagation(); } catch (err) {}
+    });
+
+    el.addEventListener('touchstart', start, { passive: false });
+    el.addEventListener('touchend', end, { passive: false });
+    el.addEventListener('touchcancel', end, { passive: false });
+
+    el.addEventListener('pointerdown', e => {
+      try { el.setPointerCapture(e.pointerId); } catch(err) {}
+      start(e);
+    });
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('lostpointercapture', end);
+
+    el.addEventListener('mousedown', start);
+    window.addEventListener('mouseup', () => { if (isHolding) end(); });
   }
 
   // 綁定頂部快捷按鈕
@@ -2675,17 +2808,42 @@
   });
 
   const btnToggleHud = document.getElementById('btn-toggle-hud');
+  const btnDockHide = document.getElementById('btn-dock-hide');
+  const btnRestoreHud = document.getElementById('btn-restore-hud');
+
   let hudHidden = false;
-  bindTouchTap(btnToggleHud, () => {
-    hudHidden = !hudHidden;
+  function setHudVisibility(hidden) {
+    hudHidden = hidden;
     if (hudHidden) {
       hudWrap.classList.add('hud-wrap-hidden');
-      btnToggleHud.innerText = '🙈';
+      if (btnToggleHud) {
+        btnToggleHud.innerText = '🙈';
+        btnToggleHud.title = '點擊展開外掛UI';
+        btnToggleHud.style.opacity = '0.65';
+      }
     } else {
       hudWrap.classList.remove('hud-wrap-hidden');
-      btnToggleHud.innerText = '👁️';
+      if (btnToggleHud) {
+        btnToggleHud.innerText = '👁️';
+        btnToggleHud.title = '隱藏外掛UI';
+        btnToggleHud.style.opacity = '1.0';
+      }
     }
-  });
+    try { g.audio?.play?.('ui_click', { volume: 0.8 }); } catch (err) {}
+  }
+
+  bindTouchTap(btnToggleHud, () => setHudVisibility(!hudHidden));
+  bindTouchTap(btnDockHide, () => setHudVisibility(true));
+  bindTouchTap(btnRestoreHud, () => setHudVisibility(false));
+
+  // ★ 關鍵防護：徹底阻止飛行面板區域內的觸控滲透到底層視角層 (.tc-look)
+  if (flyPanel) {
+    ['pointerdown', 'pointermove', 'touchstart', 'touchmove'].forEach(evt => {
+      flyPanel.addEventListener(evt, e => {
+        try { e.stopPropagation(); } catch (err) {}
+      }, { passive: false });
+    });
+  }
 
   bindTouchTap(btnCloseGang, () => {
     window.__gangSystem.isPanelOpen = false;
@@ -2821,6 +2979,10 @@
           gangCard.classList.toggle('open', window.__gangSystem.isPanelOpen);
           updateGangUI();
         }
+        // H 鍵：隱藏/顯示外掛按鈕 (HUD Toggle)
+        if (e.key === 'h' || e.key === 'H') {
+          btnToggleHud?.click();
+        }
       },
       up: e => {
         pressedKeys.delete(e.code);
@@ -2866,39 +3028,54 @@
     let moveX = 0;
     let moveZ = 0;
 
+    // ★ 讀取手機虛擬搖桿與遊戲原生輸入軸（moveX / moveY）
     let joyX = 0;
     let joyY = 0;
-    if (g.input?.stick) {
-      joyX = g.input.stick.x || 0;
-      joyY = g.input.stick.y || 0;
+    const inp = g.input;
+    if (inp) {
+      if (inp.virtual && (Math.abs(inp.virtual.moveX || 0) > 0.05 || Math.abs(inp.virtual.moveY || 0) > 0.05)) {
+        joyX = inp.virtual.moveX || 0;
+        joyY = inp.virtual.moveY || 0;
+      } else if (typeof inp.axis === 'function') {
+        joyX = inp.axis('moveX') || 0;
+        joyY = inp.axis('moveY') || 0;
+      } else if (inp.axes) {
+        joyX = inp.axes.moveX || 0;
+        joyY = inp.axes.moveY || 0;
+      }
     }
-    if (g.input?.move) {
-      if (Math.abs(g.input.move.x || 0) > Math.abs(joyX)) joyX = g.input.move.x;
-      if (Math.abs(g.input.move.y || 0) > Math.abs(joyY)) joyY = g.input.move.y;
-    }
-    if (Math.hypot(joyX, joyY) > 0.1) {
-      moveX += camRight.x * joyX + camDir.x * (-joyY);
-      moveZ += camRight.z * joyX + camDir.z * (-joyY);
+    if (Math.hypot(joyX, joyY) < 0.05 && p?.act) {
+      joyX = p.act.moveX || 0;
+      joyY = p.act.moveY || 0;
     }
 
-    if (isKeyDown('KeyW', 'ArrowUp', 'w')) { moveX += camDir.x; moveZ += camDir.z; }
-    if (isKeyDown('KeyS', 'ArrowDown', 's')) { moveX -= camDir.x; moveZ -= camDir.z; }
-    if (isKeyDown('KeyA', 'ArrowLeft', 'a')) { moveX -= camRight.x; moveZ -= camRight.z; }
-    if (isKeyDown('KeyD', 'ArrowRight', 'd')) { moveX += camRight.x; moveZ += camRight.z; }
+    let inputX = joyX;
+    let inputY = joyY;
 
-    const horizLen = Math.hypot(moveX, moveZ);
-    if (horizLen > 0.001) {
-      moveX /= horizLen;
-      moveZ /= horizLen;
+    if (isKeyDown('KeyW', 'ArrowUp', 'w')) inputY = Math.max(inputY, 1);
+    if (isKeyDown('KeyS', 'ArrowDown', 's')) inputY = Math.min(inputY, -1);
+    if (isKeyDown('KeyA', 'ArrowLeft', 'a')) inputX = Math.min(inputX, -1);
+    if (isKeyDown('KeyD', 'ArrowRight', 'd')) inputX = Math.max(inputX, 1);
+
+    if (Math.hypot(inputX, inputY) > 0.08) {
+      // camDir: 朝前方, camRight: 朝右方
+      // inputY > 0: 向前, inputY < 0: 向後
+      // inputX > 0: 向右, inputX < 0: 向左
+      moveX = camDir.x * inputY + camRight.x * inputX;
+      moveZ = camDir.z * inputY + camRight.z * inputX;
+      const horizLen = Math.hypot(moveX, moveZ);
+      if (horizLen > 1) {
+        moveX /= horizLen;
+        moveZ /= horizLen;
+      }
     }
 
     let moveY = 0;
     if (window.__mobileVert !== 0) {
-      moveY = window.__mobileVert;
-    } else {
-      if (isKeyDown('Space', ' ')) moveY += 1;
-      if (isKeyDown('KeyC', 'c', 'ShiftRight')) moveY -= 1;
+      moveY = window.__mobileVert; // +1: 上升, -1: 下降
     }
+    if (isKeyDown('Space', ' ')) moveY = Math.max(moveY, 1);
+    if (isKeyDown('KeyC', 'c', 'ShiftRight')) moveY = Math.min(moveY, -1);
 
     const isTurbo = window.__mobileTurboEnabled || isKeyDown('ShiftLeft', 'Shift', 'KeyE', 'e');
     const flySpeed = isTurbo ? 68.0 : 25.0;
@@ -2984,18 +3161,49 @@
         const heading = veh.heading !== undefined ? veh.heading : (veh.body.heading || 0);
         vForward.set(Math.sin(heading), 0, -Math.cos(heading)).normalize();
 
+        // ★ 讀取車輛駕駛輸入（支援手機方向踏板與虛擬搖桿）
         let joyX = 0;
         let joyY = 0;
-        if (g.input?.stick) { joyX = g.input.stick.x || 0; joyY = g.input.stick.y || 0; }
-        if (g.input?.move) {
-          if (Math.abs(g.input.move.x || 0) > Math.abs(joyX)) joyX = g.input.move.x;
-          if (Math.abs(g.input.move.y || 0) > Math.abs(joyY)) joyY = g.input.move.y;
+        let steerAxis = 0;
+        let throttleAxis = 0;
+        const inp = g.input;
+        if (inp) {
+          if (inp.virtual) {
+            if (typeof inp.virtual.moveX === 'number') joyX = inp.virtual.moveX;
+            if (typeof inp.virtual.moveY === 'number') joyY = inp.virtual.moveY;
+            if (typeof inp.virtual.throttle === 'number') throttleAxis += inp.virtual.throttle;
+            if (typeof inp.virtual.brake === 'number') throttleAxis -= inp.virtual.brake;
+          }
+          if (typeof inp.axis === 'function') {
+            const s = inp.axis('steer');
+            const t = inp.axis('throttle');
+            const b = inp.axis('brake');
+            const mx = inp.axis('moveX');
+            const my = inp.axis('moveY');
+            if (steerAxis === 0 && typeof s === 'number') steerAxis = s;
+            if (throttleAxis === 0) {
+              if (typeof t === 'number') throttleAxis += t;
+              if (typeof b === 'number') throttleAxis -= b;
+            }
+            if (joyX === 0 && typeof mx === 'number') joyX = mx;
+            if (joyY === 0 && typeof my === 'number') joyY = my;
+          }
+          if (inp.axes) {
+            if (steerAxis === 0 && typeof inp.axes.steer === 'number') steerAxis = inp.axes.steer;
+            if (throttleAxis === 0) {
+              if (typeof inp.axes.throttle === 'number') throttleAxis += inp.axes.throttle;
+              if (typeof inp.axes.brake === 'number') throttleAxis -= inp.axes.brake;
+            }
+            if (joyX === 0 && typeof inp.axes.moveX === 'number') joyX = inp.axes.moveX;
+            if (joyY === 0 && typeof inp.axes.moveY === 'number') joyY = inp.axes.moveY;
+          }
         }
 
         let steer = 0;
-        if (isKeyDown('KeyA', 'ArrowLeft', 'a')) steer += 1;
-        if (isKeyDown('KeyD', 'ArrowRight', 'd')) steer -= 1;
-        if (Math.abs(joyX) > 0.15) steer -= joyX;
+        if (Math.abs(steerAxis) > 0.08) steer -= steerAxis;
+        else if (Math.abs(joyX) > 0.08) steer -= joyX;
+        if (isKeyDown('KeyA', 'ArrowLeft', 'a')) steer = Math.max(steer, 1);
+        if (isKeyDown('KeyD', 'ArrowRight', 'd')) steer = Math.min(steer, -1);
 
         const turnSpeed = (veh.spec?.twoWheeler ? 3.0 : 2.4) * dt;
         veh.heading = heading + steer * turnSpeed;
@@ -3003,13 +3211,12 @@
         if (veh.object) veh.object.rotation.y = veh.heading;
 
         let throttle = 0;
-        if (isKeyDown('KeyW', 'ArrowUp', 'w')) throttle += 1;
-        if (isKeyDown('KeyS', 'ArrowDown', 's')) throttle -= 1;
-        if (g.input?.throttle) throttle += g.input.throttle;
-        if (g.input?.brake) throttle -= g.input.brake;
-        if (Math.abs(joyY) > 0.2) throttle += (-joyY);
+        if (Math.abs(throttleAxis) > 0.08) throttle += throttleAxis;
+        else if (Math.abs(joyY) > 0.08) throttle += joyY; // ★ joyY > 0 正向推動為向前
+        if (isKeyDown('KeyW', 'ArrowUp', 'w')) throttle = Math.max(throttle, 1);
+        if (isKeyDown('KeyS', 'ArrowDown', 's')) throttle = Math.min(throttle, -1);
 
-        const isTurbo = window.__mobileTurboEnabled || isKeyDown('ShiftLeft', 'Shift', 'KeyE', 'e');
+        const isTurbo = !!(window.__mobileTurboEnabled || isKeyDown('ShiftLeft', 'Shift', 'KeyE', 'e'));
         const topFlightSpeed = isTurbo ? 65.0 : 32.0;
 
         let curSpeed = Math.hypot(veh.body.vx || 0, veh.body.vz || 0);
@@ -3018,10 +3225,8 @@
 
         let vertMove = 0;
         if (window.__mobileVert !== 0) vertMove = window.__mobileVert;
-        else {
-          if (isKeyDown('Space', ' ')) vertMove += 1;
-          if (isKeyDown('KeyC', 'c', 'ShiftRight')) vertMove -= 1;
-        }
+        if (isKeyDown('Space', ' ')) vertMove = Math.max(vertMove, 1);
+        if (isKeyDown('KeyC', 'c', 'ShiftRight')) vertMove = Math.min(vertMove, -1);
         const vertSpeed = vertMove * (isTurbo ? 32.0 : 18.0);
 
         veh.body.vx = vForward.x * curSpeed;
