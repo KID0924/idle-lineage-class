@@ -211,27 +211,27 @@
   }
 
   // ★ 黑道混編模式自訂武器配置表 ★
-  // 當選擇「混編(mixed)」時，會依照以下陣列順序發放武器給小弟（例如第1個拿步槍、第2個拿球棒...），超過人數會循環配置。
-  // 可選武器：'rifle' (步槍), 'pistol' (手槍), 'bat' (球棒), 'fists' (空手)
+  // 當選擇「混編(mixed)」時，會依照以下陣列順序發放武器給小弟（步槍與手槍交替混編）。
+  // 可選武器：'rifle' (步槍), 'pistol' (手槍)
   window.__gangMixedWeapons = [
-    'pistol',  // 第1個小弟（唯一的一把槍）
-    'bat',     // 第2個小弟
-    'fists',   // 第3個小弟
-    'bat',     // 第4個小弟
-    'fists',   // 第5個小弟
-    'bat',     // 第6個小弟
-    'fists',   // 第7個小弟
-    'bat',     // 第8個小弟
-    'fists',   // 第9個小弟
-    'bat',     // 第10個小弟
-    'fists',   // 第11個小弟
-    'bat'      // 第12個小弟
+    'rifle',   // 第1個小弟
+    'pistol',  // 第2個小弟
+    'rifle',   // 第3個小弟
+    'pistol',  // 第4個小弟
+    'rifle',   // 第5個小弟
+    'pistol',  // 第6個小弟
+    'rifle',   // 第7個小弟
+    'pistol',  // 第8個小弟
+    'rifle',   // 第9個小弟
+    'pistol',  // 第10個小弟
+    'rifle',   // 第11個小弟
+    'pistol'   // 第12個小弟
   ];
 
   window.__gangSystem = {
-    targetCount: 4,          // 預設 4 名兄弟，可透過面板調整 0~12 人
+    targetCount: 0,          // ★ 預設 0 名兄弟，進入遊戲後再手動招募以避免無敵 Bug
     maxFollowDistance: 50,   // ★ 限制黑道預設不能超過玩家 50m（可在設定調整 15m~200m）
-    weaponType: 'mixed',      // 武器模式：'mixed'(混編), 'bat'(球棒), 'fists'(空手), 'pistol'(手槍), 'rifle'(步槍)
+    weaponType: 'rifle',      // ★ 預設武器為步槍 ('rifle')
     members: [],
     kills: { police: 0, cars: 0, heli: 0 },
     activeTaxis: [],         // 計程車援兵車隊
@@ -240,11 +240,9 @@
   };
 
   const GANG_WEAPONS = {
-    mixed: { id: 'mixed', name: { zh: '🎲 堂口混編 (球棒/步槍/手槍/鐵拳)', en: 'Mixed Squad' } },
-    bat: { id: 'bat', name: { zh: '🏏 暴力球棒 (高暴擊高擊倒)', en: 'Baseball Bat' }, isMelee: true, reach: 2.6, dmg: 65, knockChance: 0.70 },
-    fists: { id: 'fists', name: { zh: '👊 空手狂暴肉搏 (疾速連拳衝鋒)', en: 'Fists' }, isMelee: true, reach: 2.0, dmg: 35, knockChance: 0.35 },
-    pistol: { id: 'pistol', name: { zh: '🔫 警用配槍 (中距精準壓制)', en: 'Pistol' }, isMelee: false, range: 55, dmg: 38 },
-    rifle: { id: 'rifle', name: { zh: '💥 突擊步槍 (遠程全自動掃射)', en: 'Assault Rifle' }, isMelee: false, range: 85, dmg: 55 }
+    mixed: { id: 'mixed', name: { zh: '🎲 堂口混編 (步槍/手槍)', en: 'Mixed Squad' } },
+    rifle: { id: 'rifle', name: { zh: '💥 突擊步槍 (遠程全自動掃射)', en: 'Assault Rifle' }, isMelee: false, range: 85, dmg: 55 },
+    pistol: { id: 'pistol', name: { zh: '🔫 警用配槍 (中距精準壓制)', en: 'Pistol' }, isMelee: false, range: 55, dmg: 38 }
   };
 
   // ----------------------------------------------------
@@ -402,8 +400,8 @@
     constructor(index, customSpawn = null) {
       this.index = index;
       this.active = true;
-      this.hp = 500;       // ★ 黑道是 5倍 血量！
-      this.maxHp = 500;
+      this.hp = 250;       // ★ 黑道血量 250 (警察的 2.5 倍)
+      this.maxHp = 250;
       this.lastHealTime = Date.now();
       this.officer = null;
       this.body = null;
@@ -457,6 +455,11 @@
         matchedOfficer = officersList.find(o => o.active && !assignedOfficers.has(o));
       }
 
+      // ★ 強制擴充：如果官方 spawnOfficer 拒絕生成（被原版人數上限卡住），我們直接手動從池子裡拉一個 inactive 的強行喚醒！
+      if (!matchedOfficer) {
+        matchedOfficer = officersList.find(o => !o.active && !assignedOfficers.has(o));
+      }
+
       this.officer = matchedOfficer;
       this.body = matchedOfficer ? matchedOfficer.body : null;
 
@@ -484,8 +487,8 @@
       // 原版引擎逮捕檢測：if (n !== 'dead' && n !== 'down' && n !== 'return' && n !== 'leave' && dist < 1.6)
       // 設為 'return' 後，引擎 100% 排除黑道兄弟，兄弟貼身保護大哥時絕不會誤跳「警察正在逮捕你！快跑！」
       this.officer.state = 'return';
-      this.officer.hp = 500;              // ★ 5倍血量！(原本100)
-      this.officer.maxHp = 500;
+      this.officer.hp = 250;              // ★ 250 血量
+      this.officer.maxHp = 250;
       this.officer.x = spawnX;
       this.officer.z = spawnZ;
       this.officer.y = p.position.y;
@@ -700,36 +703,33 @@
       }
     }
 
-    // 武器動態裝配（支援混編/球棒/空手/手槍/步槍）
+    // 武器動態裝配（預設突擊步槍，僅支援 步槍/手槍/混編）
     assignWeapon() {
       const sys = window.__gangSystem;
-      const mode = sys?.weaponType || 'mixed';
+      let mode = sys?.weaponType || 'rifle';
+      if (mode === 'bat' || mode === 'fists') {
+        mode = 'rifle';
+        if (sys) sys.weaponType = 'rifle';
+      }
 
       if (mode === 'mixed') {
-        const pool = window.__gangMixedWeapons || ['bat', 'rifle', 'pistol', 'fists'];
+        const pool = window.__gangMixedWeapons || ['rifle', 'pistol'];
         this.weapon = pool[this.index % pool.length];
-      } else {
+      } else if (mode === 'pistol' || mode === 'rifle') {
         this.weapon = mode;
-      }
-      this.isMelee = (this.weapon === 'fists' || this.weapon === 'bat');
-
-      // 球棒 3D 模型管理
-      if (this.weapon === 'bat') {
-        this.createBatMesh();
       } else {
-        this.removeBatMesh();
+        this.weapon = 'rifle';
       }
+      this.isMelee = false;
+      this.removeBatMesh();
 
       if (this.officer) {
         if (this.weapon === 'rifle') {
           this.officer.gun = 2;    // 雙手握持突擊步槍
           this.officer.weapon = 2;
-        } else if (this.weapon === 'pistol') {
+        } else {
           this.officer.gun = 1;    // 單手握持手槍
           this.officer.weapon = 1;
-        } else {
-          this.officer.gun = 0;    // 空手/持棍姿態
-          this.officer.weapon = 0;
         }
       }
     }
@@ -899,29 +899,44 @@
       }
     }
 
-    // 索敵邏輯改版：
-    // 拿槍的兄弟：直升機 (140m) > 警車 (85m) > 警察 (75m)
-    // 拿近戰的兄弟：警察 (75m)
+    // 索敵邏輯：全員優先打直升機 (140m)；
+    // 剩餘存活黑道對半戰術分工：50% 人>車，50% 車>人 (直升機 > 車 > 人)
     findTarget() {
       if (!this.officer) return null;
       const dynList = g.dynamics?.list || [];
 
-      // 遠程持槍兄弟索敵邏輯：直升機 > 警車 > 警察
-      if (!this.isMelee) {
-        // 1. 直升機 (140米內)
-        for (let b of dynList) {
-          if (!b || !b.active) continue;
-          if (b.userData?.heli || (b.owner === 'police' && b.height > 2.2 && b.mass > 1500)) {
-            const dx = b.x - this.officer.x;
-            const dz = b.z - this.officer.z;
-            const dist = Math.hypot(dx, dz);
-            if (dist < 140) {
-              return { body: b, x: b.x, y: b.y + 1.0, z: b.z, kind: 'heli', dist };
-            }
+      // 1. 最高優先級：空中警用直升機 (140m 內，全員防空集火)
+      for (let b of dynList) {
+        if (!b || !b.active) continue;
+        if (b.userData?.heli || (b.owner === 'police' && b.height > 2.2 && b.mass > 1500)) {
+          const dx = b.x - this.officer.x;
+          const dz = b.z - this.officer.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist < 140) {
+            return { body: b, x: b.x, y: b.y + 1.0, z: b.z, kind: 'heli', dist };
           }
         }
-        
-        // 2. 警車 (85米內)
+      }
+
+      // 搜尋地面警察 (75m 內)
+      const findPolice = () => {
+        let targetOfficer = null;
+        let minDist = 75;
+        for (let b of dynList) {
+          if (!b || !b.active || b.kind !== 'police' || b.userData?.heli || b.userData?.gang) continue;
+          const dx = b.x - this.officer.x;
+          const dz = b.z - this.officer.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist < minDist) {
+            minDist = dist;
+            targetOfficer = { body: b, x: b.x, y: b.y + 1.2, z: b.z, kind: 'police', dist };
+          }
+        }
+        return targetOfficer;
+      };
+
+      // 搜尋警車 (85m 內)
+      const findCar = () => {
         const vehList = g.vehicles?.list || [];
         for (let v of vehList) {
           if (!v || v.destroyed || !v.body) continue;
@@ -935,22 +950,31 @@
             }
           }
         }
+        return null;
+      };
+
+      // 2. 依當前「存活黑道」動態精確對半分工：
+      // 一半兄弟：直升機 > 人 > 車
+      // 另一半兄弟：直升機 > 車 > 人
+      const aliveMembers = window.__gangSystem?.members?.filter(m => m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead') || [];
+      const myRank = aliveMembers.indexOf(this);
+      const preferCar = (myRank >= 0) ? (myRank % 2 !== 0) : (this.index % 2 !== 0);
+
+      if (preferCar) {
+        // ★ 戰術反載具小組：車 > 人
+        const car = findCar();
+        if (car) return car;
+        const cop = findPolice();
+        if (cop) return cop;
+      } else {
+        // ★ 戰術反步兵小組：人 > 車
+        const cop = findPolice();
+        if (cop) return cop;
+        const car = findCar();
+        if (car) return car;
       }
 
-      // 3. 警察（近戰兄弟唯一目標，遠程兄弟的第三順位，75米內）
-      let targetOfficer = null;
-      let minDist = 75;
-      for (let b of dynList) {
-        if (!b || !b.active || b.kind !== 'police' || b.userData?.heli || b.userData?.gang) continue;
-        const dx = b.x - this.officer.x;
-        const dz = b.z - this.officer.z;
-        const dist = Math.hypot(dx, dz);
-        if (dist < minDist) {
-          minDist = dist;
-          targetOfficer = { body: b, x: b.x, y: b.y + 1.2, z: b.z, kind: 'police', dist };
-        }
-      }
-      return targetOfficer;
+      return null;
     }
 
     // 近戰打擊（空手拳頭 👊 / 暴力球棒 🏏）
@@ -986,23 +1010,35 @@
       if (target.kind === 'car') {
         try { g.audio?.play?.('crash_light', { x: targetX, y: targetY, z: targetZ, volume: 0.75 }); } catch (e) {}
         if (target.vehicle?.damage) {
-          target.vehicle.damage({ amount: dmg, source: 'gang', weapon: isBat ? 'bat' : 'fists', point: pt, dir });
+          target.vehicle.damage({ amount: Math.ceil(dmg / 3), source: 'gang', weapon: isBat ? 'bat' : 'fists', point: pt, dir });
         } else if (target.body?.onDamage) {
-          target.body.onDamage({ amount: dmg, source: 'gang', weapon: isBat ? 'bat' : 'fists', dir, point: pt });
+          target.body.onDamage({ amount: Math.ceil(dmg / 3), source: 'gang', weapon: isBat ? 'bat' : 'fists', dir, point: pt });
         }
         if (target.vehicle && (target.vehicle.health <= 0 || target.vehicle.destroyed)) {
           window.__gangSystem.kills.cars++;
           updateGangUI();
         }
       } else if (target.kind === 'police') {
-        if (target.body?.onDamage) {
-          target.body.onDamage({ amount: dmg, source: 'gang', weapon: isBat ? 'bat' : 'fists', dir, point: pt });
-        }
+        // 為了避免觸發原版遊戲引擎對「球棒/空手」的「一擊必殺」硬派設定，
+        // 這裡我們完全不呼叫 target.body.onDamage，而是完全自己接管血量計算與死亡判定。
+
         // 物理擊飛與擊倒判定
         if (Math.random() < knockChance) {
-          target.body?.onImpact?.(dir.x * (isBat ? 450 : 250), dir.z * (isBat ? 450 : 250), this.body);
+          if (target.body) {
+            target.body.vx += dir.x * (isBat ? 18 : 10);
+            target.body.vz += dir.z * (isBat ? 18 : 10);
+          }
+          if (target.body?.userData?.officer) {
+            const off = target.body.userData.officer;
+            if (off.state !== 'dead') {
+              off.state = 'down';
+              off.fall = 1.0;
+              off.downT = 0;
+            }
+          }
         }
 
+        // 手動扣血與死亡判定
         if (target.body?.userData?.officer) {
           const off = target.body.userData.officer;
           off.hp -= dmg;
@@ -1014,8 +1050,10 @@
             off.gun = 0;
             off.body.active = false;
             try { g.audio?.play?.('ped_scream', { x: off.x, y: off.y + 1.5, z: off.z, rate: 0.75, volume: 0.7 }); } catch (e) {}
-            window.__gangSystem.kills.police++;
-            updateGangUI();
+            if (window.__gangSystem) {
+              window.__gangSystem.kills.police++;
+              updateGangUI();
+            }
           }
         }
       }
@@ -1047,8 +1085,8 @@
       } catch (e) {}
 
       // 實質傷害判定
-      // ★ 進一步降低黑道命中率
-      const hitChance = isPistol ? 0.20 : 0.10; // 手槍 20% 命中率，步槍連發 10% 命中率
+      // ★ 命中率：手槍 20%，步槍連發 10%
+      const hitChance = isPistol ? 0.20 : 0.10;
       if (Math.random() > hitChance) return; // 沒打中就直接結束，不扣血
 
       const aimDir = {
@@ -1061,12 +1099,12 @@
 
       if (target.kind === 'heli') {
         if (target.body?.onDamage) {
-          target.body.onDamage({ amount: isPistol ? 25 : 35, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
+          target.body.onDamage({ amount: isPistol ? 12 : 17, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
         }
         if (target.body?.userData?.heli) {
           const h = target.body.userData;
           if (h.hp !== undefined) {
-            h.hp -= (isPistol ? 25 : 35);
+            h.hp -= (isPistol ? 12 : 17);
             if (h.hp <= 0 && h.state !== 'crash' && h.state !== 'wreck') {
               h.state = 'crash';
               window.__gangSystem.kills.heli++;
@@ -1075,7 +1113,7 @@
           }
         }
       } else if (target.kind === 'car') {
-        const carDmg = isPistol ? 32 : 45;
+        const carDmg = isPistol ? 16 : 22;
         if (target.vehicle?.damage) {
           target.vehicle.damage({ amount: carDmg, source: 'gang', weapon: wpnKind, point: { x: targetX, y: targetY, z: targetZ }, dir: aimDir });
         } else if (target.body?.onDamage) {
@@ -1089,20 +1127,7 @@
         if (target.body?.onDamage) {
           target.body.onDamage({ amount: dmg, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
         }
-        if (target.body?.userData?.officer) {
-          const off = target.body.userData.officer;
-          off.hp -= dmg;
-          if (off.hp <= 0 && off.active && off.state !== 'dead') {
-            off.hp = 0;
-            off.state = 'dead';
-            off.deadT = 0;
-            off.gun = 0;
-            off.body.active = false;
-            try { g.audio?.play?.('ped_scream', { x: off.x, y: off.y + 1.5, z: off.z, rate: 0.75, volume: 0.7 }); } catch (e) {}
-            window.__gangSystem.kills.police++;
-            updateGangUI();
-          }
-        }
+        // 引擎的 onDamage 已扣血，這裡不再重複扣血 (off.hp -= dmg)
       }
     }
 
@@ -1128,8 +1153,8 @@
           this.updateHpBar();
         }
 
-        // ★ 自動回血機制：每10秒回復 50 滴血 (0.5倍血量)
-        if (Date.now() - this.lastHealTime > 10000) {
+        // ★ 自動回血機制：每 20 秒回復 50 滴血 (20% 血量)
+        if (Date.now() - this.lastHealTime > 20000) {
           this.lastHealTime = Date.now();
           if (this.hp > 0 && this.hp < this.maxHp) {
             this.hp = Math.min(this.maxHp, this.hp + 50);
@@ -1673,7 +1698,7 @@
     const sys = window.__gangSystem;
     if (!sys) return;
 
-    // ★ 核心改版：按 B 直接補人 + 附近生成裝飾計程車 ★
+    // ★ 計程車載人支援機制 ★
     // 先清洗已陣亡或無效實體
     sys.members = sys.members.filter(m => m.active && m.officer && m.officer.active && m.hp >= 1 && m.officer.state !== 'dead');
 
@@ -1683,109 +1708,117 @@
 
     if (deadCount === 0) {
       g.events?.emit?.('notify', {
-        text: {
-          zh: `🕶️ 目前黑道兄弟全員在線 (${aliveBefore}/${target})，無人員陣亡！`,
-          en: `All squad members alive (${aliveBefore}/${target})!`
-        },
-        kind: 'neutral',
-        duration: 2.8
+        text: { zh: `🕶️ 目前黑道兄弟全員在線 (${aliveBefore}/${target})，無人員陣亡！`, en: `All squad members alive!` },
+        kind: 'neutral', duration: 2.8
       });
       return;
     }
 
-    // ── 第一步：直接在玩家身邊補齊黑道兄弟（與初始生成相同的可靠方式）──
-    syncGangMemberCount(true);
-
-    const aliveAfter = sys.members.filter(m => m.active && m.officer && m.officer.active && m.hp >= 1 && m.officer.state !== 'dead').length;
-    const actualSpawned = aliveAfter - aliveBefore;
-
-    // ── 第二步：在附近擺放裝飾性皇冠計程車（不需要開過來，直接原地生成）──
-    const taxiCount = Math.min(deadCount, 3); // 最多生成 3 台裝飾計程車
+    // 尋找生成點 (60公尺外)
     const heading = p.rotation?.y || 0;
-    const playerX = p.position.x;
-    const playerZ = p.position.z;
-    let taxisSpawned = 0;
+    const spawnAngle = heading + Math.PI + (Math.random() - 0.5);
+    const spawnDist = 60; 
+    const spawnX = p.position.x + Math.sin(spawnAngle) * spawnDist;
+    const spawnZ = p.position.z - Math.cos(spawnAngle) * spawnDist;
+    const spawnHeading = Math.atan2(p.position.x - spawnX, -(p.position.z - spawnZ));
 
-    for (let i = 0; i < taxiCount; i++) {
-      const angleSpread = (i - (taxiCount - 1) / 2) * 0.65;
-      const spawnAngle = heading + Math.PI + angleSpread;
-      const spawnDist = 12 + i * 4 + Math.random() * 4; // 稍微拉開距離（12~24m），避免與剛出生的兄弟擠在一起
-      const spawnX = playerX + Math.sin(spawnAngle) * spawnDist;
-      const spawnZ = playerZ - Math.cos(spawnAngle) * spawnDist;
-      const spawnHeading = Math.atan2(playerX - spawnX, -(playerZ - spawnZ));
-
-      let taxiObj = null;
-      try {
-        taxiObj = g.vehicles?.spawn?.('taxi', spawnX, spawnZ, spawnHeading, {
-          driver: 'none',
-          speed: 0,
-          locked: false
-        });
-      } catch (e) {}
-
-      if (!taxiObj) {
-        try {
-          taxiObj = g.vehicles?.spawn?.('sedan', spawnX, spawnZ, spawnHeading, {
-            driver: 'none',
-            speed: 0,
-            color: 15909376,
-            locked: false
-          });
-        } catch (e) {}
-      }
-
-      if (taxiObj) {
-        taxiObj.locked = false;
-        if (taxiObj.body) taxiObj.body.locked = false;
-        taxiObj.speed = 0;
-        if (taxiObj.body) { taxiObj.body.vx = 0; taxiObj.body.vz = 0; }
-
-        // 車頂加裝皇冠
-        if (taxiObj.object) {
-          const crown = createTaxiCrownMesh();
-          if (crown) taxiObj.object.add(crown);
-        }
-
-        // 調整地面高度
-        const gh = g.plan?.groundHeight?.(spawnX, spawnZ);
-        if (gh !== undefined && Number.isFinite(gh) && taxiObj.body) {
-          taxiObj.body.y = gh;
-          if (taxiObj.object) taxiObj.object.position.y = gh;
-        }
-
-        taxisSpawned++;
-      }
-    }
-
+    let taxiObj = null;
     try {
-      g.audio?.play?.('horn', { volume: 0.85 });
-      g.audio?.play?.('car_door_close', { volume: 0.8 });
+      taxiObj = g.vehicles?.spawn?.('taxi', spawnX, spawnZ, spawnHeading, { driver: 'none', speed: 20, locked: false });
     } catch (e) {}
 
-    // 說出台詞
-    if (actualSpawned > 0) {
-      g.events?.emit?.('subtitle', {
-        text: '大哥我們來幫你了！',
-        speaker: '黑道堂口兄弟',
-        duration: 4.5
-      });
+    if (!taxiObj) {
+      try { taxiObj = g.vehicles?.spawn?.('sedan', spawnX, spawnZ, spawnHeading, { driver: 'none', speed: 20, color: 15909376, locked: false }); } catch (e) {}
     }
 
-    g.events?.emit?.('notify', {
-      text: {
-        zh: `🕶️ 已補充 ${actualSpawned} 名黑道兄弟！(${aliveAfter}/${target}) ${taxisSpawned > 0 ? `+ ${taxisSpawned} 輛皇冠計程車護駕` : ''}`,
-        en: `Spawned ${actualSpawned} mobsters! (${aliveAfter}/${target}) ${taxisSpawned > 0 ? `+ ${taxisSpawned} Crown Taxis` : ''}`
-      },
-      kind: 'good',
-      duration: 4.5
-    });
+    if (taxiObj) {
+      if (taxiObj.object) {
+        const crown = createTaxiCrownMesh();
+        if (crown) taxiObj.object.add(crown);
+      }
+      
+      window.__activeTaxiReinforcements.push({
+        taxi: taxiObj,
+        count: deadCount,
+        spawnTime: Date.now(),
+        spawned: false
+      });
 
+      g.events?.emit?.('notify', {
+        text: { zh: `🚕 皇冠計程車已從鄰近街區派出，載著 ${deadCount} 名兄弟趕來支援！`, en: `Taxi dispatched with ${deadCount} mobsters!` },
+        kind: 'good', duration: 3.5
+      });
+      
+      try { g.audio?.play?.('horn', { volume: 0.85 }); } catch (e) {}
+    } else {
+      // 如果計程車生成失敗，直接原地復活
+      syncGangMemberCount(true);
+      g.events?.emit?.('notify', { text: { zh: `🕶️ 已直接補充 ${deadCount} 名兄弟！`, en: `Spawned ${deadCount} mobsters!` }, kind: 'good' });
+    }
     updateGangUI();
   }
 
-  // updateTaxiReinforcements 現已精簡：裝飾計程車不再需要駕駛/下車流程
   function updateTaxiReinforcements(dt) {
-    // 裝飾計程車已直接在玩家身邊生成，無需駕駛更新
+    const sys = window.__gangSystem;
+    if (!sys || !window.__activeTaxiReinforcements) return;
+    
+    for (let i = window.__activeTaxiReinforcements.length - 1; i >= 0; i--) {
+      const task = window.__activeTaxiReinforcements[i];
+      if (task.spawned) continue;
+
+      const taxi = task.taxi;
+      if (!taxi || !taxi.body) {
+        task.spawned = true;
+        continue;
+      }
+
+      const dx = p.position.x - taxi.body.x;
+      const dz = p.position.z - taxi.body.z;
+      const dist = Math.hypot(dx, dz);
+      const elapsed = Date.now() - task.spawnTime;
+
+      // 簡單模擬計程車開向玩家
+      if (dist > 15) {
+        const dirX = dx / dist;
+        const dirZ = dz / dist;
+        const speed = 25; // 趕路車速
+        taxi.body.vx = dirX * speed;
+        taxi.body.vz = dirZ * speed;
+        // 將車頭對準玩家
+        taxi.body.rotation = Math.atan2(dirX, -dirZ);
+        if (taxi.object) {
+          taxi.object.rotation.y = taxi.body.rotation;
+        }
+      }
+
+      // 抵達 (15m內) 或塞車超時 (10秒) -> 自動下車
+      if (dist <= 15 || elapsed > 10000) {
+        task.spawned = true;
+        taxi.body.vx = 0;
+        taxi.body.vz = 0;
+        
+        try { g.audio?.play?.('car_door_close', { volume: 0.9 }); } catch (e) {}
+        
+        // 在計程車旁生成黑道兄弟
+        let added = 0;
+        while (sys.members.length < sys.targetCount && added < task.count) {
+          added++;
+          const idx = sys.members.length;
+          // 傳遞客製化生成座標給 GangMember constructor
+          const mob = new GangMember(idx, { 
+            x: taxi.body.x + (Math.random() - 0.5) * 4, 
+            z: taxi.body.z + (Math.random() - 0.5) * 4 
+          });
+          if (mob.active && mob.officer) {
+            sys.members.push(mob);
+          }
+        }
+        
+        g.events?.emit?.('subtitle', { text: '大哥我們來幫你了！', speaker: '黑道堂口兄弟', duration: 4.5 });
+        window.__activeTaxiReinforcements.splice(i, 1);
+        updateGangUI();
+      }
+    }
   }
 
   // ----------------------------------------------------
@@ -2191,13 +2224,14 @@
       }
       .tgta-presets {
         display: flex;
-        gap: 6px;
+        gap: 4px;
         justify-content: space-between;
       }
       .tgta-preset-btn {
         flex: 1;
         height: 28px;
         font-size: 11px;
+        padding: 0 1px;
         border-radius: 6px;
         border-color: rgba(255, 255, 255, 0.25);
       }
@@ -2214,10 +2248,10 @@
         justify-content: space-between;
       }
       .tgta-wpn-btn {
-        flex: 1 1 calc(20% - 4px);
-        min-width: 50px;
+        flex: 1;
+        min-width: 60px;
         height: 28px;
-        font-size: 11px;
+        font-size: 12px;
         border-radius: 6px;
         border-color: rgba(255, 255, 255, 0.25);
       }
@@ -2289,8 +2323,35 @@
         color: #ffffff;
         box-shadow: 0 0 22px #ff3366;
       }
+      .tgta-hide-ui-btn {
+        position: absolute;
+        top: max(15px, env(safe-area-inset-top));
+        right: max(15px, env(safe-area-inset-right));
+        width: 40px;
+        height: 40px;
+        background: rgba(15, 18, 26, 0.7);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        color: #fff;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 10001;
+        user-select: none;
+      }
+      .tgta-hide-ui-btn:active {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      .hud-wrap-hidden .tgta-top-dock,
+      .hud-wrap-hidden .tgta-gang-panel,
+      .hud-wrap-hidden .tgta-fly-dock {
+        display: none !important;
+      }
     </style>
 
+    <div id="btn-toggle-hud" class="tgta-hide-ui-btn" title="隱藏外掛UI">👁️</div>
     <!-- ★ 頂部快捷開關（固定置中式） ★ -->
     <div class="tgta-top-dock">
       <div id="btn-toggle-fly" class="tgta-btn tgta-dock-btn">🪽 飛行</div>
@@ -2308,25 +2369,24 @@
 
       <div class="tgta-stepper">
         <div id="btn-gang-minus" class="tgta-btn tgta-step-btn">➖</div>
-        <div class="tgta-count-val">兄弟人數：<span id="gang-count-txt">4</span> 人</div>
+        <div class="tgta-count-val">兄弟人數：<span id="gang-count-txt">0</span> 人</div>
         <div id="btn-gang-plus" class="tgta-btn tgta-step-btn">➕</div>
       </div>
 
       <div class="tgta-presets">
         <div class="tgta-btn tgta-preset-btn" data-cnt="0">解散</div>
-        <div class="tgta-btn tgta-preset-btn" data-cnt="2">2人</div>
-        <div class="tgta-btn tgta-preset-btn" data-cnt="4">4人</div>
-        <div class="tgta-btn tgta-preset-btn" data-cnt="8">8人</div>
-        <div class="tgta-btn tgta-preset-btn" data-cnt="12">12人</div>
+        <div class="tgta-btn tgta-preset-btn" data-cnt="1">1名</div>
+        <div class="tgta-btn tgta-preset-btn" data-cnt="2">2名</div>
+        <div class="tgta-btn tgta-preset-btn" data-cnt="4">4名</div>
+        <div class="tgta-btn tgta-preset-btn" data-cnt="6">6名</div>
+        <div class="tgta-btn tgta-preset-btn" data-cnt="8">8名</div>
       </div>
 
       <div class="tgta-wpn-title">武器設定：</div>
       <div class="tgta-wpn-row">
-        <div class="tgta-btn tgta-wpn-btn active" data-wpn="mixed" title="堂口混編各顯神通">🎲混編</div>
-        <div class="tgta-btn tgta-wpn-btn" data-wpn="bat" title="手持球棒猛力擊倒">🏏球棒</div>
-        <div class="tgta-btn tgta-wpn-btn" data-wpn="fists" title="空手鐵拳疾速肉搏">👊空手</div>
+        <div class="tgta-btn tgta-wpn-btn active" data-wpn="rifle" title="突擊步槍全自動掃射 (預設)">💥步槍</div>
         <div class="tgta-btn tgta-wpn-btn" data-wpn="pistol" title="警用手槍精準壓制">🔫手槍</div>
-        <div class="tgta-btn tgta-wpn-btn" data-wpn="rifle" title="突擊步槍全自動掃射">💥步槍</div>
+        <div class="tgta-btn tgta-wpn-btn" data-wpn="mixed" title="堂口混編 (步槍與手槍交替)">🎲混編</div>
       </div>
 
       <div class="tgta-wpn-title" style="margin-top:6px;">跟隨限制距離：</div>
@@ -2350,9 +2410,9 @@
       <div id="gang-stats-box" class="tgta-gang-stats" style="margin-top:8px;">
         兄弟造型：<span class="tgta-stat-hl" style="color:#ffd700;">★ 耀眼純金戰袍 (頭頂「江湖黑道」)</span><br>
         地圖標記：<span class="tgta-stat-hl" style="color:#00ffcc;">★ 專屬金底黑字「黑」圖標</span><br>
-        裝備武器：<span id="stat-gang-weapon" class="tgta-stat-hl">🎲 堂口混編 (球棒/步槍/手槍/鐵拳)</span><br>
+        裝備武器：<span id="stat-gang-weapon" class="tgta-stat-hl">🎲 堂口混編 (步槍/手槍)</span><br>
         活動上限：<span id="stat-gang-dist-val" class="tgta-stat-hl" style="color:#00ffcc;">50m (超距自動狂奔回防)</span><br>
-        兄弟血量：<span class="tgta-stat-hl">150 HP (警察 1.5 倍血量)</span><br>
+        兄弟血量：<span class="tgta-stat-hl">250 HP (警察血量 100)</span><br>
         警方仇恨：<span class="tgta-stat-hl" style="color:#ff4466;">★ 警方優先攻擊黑道</span><br>
         兄弟存活：<span id="stat-gang-alive" class="tgta-stat-hl">4</span> 人<br>
         殲滅員警：<span id="stat-gang-cops" class="tgta-stat-hl">0</span> 名 | 
@@ -2388,11 +2448,14 @@
   // 更新黑道 UI 數字統計
   function updateGangUI() {
     const sys = window.__gangSystem;
+    if (sys.weaponType === 'bat' || sys.weaponType === 'fists') {
+      sys.weaponType = 'rifle';
+    }
     if (gangCountTxt) gangCountTxt.innerText = sys.targetCount;
     const statWpn = document.getElementById('stat-gang-weapon');
     if (statWpn) {
-      const curWpn = GANG_WEAPONS[sys.weaponType || 'mixed'];
-      statWpn.innerText = curWpn ? curWpn.name.zh : '🎲 堂口混編';
+      const curWpn = GANG_WEAPONS[sys.weaponType || 'rifle'];
+      statWpn.innerText = curWpn ? curWpn.name.zh : '💥 突擊步槍';
     }
     const statDist = document.getElementById('stat-gang-dist');
     const statDistVal = document.getElementById('stat-gang-dist-val');
@@ -2501,6 +2564,20 @@
       }
     }
   });
+
+  const btnToggleHud = document.getElementById('btn-toggle-hud');
+  let hudHidden = false;
+  bindTouchTap(btnToggleHud, () => {
+    hudHidden = !hudHidden;
+    if (hudHidden) {
+      hudWrap.classList.add('hud-wrap-hidden');
+      btnToggleHud.innerText = '🙈';
+    } else {
+      hudWrap.classList.remove('hud-wrap-hidden');
+      btnToggleHud.innerText = '👁️';
+    }
+  });
+
   bindTouchTap(btnCloseGang, () => {
     window.__gangSystem.isPanelOpen = false;
     gangCard.classList.remove('open');
@@ -2515,7 +2592,7 @@
     }
   });
   bindTouchTap(btnGangPlus, () => {
-    if (window.__gangSystem.targetCount < 12) {
+    if (window.__gangSystem.targetCount < 8) {
       window.__gangSystem.targetCount++;
       syncGangMemberCount(true);
       updateHudVisuals();
@@ -2577,9 +2654,10 @@
   });
 
   // 升空按鈕（按住上升）
-  bindTouchHold(btnUp, () => { mobileVert = 1; }, () => { if (mobileVert === 1) mobileVert = 0; });
+  window.__mobileVert = 0;
+  bindTouchHold(btnUp, () => { window.__mobileVert = 1; }, () => { if (window.__mobileVert === 1) window.__mobileVert = 0; });
   // 降落按鈕（按住下降）
-  bindTouchHold(btnDown, () => { mobileVert = -1; }, () => { if (mobileVert === -1) mobileVert = 0; });
+  bindTouchHold(btnDown, () => { window.__mobileVert = -1; }, () => { if (window.__mobileVert === -1) window.__mobileVert = 0; });
   // 渦輪音速衝刺切換鈕
   bindTouchTap(btnTurbo, () => {
     window.__mobileTurboEnabled = !window.__mobileTurboEnabled;
@@ -2706,8 +2784,8 @@
     }
 
     let moveY = 0;
-    if (mobileVert !== 0) {
-      moveY = mobileVert;
+    if (window.__mobileVert !== 0) {
+      moveY = window.__mobileVert;
     } else {
       if (isKeyDown('Space', ' ')) moveY += 1;
       if (isKeyDown('KeyC', 'c', 'ShiftRight')) moveY -= 1;
@@ -2743,7 +2821,7 @@
   // ----------------------------------------------------
   let camDir = new T.Vector3();
   let camRight = new T.Vector3();
-  let mobileVert = 0;
+  window.__mobileVert = 0;
 
   function toggleFlyMode() {
     window.__flyModeEnabled = !window.__flyModeEnabled;
@@ -2756,7 +2834,7 @@
       } catch (e) {}
     } else {
       window.__fallImmuneUntil = Date.now() + 8000;
-      mobileVert = 0;
+      window.__mobileVert = 0;
     }
 
     updateHudVisuals();
@@ -2830,7 +2908,7 @@
         curSpeed += (targetSpeed - curSpeed) * Math.min(1, dt * 5);
 
         let vertMove = 0;
-        if (mobileVert !== 0) vertMove = mobileVert;
+        if (window.__mobileVert !== 0) vertMove = window.__mobileVert;
         else {
           if (isKeyDown('Space', ' ')) vertMove += 1;
           if (isKeyDown('KeyC', 'c', 'ShiftRight')) vertMove -= 1;
@@ -2888,6 +2966,20 @@
           counterEl.style.display = '';
         } else if (counterEl) {
           counterEl.style.display = 'none';
+        }
+      } catch (e) {}
+
+      // ★ 只要目前存活超過 4 名黑道，自動 5 星警報並維持 ★
+      try {
+        if (g.police && window.__gangSystem) {
+          const aliveCount = window.__gangSystem.members.filter(m => m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead').length;
+          if (aliveCount > 4) {
+            if (typeof g.police.setLevel === 'function') {
+              g.police.setLevel(5); // 遊戲底層控制星星數的函數
+            } else {
+              g.police.level = 5;
+            }
+          }
         }
       } catch (e) {}
 
