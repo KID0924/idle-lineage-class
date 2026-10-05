@@ -258,11 +258,11 @@
       if (!officersMgr.__gangPriorityHooked) {
         officersMgr.__gangPriorityHooked = true;
 
-        // ★ 1. 擴充警員實體物件池：從原版 16 個擴展至 48 個槽位！★
+        // ★ 1. 擴充警員實體物件池：從原版 16 個擴展至 64 個槽位！（配合每車 4 警全額部署）★
         try {
           const OfficerProto = officersMgr.list[0]?.constructor;
-          if (OfficerProto && officersMgr.list.length < 48) {
-            while (officersMgr.list.length < 48) {
+          if (OfficerProto && officersMgr.list.length < 64) {
+            while (officersMgr.list.length < 64) {
               const idx = officersMgr.list.length;
               const newOff = new OfficerProto();
               newOff.idx = idx;
@@ -274,12 +274,12 @@
           }
         } catch (e) {}
 
-        // ★ 2. 擴充 GPU InstancedMesh 繪製緩衝區 (64 實例容量，確保 48 人全數正常渲染不破圖) ★
+        // ★ 2. 擴充 GPU InstancedMesh 繪製緩衝區 (80 實例容量，確保 64 人全數正常渲染不破圖) ★
         try {
           const expandBuffer = target => {
             if (!target || !target.mesh || target.mesh._gangExpanded) return;
             target.mesh._gangExpanded = true;
-            const newCount = 64;
+            const newCount = 80;
             const oldGeo = target.mesh.geometry;
             const ThreeLib = window.THREE || (g.scene?.constructor?.prototype ? Object.getPrototypeOf(g.scene).constructor : null);
 
@@ -358,9 +358,9 @@
             };
           }
 
-          // ★ 4. 提升官方最高警員配額 (budget.maxOfficers) 至 36 (全額最大火力) ★
+          // ★ 4. 提升官方最高警員配額 (budget.maxOfficers) 至 48 (確保每輛警車下 4 警火力全開) ★
           if (officersMgr.S?.budget) {
-            officersMgr.S.budget.maxOfficers = 36;
+            officersMgr.S.budget.maxOfficers = 48;
           }
         } catch (e) {}
 
@@ -441,8 +441,58 @@
 
       if (carsMgr && !carsMgr.__gangPriorityHooked) {
         carsMgr.__gangPriorityHooked = true;
+
+        // ★ 核心升級：警車編制從 2 人擴充為 4 人！★
+        // 1. 鉤住 track：當新警車（巡邏車、追擊車、特警車）生成時，滿載 4 名警員！
+        const origTrack = carsMgr.track;
+        if (origTrack) {
+          carsMgr.track = function (v, role, swat, isScooter) {
+            const item = origTrack.apply(this, arguments);
+            if (item && !item.scooter) {
+              item.crewMax = 4;
+              item.crew = 4;
+            }
+            return item;
+          };
+        }
+
+        // 2. 鉤住 deploy：當警車停車開門時，強制從四個車門派遣 4 名警員下車戰鬥！
+        const origDeploy = carsMgr.deploy;
+        if (origDeploy) {
+          carsMgr.deploy = function (car, count, state) {
+            if (car && !car.scooter) {
+              car.crewMax = 4;
+              if (car.crew < 4 && car.officers.length === 0) {
+                car.crew = 4;
+              }
+              if (count < 4 && state === 'chase') {
+                count = 4;
+              }
+            }
+            return origDeploy.call(this, car, count, state);
+          };
+        }
+
+        // 3. 升級當前場上現有警車編制至 4 人
+        if (carsMgr.list) {
+          for (let c of carsMgr.list) {
+            if (c && !c.scooter) {
+              c.crewMax = 4;
+              if (c.crew < 4 && c.officers.length === 0) {
+                c.crew = 4;
+              }
+            }
+          }
+        }
+
         const origPursue = carsMgr.pursue;
         carsMgr.pursue = function (car, dt, dist) {
+          if (car && !car.scooter) {
+            car.crewMax = 4;
+            if (car.crew < 4 && car.officers.length === 0) {
+              car.crew = 4;
+            }
+          }
           const gang = window.__gangSystem;
           let bestMob = null;
           let minDist = 110;
@@ -3327,6 +3377,10 @@
     const policeCars = g.police?._debug?.roadblocks?.cars?.list;
     if (policeCars) {
       for (let c of policeCars) {
+        if (c && !c.scooter && c.crewMax < 4) {
+          c.crewMax = 4;
+          if (c.crew < 4 && c.officers.length === 0) c.crew = 4;
+        }
         if (c?.v && !c.v.destroyed && c.v.body && !vehicles.includes(c.v)) {
           vehicles.push(c.v);
         }
