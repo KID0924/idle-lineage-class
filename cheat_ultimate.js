@@ -313,6 +313,21 @@
             } finally {
               this.S.P = realP;
             }
+
+            // ★ 引擎射擊補償：因為黑道的剛體可能被官方子彈射線忽略，這裡強制模擬警察命中的傷害！
+            // 當警察距離 40m 內、有拔槍、而且處於瞄準狀態時，有一定機率對黑道造成實質傷害
+            if (officer.gun > 0 && minDist < 45 && officer.aim > 0.5 && Math.random() < 0.08) {
+              const hitDmg = 5; // 警察步槍和手槍統一扣 5 滴血
+              // 模擬命中
+              if (Math.random() < 0.20) { // 警察命中率下調為 20%
+                bestMob.takeDamage({ amount: hitDmg, source: 'police_simulated' });
+                try { 
+                  g.fx?.impact?.({ x: bestMob.officer.x, y: bestMob.officer.y + 1, z: bestMob.officer.z }, { x:0, y:1, z:0 }, 'flesh');
+                  g.audio?.play?.('bullet_impact', { x: bestMob.officer.x, y: bestMob.officer.y, z: bestMob.officer.z, volume: 0.5 });
+                } catch(e){}
+              }
+            }
+
           } else {
             origThink.call(this, officer, dt);
           }
@@ -387,8 +402,9 @@
     constructor(index, customSpawn = null) {
       this.index = index;
       this.active = true;
-      this.hp = 50;        // ★ 黑道是普通警察(100HP)的 0.5 倍血量！
-      this.maxHp = 50;
+      this.hp = 500;       // ★ 黑道是 5倍 血量！
+      this.maxHp = 500;
+      this.lastHealTime = Date.now();
       this.officer = null;
       this.body = null;
       this.weapon = 'rifle';
@@ -468,8 +484,8 @@
       // 原版引擎逮捕檢測：if (n !== 'dead' && n !== 'down' && n !== 'return' && n !== 'leave' && dist < 1.6)
       // 設為 'return' 後，引擎 100% 排除黑道兄弟，兄弟貼身保護大哥時絕不會誤跳「警察正在逮捕你！快跑！」
       this.officer.state = 'return';
-      this.officer.hp = 50;               // ★ 0.5倍血量！
-      this.officer.maxHp = 50;
+      this.officer.hp = 500;              // ★ 5倍血量！(原本100)
+      this.officer.maxHp = 500;
       this.officer.x = spawnX;
       this.officer.z = spawnZ;
       this.officer.y = p.position.y;
@@ -942,8 +958,9 @@
       if (!target || !this.active || !this.officer) return;
 
       const isBat = (this.weapon === 'bat');
-      const dmg = isBat ? 65 : 35;
-      const knockChance = isBat ? 0.70 : 0.35;
+      // ★ 削弱近戰攻擊力與擊倒率，避免太快秒殺警察
+      const dmg = isBat ? 25 : 15;            // 球棒 25 (原本65)，空手 15 (原本35)
+      const knockChance = isBat ? 0.35 : 0.15; // 球棒 35% 擊倒，空手 15% 擊倒
       this.swingTime = 0.25;
 
       const targetX = target.x;
@@ -1008,7 +1025,8 @@
     fireAt(target) {
       if (!target || !this.active || !this.officer) return;
       const isPistol = (this.weapon === 'pistol');
-      const dmg = isPistol ? 38 : 55;
+      // ★ 削弱遠程攻擊力
+      const dmg = isPistol ? 15 : 20;  // 手槍 15 (原本38)，步槍 20 (原本55)
       const soundRate = isPistol ? 1.02 : 1.25;
 
       const muzzleX = this.officer.x + Math.sin(this.officer.heading) * 0.45;
@@ -1029,6 +1047,10 @@
       } catch (e) {}
 
       // 實質傷害判定
+      // ★ 進一步降低黑道命中率
+      const hitChance = isPistol ? 0.20 : 0.10; // 手槍 20% 命中率，步槍連發 10% 命中率
+      if (Math.random() > hitChance) return; // 沒打中就直接結束，不扣血
+
       const aimDir = {
         x: (targetX - muzzleX) || 0.1,
         y: (targetY - muzzleY) || 0.1,
@@ -1104,6 +1126,18 @@
         if (typeof this.officer.hp === 'number' && this.officer.hp < this.hp) {
           this.hp = this.officer.hp;
           this.updateHpBar();
+        }
+
+        // ★ 自動回血機制：每10秒回復 50 滴血 (0.5倍血量)
+        if (Date.now() - this.lastHealTime > 10000) {
+          this.lastHealTime = Date.now();
+          if (this.hp > 0 && this.hp < this.maxHp) {
+            this.hp = Math.min(this.maxHp, this.hp + 50);
+            this.officer.hp = this.hp;
+            this.updateHpBar();
+            // 閃爍綠光代表回血
+            try { g.fx?.flash?.(this.officer.x, this.officer.y + 1, this.officer.z, 2.5, 1.5, 0.2, 1.0, 0.2); } catch(e){}
+          }
         }
 
         if (this.hp < 1) {
