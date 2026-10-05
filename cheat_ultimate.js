@@ -496,6 +496,97 @@
         };
       }
 
+      // ★ 5. 直升機 AI 仇恨與索敵重定向：讓空中直升機盤旋、探照燈與機槍俯衝掃射黑道兄弟 ★
+      if (g.police && !g.police.__gangHeliHooked) {
+        g.police.__gangHeliHooked = true;
+
+        const getHeliTarget = (realPlayer) => {
+          const gang = window.__gangSystem;
+          if (!gang || !gang.members) return realPlayer;
+          const alive = gang.members.filter(m => m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead');
+          if (alive.length === 0) return realPlayer;
+
+          // 優先反擊剛向直升機開火的黑道兄弟
+          if (window.__lastHeliAttacker && window.__lastHeliAttacker.active && window.__lastHeliAttacker.hp >= 1 && (Date.now() - (window.__lastHeliAttackTime || 0) < 6000)) {
+            const m = window.__lastHeliAttacker;
+            return {
+              x: m.officer.x, y: m.officer.y, z: m.officer.z,
+              vx: m.officer.vx || 0, vz: m.officer.vz || 0,
+              speed: Math.hypot(m.officer.vx || 0, m.officer.vz || 0),
+              heading: m.officer.heading || 0,
+              onFoot: true, inVehicle: false, vehicle: null, twoWheeler: false,
+              alive: true, armed: true, sinceShot: 0.1, body: m.body, stillT: 0, teleported: false,
+              damage: dmg => m.takeDamage(dmg)
+            };
+          }
+
+          // 搜尋空中直升機位置
+          const heliBody = g.dynamics?.list?.find(b => b && b.active && b.userData?.heli);
+          const refX = heliBody ? heliBody.x : realPlayer.x;
+          const refZ = heliBody ? heliBody.z : realPlayer.z;
+
+          let best = null, minDist = 160;
+          for (let m of alive) {
+            const d = Math.hypot(m.officer.x - refX, m.officer.z - refZ);
+            if (d < minDist) {
+              minDist = d;
+              best = m;
+            }
+          }
+
+          if (best) {
+            return {
+              x: best.officer.x, y: best.officer.y, z: best.officer.z,
+              vx: best.officer.vx || 0, vz: best.officer.vz || 0,
+              speed: Math.hypot(best.officer.vx || 0, best.officer.vz || 0),
+              heading: best.officer.heading || 0,
+              onFoot: true, inVehicle: false, vehicle: null, twoWheeler: false,
+              alive: true, armed: true, sinceShot: 0.1, body: best.body, stillT: 0, teleported: false,
+              damage: dmg => best.takeDamage(dmg)
+            };
+          }
+          return realPlayer;
+        };
+
+        const origOfficersUpdate = officersMgr.update;
+        if (origOfficersUpdate) {
+          officersMgr.update = function(dt) {
+            origOfficersUpdate.call(this, dt);
+            try {
+              if (this.S) {
+                this.S.__realPlayerBackup = this.S.P;
+                this.S.P = getHeliTarget(this.S.__realPlayerBackup);
+              }
+            } catch (e) {}
+          };
+        }
+
+        const origRoadblocksUpdate = rb.update;
+        if (origRoadblocksUpdate) {
+          rb.update = function(dt) {
+            try {
+              if (officersMgr.S && officersMgr.S.__realPlayerBackup) {
+                officersMgr.S.P = officersMgr.S.__realPlayerBackup;
+              }
+            } catch (e) {}
+            return origRoadblocksUpdate.call(this, dt);
+          };
+        }
+
+        const origPoliceUpdate = g.police.update;
+        if (origPoliceUpdate) {
+          g.police.update = function(dt) {
+            try {
+              return origPoliceUpdate.call(this, dt);
+            } finally {
+              if (officersMgr.S && officersMgr.S.__realPlayerBackup) {
+                officersMgr.S.P = officersMgr.S.__realPlayerBackup;
+              }
+            }
+          };
+        }
+      }
+
       return true;
     } catch (e) {
       return false;
@@ -518,6 +609,12 @@
       this.titleSprite = null; // 頭頂「江湖黑道」牌匾
       this.goldArmor = null;   // 金色風衣/戰甲 3D 模型
       this.swingTime = 0;
+      this.isFling = false;     // ★ 被車輛高速撞擊擊飛狀態
+      this.flingVx = 0;
+      this.flingVz = 0;
+      this.flingVy = 0;
+      this.flingTimer = 0;
+      this.lastCarHitTime = 0;  // 撞擊冷卻時間戳，防止多幀重複秒殺
       this.walkPhase = Math.random() * Math.PI * 2;
       this.attackTimer = Date.now() + 400 + Math.random() * 400;
       this.target = null;
@@ -1207,6 +1304,8 @@
       const wpnKind = isPistol ? 'pistol' : 'rifle';
 
       if (target.kind === 'heli') {
+        window.__lastHeliAttacker = this;
+        window.__lastHeliAttackTime = Date.now();
         if (target.body?.onDamage) {
           target.body.onDamage({ amount: isPistol ? 12 : 17, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
         }
@@ -1282,6 +1381,77 @@
         // 維持 return 狀態以防誤判逮捕
         this.officer.state = 'return';
         this.officer.active = true;
+        // ★ 核心升級：警車/載具高速撞擊擊飛拋物線空中飛行與受創翻滾物理 ★
+        if (this.isFling) {
+          // 拋物線空中位移
+          this.officer.x += this.flingVx * dt;
+          this.officer.z += this.flingVz * dt;
+          this.officer.y += this.flingVy * dt;
+
+          // 空氣阻力與水平速度衰減
+          const drag = Math.pow(0.22, dt);
+          this.flingVx *= drag;
+          this.flingVz *= drag;
+
+          // 重力加速度 (g = -18 m/s²)
+          this.flingVy -= 18 * dt;
+
+          // 地面貼合與反彈碰撞
+          let groundY = p.position?.y || 0;
+          try {
+            groundY = g.groundAt ? g.groundAt(this.officer.x, this.officer.z, this.officer.y) : (g.plan?.groundHeight?.(this.officer.x, this.officer.z) || groundY);
+          } catch (e) {}
+
+          if (this.officer.y <= groundY) {
+            this.officer.y = groundY;
+            if (this.flingVy < -3.5) {
+              // 著地二次微彈跳與摩擦
+              this.flingVy = -this.flingVy * 0.22;
+              this.flingVx *= 0.5;
+              this.flingVz *= 0.5;
+              try { g.audio?.play?.('punch', { x: this.officer.x, y: this.officer.y, z: this.officer.z, volume: 0.45 }); } catch (e) {}
+            } else {
+              this.flingVy = 0;
+              this.flingVx *= 0.75;
+              this.flingVz *= 0.75;
+            }
+          }
+
+          // 同步物理剛體
+          if (this.body) {
+            this.body.x = this.officer.x;
+            this.body.y = this.officer.y;
+            this.body.z = this.officer.z;
+            this.body.vx = this.flingVx;
+            this.body.vz = this.flingVz;
+          }
+
+          // 維持倒地翻滾受創姿態
+          this.officer.state = 'down';
+          this.officer.fall = 1.0;
+          this.officer.downT = 0;
+          this.officer.stride = 0;
+
+          // 擊飛計時結束且垂直速度已平穩：起身拍灰復原繼續戰鬥！
+          if (Date.now() > this.flingTimer && Math.abs(this.flingVy) < 0.4) {
+            this.isFling = false;
+            this.officer.state = 'return';
+            this.officer.fall = 0;
+            this.officer.posed = true;
+            this.officer.downT = 0;
+            this.downTimer = 0;
+          }
+
+          // 同步頭頂牌匾與血條位置
+          if (this.titleSprite) this.titleSprite.position.set(this.officer.x, this.officer.y + 2.35, this.officer.z);
+          if (this.hpBarSprite) {
+            this.hpBarSprite.position.set(this.officer.x, this.officer.y + 1.95, this.officer.z);
+            this.updateHpBar();
+          }
+          try { g.ui?.updateBlip?.(this.blipId, this.officer.x, this.officer.z); } catch (e) {}
+          return; // 滯空拋物線翻滾中，暫停自主索敵與漫遊
+        }
+
         // ★ 核心修復：處理被車撞倒或受擊擊倒狀態（state==='down'），倒地1秒後自動拍灰站起繼續戰鬥！絕不躺在地上裝死！★
         if (this.officer.state === 'down' || (this.officer.fall && this.officer.fall > 0.25)) {
           if (!this.downTimer) this.downTimer = Date.now() + 1000;
@@ -3138,6 +3308,230 @@
     } catch (e) {}
   }
 
+  // ----------------------------------------------------
+  // ★ 警車與載具碰撞核心：精確分辨「撞人」與「靠近」★
+  // • 靠近 (< 3.2 m/s)：0 傷害、不扣血、不擊飛，僅沿車體邊界做防穿模柔和擠開
+  // • 撞人 (>= 3.2 m/s)：扣 10 滴血 (10 HP)、拋物線真實擊飛受創倒地、播放金屬與肉體撞擊聲，具備 1.1s 冷卻
+  // ----------------------------------------------------
+  function checkVehicleCollisionsWithGang(dt) {
+    const gang = window.__gangSystem;
+    if (!gang || !gang.members) return;
+
+    // 收集場上所有活躍車輛（警方巡邏車、特警裝甲車、攔截車與地圖上的活躍載具）
+    const vehicles = [];
+    if (g.vehicles?.list) {
+      for (let v of g.vehicles.list) {
+        if (v && !v.destroyed && v.body) vehicles.push(v);
+      }
+    }
+    const policeCars = g.police?._debug?.roadblocks?.cars?.list;
+    if (policeCars) {
+      for (let c of policeCars) {
+        if (c?.v && !c.v.destroyed && c.v.body && !vehicles.includes(c.v)) {
+          vehicles.push(c.v);
+        }
+      }
+    }
+
+    const now = Date.now();
+
+    for (let veh of vehicles) {
+      const vb = veh.body;
+      if (!vb) continue;
+
+      // 計算車輛實際移動速度
+      const vx = vb.vx || 0;
+      const vz = vb.vz || 0;
+      let carSpeed = Math.hypot(vx, vz);
+      if (typeof veh.speed === 'number' && Math.abs(veh.speed) > carSpeed) {
+        carSpeed = Math.abs(veh.speed);
+      }
+
+      // 車體碰撞盒半寬與半長 (OBB Box)
+      const halfW = (veh.spec?.halfW || 1.05) + 0.35; // ~1.4m
+      const halfL = (veh.spec?.halfL || 2.45) + 0.35; // ~2.8m
+      const heading = vb.heading !== undefined ? vb.heading : (veh.heading || 0);
+      const cosH = Math.cos(heading);
+      const sinH = Math.sin(heading);
+
+      for (let m of gang.members) {
+        if (!m.active || !m.officer || m.hp < 1 || m.officer.state === 'dead') continue;
+
+        const dx = m.officer.x - vb.x;
+        const dz = m.officer.z - vb.z;
+        const dist = Math.hypot(dx, dz);
+        // 快速距離篩選 (大於車身半徑直接跳過)
+        if (dist > halfL + 1.2) continue;
+
+        // 垂直高度差檢測 (防止車輛在天橋或空中時誤判地面行人)
+        const dy = Math.abs((m.officer.y || 0) - (vb.y || 0));
+        if (dy > 2.6) continue;
+
+        // 轉換至車體局部坐標系 (OBB Oriented Bounding Box)
+        const localX = dx * cosH + dz * sinH;
+        const localZ = -dx * sinH + dz * cosH;
+
+        if (Math.abs(localX) < halfW && Math.abs(localZ) < halfL) {
+          // 發生碰撞！依車速臨界值 (3.2 m/s，約 11.5 km/h) 嚴格分辨「撞人」與「靠近」
+          const isRamming = carSpeed >= 3.2;
+
+          if (isRamming) {
+            // ============================================
+            // 【撞人判定】：具備實質衝撞動能 (>= 3.2 m/s)
+            // ============================================
+            // 防多幀連擊秒殺冷卻 (1.1 秒免撞保護期)
+            if (now - (m.lastCarHitTime || 0) < 1100) continue;
+            m.lastCarHitTime = now;
+
+            // 1. 精準扣 10 滴血 (黑道總血量 250，扣 10 滴)
+            m.takeDamage({ amount: 10, source: 'car_impact' });
+
+            // 2. 計算拋物線擊飛方向與初速度
+            let normCarVx = carSpeed > 0.05 ? (vx / carSpeed) : Math.sin(heading);
+            let normCarVz = carSpeed > 0.05 ? (vz / carSpeed) : -Math.cos(heading);
+            if (Math.hypot(normCarVx, normCarVz) < 0.1) {
+              normCarVx = Math.sin(heading);
+              normCarVz = -Math.cos(heading);
+            }
+
+            // 結合車身慣性前進方向 (75%) 與碰撞點往外彈開方向 (25%)
+            const awayDist = Math.max(0.1, dist);
+            let flingDirX = normCarVx * 0.75 + (dx / awayDist) * 0.25;
+            let flingDirZ = normCarVz * 0.75 + (dz / awayDist) * 0.25;
+            const flingLen = Math.hypot(flingDirX, flingDirZ) || 1;
+            flingDirX /= flingLen;
+            flingDirZ /= flingLen;
+
+            // 水平初速 (9.5 ~ 22 m/s) 與 垂直躍起初速 (3.8 ~ 7.5 m/s)
+            const flingSpeed = Math.min(22, Math.max(9.5, carSpeed * 1.3));
+            const flingVy = Math.min(7.5, 3.8 + carSpeed * 0.22);
+
+            m.isFling = true;
+            m.flingVx = flingDirX * flingSpeed;
+            m.flingVz = flingDirZ * flingSpeed;
+            m.flingVy = flingVy;
+            m.flingTimer = now + 1400; // 滯空拋物線 + 翻滾受創站立恢復時間 1.4 秒
+
+            // 3. 動作設置為倒地翻滾受創姿態
+            if (m.officer) {
+              m.officer.state = 'down';
+              m.officer.fall = 1.0;
+              m.officer.downT = 0;
+              m.officer.flinch = 1.0;
+            }
+
+            // 4. 打擊反饋：金屬撞擊聲、肉體碰撞聲、慘叫聲與火花揚塵
+            try {
+              g.audio?.play?.('crash_light', { x: m.officer.x, y: m.officer.y + 1, z: m.officer.z, volume: 0.95 });
+              g.audio?.play?.('flesh', { x: m.officer.x, y: m.officer.y + 1, z: m.officer.z, volume: 0.85 });
+              g.audio?.play?.('ped_scream', { x: m.officer.x, y: m.officer.y + 1, z: m.officer.z, volume: 0.65, rate: 0.9 });
+              g.fx?.impact?.({ x: m.officer.x, y: m.officer.y + 0.8, z: m.officer.z }, { x: flingDirX, y: 0.4, z: flingDirZ }, 'flesh');
+              g.fx?.sparks?.(m.officer.x, m.officer.y + 0.8, m.officer.z, flingDirX * 3, 2, flingDirZ * 3, 4);
+            } catch (e) {}
+
+          } else {
+            // ============================================
+            // 【靠近判定】：車輛怠速、低速或擦身慢行 (< 3.2 m/s)
+            // ============================================
+            // ★ 0 傷害、不扣血、不擊飛！僅沿車身外緣做柔和防穿模平移，維持正常戰鬥持槍站姿
+            if (!m.isFling) {
+              const overlapX = halfW - Math.abs(localX);
+              const overlapZ = halfL - Math.abs(localZ);
+
+              let pushLx = 0, pushLz = 0;
+              if (overlapX < overlapZ) {
+                pushLx = (localX >= 0 ? 1 : -1) * (overlapX + 0.08);
+              } else {
+                pushLz = (localZ >= 0 ? 1 : -1) * (overlapZ + 0.08);
+              }
+
+              // 旋轉回世界坐標系
+              const pushWorldX = pushLx * cosH - pushLz * sinH;
+              const pushWorldZ = pushLx * sinH + pushLz * cosH;
+
+              m.officer.x += pushWorldX * 0.45;
+              m.officer.z += pushWorldZ * 0.45;
+              if (m.body) {
+                m.body.x = m.officer.x;
+                m.body.z = m.officer.z;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ----------------------------------------------------
+  // ★ 直升機空對地索敵與空中掃射壓制 ★
+  // • 當直升機在場且盤旋/戰鬥時，直升機機槍不僅打玩家，也會主動掃射在場的黑道兄弟！
+  // • 包含槍口火光、高空曳光彈、著彈點火花、機槍音效與實質傷害
+  // ----------------------------------------------------
+  let lastHeliShootTime = 0;
+  function updateHeliAirSupport(dt) {
+    const gang = window.__gangSystem;
+    if (!gang || !gang.members) return;
+
+    // 取得空中活躍的警用直升機
+    const heliBody = g.dynamics?.list?.find(b => b && b.active && b.userData?.heli);
+    if (!heliBody) return;
+
+    // 篩選存活黑道成員
+    const aliveMobs = gang.members.filter(m => m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead');
+    if (aliveMobs.length === 0) return;
+
+    // 搜尋 135 米內黑道
+    let targetMob = null;
+    let minDist = 135;
+
+    // 優先反擊剛向直升機開火的黑道
+    if (window.__lastHeliAttacker && window.__lastHeliAttacker.active && window.__lastHeliAttacker.hp >= 1 && (Date.now() - (window.__lastHeliAttackTime || 0) < 5500)) {
+      targetMob = window.__lastHeliAttacker;
+    } else {
+      for (let m of aliveMobs) {
+        const d = Math.hypot(m.officer.x - heliBody.x, m.officer.z - heliBody.z);
+        if (d < minDist) {
+          minDist = d;
+          targetMob = m;
+        }
+      }
+    }
+
+    if (!targetMob) return;
+
+    const now = Date.now();
+    // 直升機每 1.2~1.8 秒發動一輪 2~3 連發機槍空中壓制
+    if (now > lastHeliShootTime) {
+      lastHeliShootTime = now + 1200 + Math.random() * 600;
+
+      const muzzleX = heliBody.x + (Math.random() - 0.5) * 1.5;
+      const muzzleY = heliBody.y - 1.2;
+      const muzzleZ = heliBody.z + (Math.random() - 0.5) * 1.5;
+
+      const hitX = targetMob.officer.x + (Math.random() - 0.5) * 1.2;
+      const hitY = targetMob.officer.y + 0.8;
+      const hitZ = targetMob.officer.z + (Math.random() - 0.5) * 1.2;
+
+      try {
+        // 機槍槍口閃光與曳光彈
+        g.fx?.flash?.(muzzleX, muzzleY, muzzleZ, 3.5, 2.5, 1.2, 0.6, 0.08);
+        g.fx?.tracer?.(muzzleX, muzzleY, muzzleZ, hitX, hitY, hitZ);
+        g.fx?.flash?.(hitX, hitY, hitZ, 2.2, 1.8, 1.0, 0.4, 0.08);
+        g.audio?.play?.('gunshot', { x: muzzleX, y: muzzleY, z: muzzleZ, volume: 0.92, rate: 0.86 });
+        g.audio?.play?.('bullet_impact', { x: hitX, y: hitY, z: hitZ, volume: 0.75 });
+      } catch (e) {}
+
+      // 40% 機率命中黑道兄弟，造成 10~15 滴傷害
+      if (Math.random() < 0.40) {
+        const dmg = 10 + Math.floor(Math.random() * 6);
+        targetMob.takeDamage({ amount: dmg, source: 'police_heli' });
+        try {
+          g.fx?.impact?.({ x: hitX, y: hitY, z: hitZ }, { x: 0, y: 1, z: 0 }, 'flesh');
+        } catch (e) {}
+      }
+    }
+  }
+
   // 載具飛行輔助變數
   const vForward = new T.Vector3();
 
@@ -3259,6 +3653,8 @@
           }
         }
       }
+      checkVehicleCollisionsWithGang(dt);
+      updateHeliAirSupport(dt);
       hookPoliceTargeting();
       syncMinimapBlips();
       updateTaxiReinforcements(dt);
