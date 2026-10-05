@@ -232,11 +232,20 @@
     targetCount: 0,          // ★ 預設 0 名兄弟，進入遊戲後再手動招募以避免無敵 Bug
     maxFollowDistance: 50,   // ★ 限制黑道預設不能超過玩家 50m（可在設定調整 15m~200m）
     weaponType: 'rifle',      // ★ 預設武器為步槍 ('rifle')
+    tactic: 'balance',       // ★ 戰術模式: 'balance'(對半平衡), 'cars'(全體打車), 'cops'(全體打人), 'guard'(環繞玩家護衛), 'heli'(全員防空)
     members: [],
     kills: { police: 0, cars: 0, heli: 0 },
     activeTaxis: [],         // 計程車援兵車隊
     godMode: false,          // 友軍無敵開關（預設 false，允許被車輛炸死/被槍打死）
     isPanelOpen: false
+  };
+
+  const GANG_TACTICS = {
+    balance: { id: 'balance', name: { zh: '🎲 對半平衡 (攻守兼備)', en: 'Balanced (50/50)' } },
+    cars: { id: 'cars', name: { zh: '🚗 全體打車 (火力轟車)', en: 'Focus Cars' } },
+    cops: { id: 'cops', name: { zh: '👮 全體打人 (掃蕩步兵)', en: 'Focus Cops' } },
+    guard: { id: 'guard', name: { zh: '🛡️ 環繞玩家 (鐵壁護衛)', en: 'Bodyguard Ring' } },
+    heli: { id: 'heli', name: { zh: '🚁 全員防空 (獵鷹集火)', en: 'Air Defense' } }
   };
 
   const GANG_WEAPONS = {
@@ -1103,12 +1112,17 @@
     }
 
     // 索敵邏輯：
-    // 0. 極限最高優先級：若警察太靠近 (20m 以內)，黑道全員優先擊斃警察（自衛防禦與拔除近身威脅）
-    // 1. 次高優先級：空中警用直升機 (140m 內，全員防空集火)；
-    // 2. 剩餘存活黑道對半戰術分工：50% 車>人 (85m)，50% 人>車 (75m)
+    // 0. 極限最高優先級：若警察太靠近 (10m 以內)，黑道全員優先擊斃警察（近身自衛防線優先）
+    // 1. 戰術指令分支：
+    //    - cars: 全體打車 (警車 > 直升機 > 警察)
+    //    - cops: 全體打人 (警察 > 警車 > 直升機)
+    //    - heli: 全員防空 (直升機 > 警車 > 警察)
+    //    - guard: 環繞玩家 (以大哥為中心，40m 範圍威脅清除)
+    //    - balance: 對半動態平衡 (直升機防空，50% 車>人，50% 人>車)
     findTarget() {
       if (!this.officer) return null;
       const dynList = g.dynamics?.list || [];
+      const tactic = window.__gangSystem?.tactic || 'balance';
 
       // 搜尋地面警察輔助函式（自動過濾死亡與友軍黑道，優先鎖定最近者）
       const findPolice = (maxRange = 75) => {
@@ -1129,24 +1143,27 @@
         return targetOfficer;
       };
 
-      // 0. ★ 最高優先級：若警察太靠近 (20m 以內)，黑道優先擊斃警察！
-      const closeCop = findPolice(20);
+      // 0. ★ 最高優先級：若警察太靠近 (10m 以內)，黑道優先擊斃警察（10m 自衛保命防線）！
+      const closeCop = findPolice(10);
       if (closeCop) {
         return closeCop;
       }
 
-      // 1. 次高優先級：空中警用直升機 (140m 內，全員防空集火)
-      for (let b of dynList) {
-        if (!b || !b.active) continue;
-        if (b.userData?.heli || (b.owner === 'police' && b.height > 2.2 && b.mass > 1500)) {
-          const dx = b.x - this.officer.x;
-          const dz = b.z - this.officer.z;
-          const dist = Math.hypot(dx, dz);
-          if (dist < 140) {
-            return { body: b, x: b.x, y: b.y + 1.0, z: b.z, kind: 'heli', dist };
+      // 搜尋警用直升機 (140m 內)
+      const findHeli = () => {
+        for (let b of dynList) {
+          if (!b || !b.active) continue;
+          if (b.userData?.heli || (b.owner === 'police' && b.height > 2.2 && b.mass > 1500)) {
+            const dx = b.x - this.officer.x;
+            const dz = b.z - this.officer.z;
+            const dist = Math.hypot(dx, dz);
+            if (dist < 140) {
+              return { body: b, x: b.x, y: b.y + 1.0, z: b.z, kind: 'heli', dist };
+            }
           }
         }
-      }
+        return null;
+      };
 
       // 搜尋警車 (85m 內)
       const findCar = () => {
@@ -1166,25 +1183,63 @@
         return null;
       };
 
-      // 2. 依當前「存活黑道」動態精確對半分工：
-      // 一半兄弟：直升機 > 車 > 人
-      // 另一半兄弟：直升機 > 人 > 車
-      const aliveMembers = window.__gangSystem?.members?.filter(m => m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead') || [];
-      const myRank = aliveMembers.indexOf(this);
-      const preferCar = (myRank >= 0) ? (myRank % 2 !== 0) : (this.index % 2 !== 0);
-
-      if (preferCar) {
-        // ★ 戰術反載具小組：車 > 人
+      // ----------------------------------------------------
+      // 戰術分支選擇
+      // ----------------------------------------------------
+      if (tactic === 'cars') {
+        // ★ 戰術【全體打車】：警車 > 直升機 > 警察
+        const car = findCar();
+        if (car) return car;
+        const heli = findHeli();
+        if (heli) return heli;
+        const cop = findPolice(75);
+        if (cop) return cop;
+      } else if (tactic === 'cops') {
+        // ★ 戰術【全體打人】：警察 > 警車 > 直升機
+        const cop = findPolice(75);
+        if (cop) return cop;
+        const car = findCar();
+        if (car) return car;
+        const heli = findHeli();
+        if (heli) return heli;
+      } else if (tactic === 'heli') {
+        // ★ 戰術【全員防空】：直升機 > 警車 > 警察
+        const heli = findHeli();
+        if (heli) return heli;
         const car = findCar();
         if (car) return car;
         const cop = findPolice(75);
         if (cop) return cop;
+      } else if (tactic === 'guard') {
+        // ★ 戰術【環繞玩家】：以大哥為中心，優先排除大哥周遭 40m 威脅！
+        const cop = findPolice(40);
+        if (cop) return cop;
+        const car = findCar();
+        if (car && car.dist < 45) return car;
+        const heli = findHeli();
+        if (heli) return heli;
       } else {
-        // ★ 戰術反步兵小組：人 > 車
-        const cop = findPolice(75);
-        if (cop) return cop;
-        const car = findCar();
-        if (car) return car;
+        // ★ 預設戰術【對半動態平衡】：
+        // 1. 直升機防空
+        const heli = findHeli();
+        if (heli) return heli;
+
+        // 2. 50% 車>人，50% 人>車
+        const aliveMembers = window.__gangSystem?.members?.filter(m => m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead') || [];
+        const myRank = aliveMembers.indexOf(this);
+        const preferCar = (myRank >= 0) ? (myRank % 2 !== 0) : (this.index % 2 !== 0);
+
+        if (preferCar) {
+          const car = findCar();
+          if (car) return car;
+          const cop = findPolice(75);
+          if (cop) return cop;
+        } else {
+          const cop = findPolice(75);
+          if (cop) return cop;
+          const car = findCar();
+          if (car) return car;
+        }
       }
 
       return null;
@@ -1456,7 +1511,58 @@
       let goalX = this.officer.x;
       let goalZ = this.officer.z;
 
-      if (target) {
+      const isGuardTactic = (window.__gangSystem?.tactic === 'guard');
+      if (isGuardTactic) {
+        // ★ 戰術【環繞大哥】：全員以大哥為中心，組成旋轉鐵壁護衛陣型 ★
+        if (!window.__gangGuardAngle) window.__gangGuardAngle = 0;
+        if (this.index === 0) {
+          window.__gangGuardAngle = (window.__gangGuardAngle + dt * 0.45) % (Math.PI * 2);
+        }
+        const aliveGuards = window.__gangSystem?.members?.filter(m => m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead') || [];
+        const totalG = Math.max(1, aliveGuards.length);
+        const myRank = aliveGuards.indexOf(this) >= 0 ? aliveGuards.indexOf(this) : (this.index % totalG);
+        const guardAngle = window.__gangGuardAngle + (myRank / totalG) * Math.PI * 2;
+        const guardRadius = Math.min(5.5, 3.2 + totalG * 0.22);
+
+        const ringX = playerX + Math.sin(guardAngle) * guardRadius;
+        const ringZ = playerZ - Math.cos(guardAngle) * guardRadius;
+        const distToRing = Math.hypot(ringX - this.officer.x, ringZ - this.officer.z);
+
+        goalX = ringX;
+        goalZ = ringZ;
+
+        if (distToRing > 5.0) {
+          moveSpeed = Math.min(13.0, distToRing * 1.6 + 4.0); // 快速歸位護駕
+        } else if (distToRing > 0.6) {
+          moveSpeed = Math.min(6.5, distToRing * 2.2 + 1.2);
+        } else {
+          moveSpeed = 1.0; // 隨護衛環緩步旋轉巡航
+        }
+
+        if (target) {
+          // 在護衛陣列中向敵人瞄準射擊！
+          const dx = target.x - this.officer.x;
+          const dz = target.z - this.officer.z;
+          const horizDist = Math.max(0.2, Math.hypot(dx, dz));
+          const targetHeading = Math.atan2(dx, -dz);
+          this.officer.heading = targetHeading;
+          this.officer.aim = 1.0;
+          this.officer.gun = (this.weapon === 'pistol') ? 1 : 2;
+          const pitch = Math.atan2(target.y - (this.officer.y + 1.35), horizDist);
+          this.officer.pitch = pitch;
+          if (Date.now() > this.attackTimer) {
+            this.fireAt(target);
+            this.attackTimer = Date.now() + (this.weapon === 'pistol' ? 260 : 170) + Math.random() * 100;
+          }
+        } else {
+          // 無威脅時：面朝大哥外圍警戒掃描
+          this.officer.aim = 0.0;
+          this.officer.pitch = 0.0;
+          this.officer.gun = (this.weapon === 'pistol' ? 1 : 2);
+          this.officer.rest = 0;
+          this.officer.heading = Math.atan2(this.officer.x - playerX, -(this.officer.z - playerZ));
+        }
+      } else if (target) {
         const dx = target.x - this.officer.x;
         const dz = target.z - this.officer.z;
         const horizDist = Math.max(0.2, Math.hypot(dx, dz));
@@ -2424,6 +2530,21 @@
         background: rgba(0, 255, 204, 0.25);
         box-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
       }
+      .tgta-tactic-btn {
+        flex: 1;
+        min-width: 58px;
+        height: 28px;
+        font-size: 11px;
+        padding: 0 2px;
+        border-radius: 6px;
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+      .tgta-tactic-btn.active {
+        border-color: #ffaa33;
+        color: #ffaa33;
+        background: rgba(255, 170, 51, 0.25);
+        box-shadow: 0 0 10px rgba(255, 170, 51, 0.4);
+      }
       .tgta-gang-stats {
         font-size: 11px;
         color: #aaa;
@@ -2623,6 +2744,17 @@
         <div class="tgta-btn tgta-wpn-btn" data-wpn="mixed" title="堂口混編 (步槍與手槍交替)">🎲混編</div>
       </div>
 
+      <div class="tgta-wpn-title" style="margin-top:6px;">作戰戰術設定：</div>
+      <div class="tgta-wpn-row">
+        <div class="tgta-btn tgta-tactic-btn active" data-tactic="balance" title="50%打車 50%打人，直升機防空">🎲對半平衡</div>
+        <div class="tgta-btn tgta-tactic-btn" data-tactic="cars" title="全員最高優先獵殺摧毀所有警車">🚗全體打車</div>
+        <div class="tgta-btn tgta-tactic-btn" data-tactic="cops" title="全員最高優先掃蕩射殺所有警察">👮全體打人</div>
+      </div>
+      <div class="tgta-wpn-row" style="margin-top:4px;">
+        <div class="tgta-btn tgta-tactic-btn" data-tactic="guard" title="全員緊密環繞大哥旋轉護衛，360度近身交織防護火網">🛡️環繞玩家</div>
+        <div class="tgta-btn tgta-tactic-btn" data-tactic="heli" title="全員抬頭最高優先集火擊落空中直升機">🚁全員防空</div>
+      </div>
+
       <div class="tgta-wpn-title" style="margin-top:6px;">跟隨限制距離：</div>
       <div class="tgta-stepper">
         <div id="btn-gang-dist-minus" class="tgta-btn tgta-step-btn">➖</div>
@@ -2645,6 +2777,7 @@
         兄弟造型：<span class="tgta-stat-hl" style="color:#ffd700;">★ 耀眼純金戰袍 (頭頂「江湖黑道」)</span><br>
         地圖標記：<span class="tgta-stat-hl" style="color:#00ffcc;">★ 專屬金底黑字「黑」圖標</span><br>
         裝備武器：<span id="stat-gang-weapon" class="tgta-stat-hl">🎲 堂口混編 (步槍/手槍)</span><br>
+        作戰戰術：<span id="stat-gang-tactic" class="tgta-stat-hl" style="color:#ffaa33;">🎲 對半平衡 (攻守兼備)</span><br>
         活動上限：<span id="stat-gang-dist-val" class="tgta-stat-hl" style="color:#00ffcc;">50m (超距自動狂奔回防)</span><br>
         兄弟血量：<span class="tgta-stat-hl">250 HP (警察血量 100)</span><br>
         警方仇恨：<span class="tgta-stat-hl" style="color:#ff4466;">★ 警方優先攻擊黑道</span><br>
@@ -2691,6 +2824,14 @@
       const curWpn = GANG_WEAPONS[sys.weaponType || 'rifle'];
       statWpn.innerText = curWpn ? curWpn.name.zh : '💥 突擊步槍';
     }
+    const statTactic = document.getElementById('stat-gang-tactic');
+    if (statTactic) {
+      const curTac = GANG_TACTICS[sys.tactic || 'balance'];
+      statTactic.innerText = curTac ? curTac.name.zh : '🎲 對半平衡 (攻守兼備)';
+    }
+    hudWrap?.querySelectorAll?.('.tgta-tactic-btn')?.forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-tactic') === (sys.tactic || 'balance'));
+    });
     const statDist = document.getElementById('stat-gang-dist');
     const statDistVal = document.getElementById('stat-gang-dist-val');
     if (statDist) statDist.innerText = `${sys.maxFollowDistance || 50}m`;
@@ -2969,6 +3110,28 @@
       }
       updateGangUI();
       try {
+        g.audio?.play?.('ui_menu', { volume: 0.85 });
+      } catch (e) {}
+    });
+  });
+
+  // 堂口戰術切換按鈕綁定（對半平衡/全體打車/全體打人/環繞玩家/全員防空 即時切換）
+  hudWrap.querySelectorAll('.tgta-tactic-btn').forEach(btn => {
+    bindTouchTap(btn, () => {
+      const tac = btn.getAttribute('data-tactic');
+      window.__gangSystem.tactic = tac;
+      hudWrap.querySelectorAll('.tgta-tactic-btn').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-tactic') === tac);
+      });
+      updateGangUI();
+      try {
+        const tacInfo = GANG_TACTICS[tac];
+        const tacName = tacInfo ? tacInfo.name.zh : tac;
+        g.events?.emit('notify', {
+          text: { zh: `🕶️ 黑道戰術切換：【${tacName}】！`, en: `Gang Tactic: ${tac}` },
+          kind: 'good',
+          duration: 2.2
+        });
         g.audio?.play?.('ui_menu', { volume: 0.85 });
       } catch (e) {}
     });
