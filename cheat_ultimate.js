@@ -257,6 +257,113 @@
 
       if (!officersMgr.__gangPriorityHooked) {
         officersMgr.__gangPriorityHooked = true;
+
+        // ★ 1. 擴充警員實體物件池：從原版 16 個擴展至 48 個槽位！★
+        try {
+          const OfficerProto = officersMgr.list[0]?.constructor;
+          if (OfficerProto && officersMgr.list.length < 48) {
+            while (officersMgr.list.length < 48) {
+              const idx = officersMgr.list.length;
+              const newOff = new OfficerProto();
+              newOff.idx = idx;
+              newOff.blipId = `police-officer-${idx}`;
+              newOff.body.onDamage = t => officersMgr.onDamage(newOff, t);
+              newOff.body.onImpact = (t, n, r) => officersMgr.onImpact(newOff, t, n, r);
+              officersMgr.list.push(newOff);
+            }
+          }
+        } catch (e) {}
+
+        // ★ 2. 擴充 GPU InstancedMesh 繪製緩衝區 (64 實例容量，確保 48 人全數正常渲染不破圖) ★
+        try {
+          const expandBuffer = target => {
+            if (!target || !target.mesh || target.mesh._gangExpanded) return;
+            target.mesh._gangExpanded = true;
+            const newCount = 64;
+            const oldGeo = target.mesh.geometry;
+            const ThreeLib = window.THREE || (g.scene?.constructor?.prototype ? Object.getPrototypeOf(g.scene).constructor : null);
+
+            ['aA', 'aB', 'aC'].forEach(attrName => {
+              const oldAttr = target[attrName] || oldGeo?.getAttribute?.(attrName);
+              if (oldAttr) {
+                const newArr = new Float32Array(newCount * 4);
+                if (oldAttr.array) newArr.set(oldAttr.array.subarray(0, Math.min(oldAttr.array.length, newArr.length)));
+                const BufferAttr = oldAttr.constructor || (ThreeLib ? ThreeLib.BufferAttribute : null);
+                if (BufferAttr) {
+                  const newAttr = new BufferAttr(newArr, 4);
+                  if (typeof newAttr.setUsage === 'function') newAttr.setUsage(35048); // DynamicDrawUsage
+                  oldGeo.setAttribute(attrName, newAttr);
+                  target[attrName] = newAttr;
+                }
+              }
+            });
+
+            const oldMat = target.mesh.instanceMatrix;
+            if (oldMat) {
+              const newMatArr = new Float32Array(newCount * 16);
+              if (oldMat.array) newMatArr.set(oldMat.array.subarray(0, Math.min(oldMat.array.length, newMatArr.length)));
+              const BufferAttr = oldMat.constructor || (ThreeLib ? ThreeLib.BufferAttribute : null);
+              if (BufferAttr) {
+                const newMatAttr = new BufferAttr(newMatArr, 16);
+                if (typeof newMatAttr.setUsage === 'function') newMatAttr.setUsage(35048);
+                target.mesh.instanceMatrix = newMatAttr;
+              }
+            }
+          };
+
+          if (officersMgr.render?.near) expandBuffer(officersMgr.render.near);
+          if (officersMgr.render?.far) expandBuffer(officersMgr.render.far);
+        } catch (e) {}
+
+        // ★ 3. 獨立種族脫鉤：重寫 activeCount、aliveCount、countRole ★
+        // 官方警方計算在場人數時，徹底排除黑道兄弟（黑道兄弟完全不佔用警方名額！）
+        try {
+          Object.defineProperty(officersMgr, 'activeCount', {
+            get() {
+              let count = 0;
+              for (let t of this.list) {
+                if (t.active && t.role !== 'gang' && !t.body?.userData?.gang) {
+                  count++;
+                }
+              }
+              return count;
+            },
+            configurable: true
+          });
+
+          Object.defineProperty(officersMgr, 'aliveCount', {
+            get() {
+              let count = 0;
+              for (let t of this.list) {
+                if (t.active && t.state !== 'dead' && t.role !== 'gang' && !t.body?.userData?.gang) {
+                  count++;
+                }
+              }
+              return count;
+            },
+            configurable: true
+          });
+
+          const origCountRole = officersMgr.countRole?.bind(officersMgr);
+          if (origCountRole) {
+            officersMgr.countRole = function(role) {
+              if (role === 'gang') return 0;
+              let count = 0;
+              for (let n of this.list) {
+                if (n.active && n.role === role && n.role !== 'gang' && n.state !== 'dead' && !n.body?.userData?.gang) {
+                  count++;
+                }
+              }
+              return count;
+            };
+          }
+
+          // ★ 4. 提升官方最高警員配額 (budget.maxOfficers) 至 36 (全額最大火力) ★
+          if (officersMgr.S?.budget) {
+            officersMgr.S.budget.maxOfficers = 36;
+          }
+        } catch (e) {}
+
         const origThink = officersMgr.think;
         officersMgr.think = function (officer, dt) {
           // 若為我方黑道兄弟，跳過官方警察 AI，由本腳本獨立接管自主巡邏與索敵
@@ -431,33 +538,30 @@
       // 輪替 SWAT 特警 Persona (4: swat-a, 5: swat-b) 避免單一模型實例限制
       const swatPersona = (this.index % 2 === 0) ? 4 : 5;
 
-      // ★ 核心 100% 精準捕獲：直接透過 officersMgr.list 比對前後活化實例！★
-      const officersList = g.police?._debug?.roadblocks?.officers?.list || [];
+      // ★ 核心修復：獨立種族分配！★
+      hookPoliceTargeting();
+      const officersMgr = g.police?._debug?.roadblocks?.officers;
+      const officersList = officersMgr?.list || [];
       const assignedOfficers = new Set((window.__gangSystem?.members || []).map(m => m.officer).filter(Boolean));
-      const beforeActive = new Set(officersList.filter(o => o.active));
 
-      // 調用警方系統生成實例：variant: 1（全黑重裝防彈作戰服）
-      try {
-        g.police?._debug?.spawnOfficer?.(
-          spawnX - p.position.x,
-          spawnZ - p.position.z,
-          'chase',
-          1,
-          'foot'
-        );
-      } catch (e) {}
-
-      // 精準命中：剛剛從 inactive 變為 active 且尚未被其他黑道兄弟指派的官方 officer！
-      let matchedOfficer = officersList.find(o => o.active && !beforeActive.has(o) && !assignedOfficers.has(o));
-
-      // 容錯搜尋：任一 active 且未被分配的 officer
-      if (!matchedOfficer) {
-        matchedOfficer = officersList.find(o => o.active && !assignedOfficers.has(o));
+      // 從物件池尾端（高索引處 47, 46, 45...）逆向指派專屬黑道實體，
+      // 讓出前端槽位 (0~35) 專供官方警察與霹靂小組全量生成，完全不排擠警方名額！
+      let matchedOfficer = null;
+      for (let i = officersList.length - 1; i >= 0; i--) {
+        const off = officersList[i];
+        if (!assignedOfficers.has(off) && (!off.active || off.role === 'gang' || off.state === 'dead')) {
+          matchedOfficer = off;
+          break;
+        }
       }
-
-      // ★ 強制擴充：如果官方 spawnOfficer 拒絕生成（被原版人數上限卡住），我們直接手動從池子裡拉一個 inactive 的強行喚醒！
       if (!matchedOfficer) {
-        matchedOfficer = officersList.find(o => !o.active && !assignedOfficers.has(o));
+        for (let i = officersList.length - 1; i >= 0; i--) {
+          const off = officersList[i];
+          if (!assignedOfficers.has(off)) {
+            matchedOfficer = off;
+            break;
+          }
+        }
       }
 
       this.officer = matchedOfficer;
@@ -468,6 +572,11 @@
         this.active = false;
         return;
       }
+
+      // 確保加入剛體物理系統
+      try {
+        g.dynamics?.add?.(this.body);
+      } catch (e) {}
 
       // ★ 核心關鍵：將 posed 設為 true，徹底遮斷原版警察 AI think() 邏輯，完全由本腳本接管！
       this.officer.posed = true;
@@ -1488,7 +1597,7 @@
     if (manual) {
       sys.members = sys.members.filter(m => m && m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead');
       let added = 0;
-      while (sys.members.length < target && added < 12) {
+      while (sys.members.length < target && added < 8) {
         added++;
         const idx = sys.members.length;
         const mob = new GangMember(idx);
