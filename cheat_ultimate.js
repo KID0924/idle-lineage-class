@@ -148,18 +148,55 @@
   // ----------------------------------------------------
   // ★ 核心修復：全面恢復所有警察剛體的原生傷害回調，絕不留無敵警察！★
   const officersMgr = g.police?._debug?.roadblocks?.officers;
-  if (officersMgr && officersMgr.list) {
-    for (let off of officersMgr.list) {
+  if (officersMgr && officersMgr.list && officersMgr.list.length > 0) {
+    // 1. 擴充警方總人力池至 80 名（每輛警車下 4 警全額部署，且黑道兄弟不排擠警員名額）
+    const currentLimit = officersMgr.list.length;
+    const targetLimit = 80;
+    if (currentLimit < targetLimit) {
+      try {
+        const OfficerClass = officersMgr.list[0].constructor;
+        for (let i = currentLimit; i < targetLimit; i++) {
+          const newOfficer = new OfficerClass(officersMgr);
+          newOfficer.idx = i;
+          newOfficer.blipId = `police-officer-${i}`;
+          officersMgr.list.push(newOfficer);
+        }
+        console.log(`[整合密技] 警方人力池已從 ${currentLimit} 擴充至 ${targetLimit}，確保敵方火力不減！`);
+      } catch (e) {
+        console.error('擴充警方人力池失敗:', e);
+      }
+    }
+
+    // 2. ★ 關鍵修復：為警方物件池中「所有警員（包含擴充的 80 名！）」健全綁定剛體傷害與受創回調！★
+    // 徹底修復警車下來的新警察因缺少 onDamage 回調而打不死的無敵 Bug！
+    for (let i = 0; i < officersMgr.list.length; i++) {
+      const off = officersMgr.list[i];
       if (off && off.body) {
-        // 重設原生傷害回調，確保不管是誰都能正常挨打扣血陣亡！
-        off.body.onDamage = t => {
+        off.idx = i;
+        off.blipId = `police-officer-${i}`;
+        off.body.userData = off.body.userData || {};
+        off.body.userData.officer = off;
+        const bindDmg = t => {
           if (off.body.userData?.gangMember?.active) {
             off.body.userData.gangMember.takeDamage(t);
           } else {
             officersMgr.onDamage(off, t);
           }
         };
-        off.body.onImpact = (t, n, r) => officersMgr.onImpact(off, t, n, r);
+        const bindImp = (t, n, r) => {
+          if (!off.body.userData?.gangMember?.active) {
+            officersMgr.onImpact(off, t, n, r);
+          }
+        };
+        off.__policeDmgHandler = bindDmg;
+        off.__policeImpHandler = bindImp;
+        off.body.onDamage = bindDmg;
+        off.body.damage = bindDmg;
+        off.onDamage = bindDmg;
+        off.damage = bindDmg;
+        off.body.onImpact = bindImp;
+        off.onImpact = bindImp;
+
         delete off.body.userData?.gang;
         delete off.body.userData?.gangMember;
         off.hp = 100;
@@ -170,24 +207,35 @@
       }
     }
   }
-  
-  // ★ 擴充警方總人力池（破解預設 30 人上限限制）★
-  // 防止我們的 12 名黑道兄弟佔據了原本要生成敵方警察的位置，導致沒有警察可以打！
-  if (officersMgr && officersMgr.list && officersMgr.list.length > 0) {
-    const currentLimit = officersMgr.list.length;
-    const targetLimit = 80; // 擴充到 80 人
-    if (currentLimit < targetLimit) {
-      try {
-        const OfficerClass = officersMgr.list[0].constructor;
-        for (let i = currentLimit; i < targetLimit; i++) {
-          const newOfficer = new OfficerClass(officersMgr);
-          officersMgr.list.push(newOfficer);
+
+  // ★ 核心修復：攔截 officersMgr.spawn，確保每一次警車派警下車或警方重新生成時，
+  // 剛體必定具備健全的 onDamage / onImpact 回調，且絕不帶殘留的無敵/黑道標記！★
+  if (officersMgr && !officersMgr.__safeSpawnHooked) {
+    officersMgr.__safeSpawnHooked = true;
+    const origSpawn = officersMgr.spawn;
+    officersMgr.spawn = function(x, z, heading, opts) {
+      const off = origSpawn.apply(this, arguments);
+      if (off && off.body) {
+        if (!off.body.userData?.gangMember?.active) {
+          delete off.body.userData.gang;
+          delete off.body.userData.gangMember;
+          off.body.kind = 'police';
+          off.body.owner = 'police';
+          off.body.userData.officer = off;
+          const bindDmg = t => officersMgr.onDamage(off, t);
+          const bindImp = (t, n, r) => officersMgr.onImpact(off, t, n, r);
+          off.__policeDmgHandler = bindDmg;
+          off.__policeImpHandler = bindImp;
+          off.body.onDamage = bindDmg;
+          off.body.damage = bindDmg;
+          off.onDamage = bindDmg;
+          off.damage = bindDmg;
+          off.body.onImpact = bindImp;
+          off.onImpact = bindImp;
         }
-        console.log(`[整合密技] 警方人力池已從 ${currentLimit} 擴充至 ${targetLimit}，確保敵方火力不減！`);
-      } catch (e) {
-        console.error('擴充警方人力池失敗:', e);
       }
-    }
+      return off;
+    };
   }
 
   // 確保 officersMgr.onDamage 能將傷害即時傳遞給黑道兄弟
@@ -237,6 +285,8 @@
     kills: { police: 0, cars: 0, heli: 0 },
     activeTaxis: [],         // 計程車援兵車隊
     godMode: false,          // 友軍無敵開關（預設 false，允許被車輛炸死/被槍打死）
+    autoReinforce: false,    // ★ 自動補充兄弟：人數只剩 <= 1/4 時自動派遣皇冠計程車支援
+    lastAutoReinforceTime: 0, // 自動呼叫防抖計時
     isPanelOpen: false
   };
 
@@ -267,18 +317,27 @@
       if (!officersMgr.__gangPriorityHooked) {
         officersMgr.__gangPriorityHooked = true;
 
-        // ★ 1. 擴充警員實體物件池：從原版 16 個擴展至 64 個槽位！（配合每車 4 警全額部署）★
+        // ★ 1. 確保所有警員實體物件池皆已健全具備傷害回調 ★
         try {
-          const OfficerProto = officersMgr.list[0]?.constructor;
-          if (OfficerProto && officersMgr.list.length < 64) {
-            while (officersMgr.list.length < 64) {
-              const idx = officersMgr.list.length;
-              const newOff = new OfficerProto();
-              newOff.idx = idx;
-              newOff.blipId = `police-officer-${idx}`;
-              newOff.body.onDamage = t => officersMgr.onDamage(newOff, t);
-              newOff.body.onImpact = (t, n, r) => officersMgr.onImpact(newOff, t, n, r);
-              officersMgr.list.push(newOff);
+          for (let i = 0; i < officersMgr.list.length; i++) {
+            const off = officersMgr.list[i];
+            if (off && off.body && !off.body.onDamage) {
+              off.idx = i;
+              off.blipId = `police-officer-${i}`;
+              const bindDmg = t => {
+                if (off.body.userData?.gangMember?.active) {
+                  off.body.userData.gangMember.takeDamage(t);
+                } else {
+                  officersMgr.onDamage(off, t);
+                }
+              };
+              off.__policeDmgHandler = bindDmg;
+              off.body.onDamage = bindDmg;
+              off.body.damage = bindDmg;
+              off.onDamage = bindDmg;
+              off.damage = bindDmg;
+              off.body.onImpact = (t, n, r) => officersMgr.onImpact(off, t, n, r);
+              off.onImpact = off.body.onImpact;
             }
           }
         } catch (e) {}
@@ -615,6 +674,45 @@
               if (this.S) {
                 this.S.__realPlayerBackup = this.S.P;
                 this.S.P = getHeliTarget(this.S.__realPlayerBackup);
+              }
+            } catch (e) {}
+
+            // ★ 核心修復：即時守護所有官方警察剛體，徹底殲滅「警車派警無敵」Bug！★
+            try {
+              if (this.list) {
+                for (let off of this.list) {
+                  if (off && off.active && off.body) {
+                    const isGang = off.body.userData?.gangMember?.active;
+                    if (isGang) {
+                      if (off.body.onDamage !== off.__gangDmgHandler) {
+                        off.__gangDmgHandler = t => off.body.userData.gangMember.takeDamage(t);
+                        off.body.onDamage = off.__gangDmgHandler;
+                        off.body.damage = off.__gangDmgHandler;
+                        off.onDamage = off.__gangDmgHandler;
+                        off.damage = off.__gangDmgHandler;
+                      }
+                      if (off.body.onImpact !== off.__gangImpHandler) {
+                        off.__gangImpHandler = () => {}; // 預設黑道剛體防護（撞擊傷害由 update 自行結算）
+                        off.body.onImpact = off.__gangImpHandler;
+                        off.onImpact = off.__gangImpHandler;
+                      }
+                    } else {
+                      // 確保非我方黑道之官方警察具備 100% 健全有效的傷害回調
+                      if (off.body.onDamage !== off.__policeDmgHandler) {
+                        off.__policeDmgHandler = t => officersMgr.onDamage(off, t);
+                        off.body.onDamage = off.__policeDmgHandler;
+                        off.body.damage = off.__policeDmgHandler;
+                        off.onDamage = off.__policeDmgHandler;
+                        off.damage = off.__policeDmgHandler;
+                      }
+                      if (off.body.onImpact !== off.__policeImpHandler) {
+                        off.__policeImpHandler = (t, n, r) => officersMgr.onImpact(off, t, n, r);
+                        off.body.onImpact = off.__policeImpHandler;
+                        off.onImpact = off.__policeImpHandler;
+                      }
+                    }
+                  }
+                }
               }
             } catch (e) {}
           };
@@ -995,14 +1093,12 @@
     }
 
     takeDamage(dmg) {
-      // 若該兄弟已被釋放或不活躍，絕不攔截傷害！直接對原生實體扣血，防止變成無敵殭屍警察
+      // 若該兄弟已被釋放或不活躍，絕不攔截傷害！直接交回原生系統處理，防止變成無敵警察
       if (!this.active) {
         if (this.officer) {
-          const amt = (typeof dmg === 'number' ? dmg : (dmg?.amount || dmg?.damage || 30));
-          this.officer.hp = Math.max(0, (this.officer.hp || 100) - amt);
-          if (this.officer.hp <= 0) {
-            this.officer.state = 'dead';
-            this.officer.active = false;
+          const mgr = g.police?._debug?.roadblocks?.officers;
+          if (mgr) {
+            mgr.onDamage(this.officer, dmg);
           }
         }
         return;
@@ -1010,7 +1106,8 @@
       if (window.__gangSystem.godMode) return; // 僅在開啟友軍無敵時免疫
       if (dmg && dmg.source === 'gang') return; // 黑道隊友間不互傷
 
-      let amount = 30;
+      let amount = 10; // 警方攻擊改為 10
+      /*
       if (typeof dmg === 'number') {
         amount = dmg;
       } else if (dmg) {
@@ -1018,6 +1115,7 @@
         else if (typeof dmg.damage === 'number') amount = dmg.damage;
         else if (typeof dmg.hp === 'number') amount = dmg.hp;
       }
+      */
 
       this.hp -= amount;
       this.updateHpBar();
@@ -1078,6 +1176,18 @@
         this.body.kind = 'police';
         this.body.owner = 'police';
         this.body.active = false;
+        // ★ 核心修復：恢復健全原生警察傷害回調，防止被重用時無敵！★
+        if (this.officer) {
+          const offRef = this.officer;
+          const bindDmg = t => {
+            const mgr = g.police?._debug?.roadblocks?.officers;
+            if (mgr) mgr.onDamage(offRef, t);
+          };
+          this.body.onDamage = bindDmg;
+          this.body.damage = bindDmg;
+          offRef.onDamage = bindDmg;
+          offRef.damage = bindDmg;
+        }
         try { g.dynamics?.remove?.(this.body); } catch (e) {}
       }
 
@@ -1101,11 +1211,19 @@
         if (this.body) {
           delete this.body.userData.gang;
           delete this.body.userData.gangMember;
-          delete this.body.onDamage; // 拔除自定義傷害鉤子，防止其變成無敵實體
-          delete this.body.damage;
           this.body.kind = 'police';
           this.body.owner = 'police';
           this.body.active = false;
+          // ★ 核心修復：絕不 delete onDamage！重設為官方原生警察傷害回調，防止被重用時無敵！★
+          const offRef = this.officer;
+          const bindDmg = t => {
+            const mgr = g.police?._debug?.roadblocks?.officers;
+            if (mgr) mgr.onDamage(offRef, t);
+          };
+          this.body.onDamage = bindDmg;
+          this.body.damage = bindDmg;
+          offRef.onDamage = bindDmg;
+          offRef.damage = bindDmg;
           try { g.dynamics?.remove?.(this.body); } catch (e) {}
         }
       }
@@ -1142,12 +1260,6 @@
         }
         return targetOfficer;
       };
-
-      // 0. ★ 最高優先級：若警察太靠近 (10m 以內)，黑道優先擊斃警察（10m 自衛保命防線）！
-      const closeCop = findPolice(10);
-      if (closeCop) {
-        return closeCop;
-      }
 
       // 搜尋警用直升機 (140m 內)
       const findHeli = () => {
@@ -1220,6 +1332,10 @@
         if (heli) return heli;
       } else {
         // ★ 預設戰術【對半動態平衡】：
+        // 0. ★ 10m 自衛防線（僅在對半平衡生效）：若警察逼近至 10m 以內，優先集火擊斃近身警察防止被貼臉！
+        const closeCop = findPolice(10);
+        if (closeCop) return closeCop;
+
         // 1. 直升機防空
         const heli = findHeli();
         if (heli) return heli;
@@ -1312,11 +1428,12 @@
           updateGangUI();
         }
       } else if (target.kind === 'police') {
-        // 對警察 1 倍傷害
+        // 對警察特化傷害：步槍 35，手槍 25
+        const personDmg = isPistol ? 25 : 35;
         const off = target.body?.userData?.officer;
         const wasAlive = off ? (off.state !== 'dead' && off.hp > 0) : true;
         if (target.body?.onDamage) {
-          target.body.onDamage({ amount: dmg, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
+          target.body.onDamage({ amount: personDmg, source: 'gang', weapon: wpnKind, dir: aimDir, point: { x: targetX, y: targetY, z: targetZ } });
         }
         if (wasAlive && off && (off.state === 'dead' || off.hp <= 0)) {
           window.__gangSystem.kills.police++;
@@ -1328,6 +1445,16 @@
     // 每幀更新循環
     update(dt) {
       if (!this.active) return;
+
+      // 強制將剛體維持在物理世界，防止因 state = 'return' 被引擎剔除，導致玩家子彈無法命中
+      if (this.body) {
+        this.body.active = true;
+        try {
+          if (g.dynamics && g.dynamics.bodies && g.dynamics.bodies.indexOf(this.body) === -1) {
+            g.dynamics.add(this.body);
+          }
+        } catch(e) {}
+      }
 
       // ★ 動態修補：確保剛體回調絕對不會被引擎覆蓋，徹底解決「第一波招募無敵」問題！
       if (this.body && this.body.onDamage !== this._handleDmg) {
@@ -1347,11 +1474,11 @@
           this.updateHpBar();
         }
 
-        // ★ 自動回血機制：每 20 秒回復 50 滴血 (20% 血量)
-        if (Date.now() - this.lastHealTime > 20000) {
+        // ★ 自動回血機制：每 30 秒回復 25 滴血 (10% 血量)
+        if (Date.now() - this.lastHealTime > 30000) {
           this.lastHealTime = Date.now();
           if (this.hp > 0 && this.hp < this.maxHp) {
-            this.hp = Math.min(this.maxHp, this.hp + 50);
+            this.hp = Math.min(this.maxHp, this.hp + 25);
             this.officer.hp = this.hp;
             this.updateHpBar();
             // 閃爍綠光代表回血
@@ -1757,7 +1884,7 @@
     if (manual) {
       sys.members = sys.members.filter(m => m && m.active && m.officer && m.hp >= 1 && m.officer.state !== 'dead');
       let added = 0;
-      while (sys.members.length < target && added < 8) {
+      while (sys.members.length < target && added < 16) {
         added++;
         const idx = sys.members.length;
         const mob = new GangMember(idx);
@@ -2087,6 +2214,35 @@
         window.__activeTaxiReinforcements.splice(i, 1);
         updateGangUI();
       }
+    }
+  }
+
+  // ★ 自動補充兄弟：人數只剩 <= 1/4 時自動派遣皇冠計程車支援
+  function checkAutoReinforce() {
+    const sys = window.__gangSystem;
+    if (!sys || !sys.autoReinforce || sys.targetCount <= 0) return;
+
+    // 清洗過濾存活人數
+    const aliveCount = sys.members.filter(m => m.active && m.officer && m.officer.active && m.hp >= 1 && m.officer.state !== 'dead').length;
+    // 門檻：人數只剩 1/4 (例如 12人剩 <=3人, 8人剩 <=2人, 4人剩 <=1人, 2人剩 0人)
+    const threshold = Math.floor(sys.targetCount / 4);
+
+    if (aliveCount <= threshold && aliveCount < sys.targetCount) {
+      // 檢查是否已有計程車在趕來的路上（避免重複派車）
+      const hasActiveTaxi = window.__activeTaxiReinforcements && window.__activeTaxiReinforcements.some(t => !t.spawned);
+      if (hasActiveTaxi) return;
+
+      const now = Date.now();
+      if (now - (sys.lastAutoReinforceTime || 0) < 10000) return; // 冷卻防抖 10 秒
+      sys.lastAutoReinforceTime = now;
+
+      g.events?.emit?.('notify', {
+        text: { zh: `⚠️ 堂口兄弟傷亡慘重 (僅存 ${aliveCount}/${sys.targetCount})，自動派遣皇冠計程車增援！`, en: `Squad low (${aliveCount}/${sys.targetCount}), auto dispatching taxi!` },
+        kind: 'bad', duration: 4.0
+      });
+
+      // 自動派遣計程車！
+      callTaxiReinforcements();
     }
   }
 
@@ -2705,21 +2861,20 @@
 
     <!-- ★ 隱藏時顯示的頂部居中展開小膠囊 ★ -->
     <div id="btn-restore-hud" class="tgta-btn tgta-restore-dock" title="點擊展開外掛UI">🕶️ 展開外掛</div>
-    <div id="btn-toggle-hud" class="tgta-hide-ui-btn" title="隱藏外掛UI">👁️</div>
     <!-- ★ 頂部快捷開關（固定置中式） ★ -->
     <div class="tgta-top-dock">
-      <div id="btn-toggle-fly" class="tgta-btn tgta-dock-btn">🪽 飛行</div>
-      <div id="btn-toggle-swords" class="tgta-btn tgta-dock-btn">⚔️ 光劍</div>
-      <div id="btn-toggle-gang" class="tgta-btn tgta-dock-btn">🕶️ 黑道堂口</div>
-      <div id="btn-toggle-tp-map" class="tgta-btn tgta-dock-btn map-btn">🗺️ 傳送地圖</div>
-      <div id="btn-dock-hide" class="tgta-btn tgta-dock-btn hide-dock-btn" title="隱藏外掛所有按鈕">👁️ 隱藏UI</div>
+      <div id="btn-toggle-fly" class="tgta-btn tgta-dock-btn" title="飛行">🪽</div>
+      <div id="btn-toggle-parkour" class="tgta-btn tgta-dock-btn" title="跑酷">🏃</div>
+      <div id="btn-toggle-swords" class="tgta-btn tgta-dock-btn" title="光劍">⚔️</div>
+      <div id="btn-toggle-gang" class="tgta-btn tgta-dock-btn" title="黑道堂口">🕶️</div>
+      <div id="btn-dock-hide" class="tgta-btn tgta-dock-btn hide-dock-btn" title="隱藏外掛所有按鈕">👁️</div>
     </div>
 
     <!-- 🕶️ 黑道堂口專屬設定面板（固定置中） -->
     <div id="tgta-gang-card" class="tgta-gang-panel">
       <div class="tgta-gang-title">
         <span>🕶️ 堂口支援 (多樣化武器武裝部隊)</span>
-        <span id="btn-close-gang" style="cursor:pointer;font-size:16px;">✕</span>
+        <span id="btn-close-gang" style="cursor:pointer;font-size:16px; padding:6px 12px; margin:-6px -12px;">✕</span>
       </div>
 
       <div class="tgta-stepper">
@@ -2730,11 +2885,11 @@
 
       <div class="tgta-presets">
         <div class="tgta-btn tgta-preset-btn" data-cnt="0">解散</div>
-        <div class="tgta-btn tgta-preset-btn" data-cnt="1">1名</div>
         <div class="tgta-btn tgta-preset-btn" data-cnt="2">2名</div>
         <div class="tgta-btn tgta-preset-btn" data-cnt="4">4名</div>
         <div class="tgta-btn tgta-preset-btn" data-cnt="6">6名</div>
         <div class="tgta-btn tgta-preset-btn" data-cnt="8">8名</div>
+        <div class="tgta-btn tgta-preset-btn" data-cnt="12">12名</div>
       </div>
 
       <div class="tgta-wpn-title">武器設定：</div>
@@ -2773,6 +2928,11 @@
         🕶️ 補充兄弟+計程車 (快捷鍵: B)
       </div>
 
+      <label id="lbl-auto-reinforce" style="margin-top:6px; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:#ffdd88; user-select:none; background:rgba(255,200,50,0.12); padding:6px 10px; border-radius:6px; border:1px solid rgba(255,200,50,0.3);">
+        <input type="checkbox" id="chk-auto-reinforce" style="width:16px; height:16px; accent-color:#f5c518; cursor:pointer;">
+        <span>🚕 自動補充兄弟 (人數僅剩 1/4 時自動派遣計程車)</span>
+      </label>
+
       <div id="gang-stats-box" class="tgta-gang-stats" style="margin-top:8px;">
         兄弟造型：<span class="tgta-stat-hl" style="color:#ffd700;">★ 耀眼純金戰袍 (頭頂「江湖黑道」)</span><br>
         地圖標記：<span class="tgta-stat-hl" style="color:#00ffcc;">★ 專屬金底黑字「黑」圖標</span><br>
@@ -2782,6 +2942,7 @@
         兄弟血量：<span class="tgta-stat-hl">250 HP (警察血量 100)</span><br>
         警方仇恨：<span class="tgta-stat-hl" style="color:#ff4466;">★ 警方優先攻擊黑道</span><br>
         兄弟存活：<span id="stat-gang-alive" class="tgta-stat-hl">4</span> 人<br>
+        自動補兵：<span id="stat-gang-autoreinforce" class="tgta-stat-hl" style="color:#888888;">未開啟</span><br>
         殲滅員警：<span id="stat-gang-cops" class="tgta-stat-hl">0</span> 名 | 
         摧毀警車：<span id="stat-gang-cars" class="tgta-stat-hl">0</span> 輛<br>
         擊落空勤直升機：<span id="stat-gang-heli" class="tgta-stat-hl">0</span> 架
@@ -2798,9 +2959,9 @@
   document.body.appendChild(hudWrap);
 
   const btnFly = document.getElementById('btn-toggle-fly');
+  const btnParkour = document.getElementById('btn-toggle-parkour');
   const btnSwords = document.getElementById('btn-toggle-swords');
   const btnGang = document.getElementById('btn-toggle-gang');
-  const btnTpMap = document.getElementById('btn-toggle-tp-map');
   const gangCard = document.getElementById('tgta-gang-card');
   const btnCloseGang = document.getElementById('btn-close-gang');
   const btnGangMinus = document.getElementById('btn-gang-minus');
@@ -2852,6 +3013,18 @@
       const dead = Math.max(0, sys.targetCount - aliveCount);
       btnCallTaxi.innerText = dead > 0 ? `🕶️ 補充兄弟+計程車 (${dead}人陣亡·按B)` : `🕶️ 補充兄弟+計程車 (全員在線·按B)`;
     }
+
+    const chkAuto = document.getElementById('chk-auto-reinforce');
+    if (chkAuto && chkAuto.checked !== !!sys.autoReinforce) {
+      chkAuto.checked = !!sys.autoReinforce;
+    }
+    const statAuto = document.getElementById('stat-gang-autoreinforce');
+    if (statAuto) {
+      statAuto.innerText = sys.autoReinforce ? '已開啟 (剩餘 ≤ 1/4 自動派遣)' : '未開啟';
+      statAuto.style.color = sys.autoReinforce ? '#33ff88' : '#888888';
+    }
+
+    checkAutoReinforce();
   }
 
   // 監聽選單/大地圖狀態，開啟時自動隱藏 HUD，關閉時自動還原
@@ -2872,6 +3045,10 @@
     if (btnFly) {
       if (window.__flyModeEnabled) btnFly.classList.add('fly-active');
       else btnFly.classList.remove('fly-active');
+    }
+    if (btnParkour) {
+      if (window.__parkourModeEnabled) btnParkour.classList.add('fly-active');
+      else btnParkour.classList.remove('fly-active');
     }
     if (btnSwords) {
       if (window.__swordsEnabled) btnSwords.classList.add('swords-active');
@@ -2981,25 +3158,13 @@
   }
 
   // 綁定頂部快捷按鈕
-  bindTouchTap(btnFly, toggleFlyMode);
+  bindTouchTap(btnFly, () => toggleFlyMode(false));
+  bindTouchTap(btnParkour, () => toggleFlyMode(true));
   bindTouchTap(btnSwords, toggleSwords);
   bindTouchTap(btnGang, () => {
     window.__gangSystem.isPanelOpen = !window.__gangSystem.isPanelOpen;
     gangCard.classList.toggle('open', window.__gangSystem.isPanelOpen);
     updateGangUI();
-  });
-  bindTouchTap(btnTpMap, () => {
-    const fullmap = g.ui?._debug?.fullmap;
-    if (fullmap) {
-      window.__mapTeleportEnabled = true;
-      setupMapTeleportHook();
-      updateTpBadgeVisuals();
-      if (!fullmap.isOpen) {
-        fullmap.open();
-      } else {
-        fullmap.requestClose();
-      }
-    }
   });
 
   const btnToggleHud = document.getElementById('btn-toggle-hud');
@@ -3011,23 +3176,12 @@
     hudHidden = hidden;
     if (hudHidden) {
       hudWrap.classList.add('hud-wrap-hidden');
-      if (btnToggleHud) {
-        btnToggleHud.innerText = '🙈';
-        btnToggleHud.title = '點擊展開外掛UI';
-        btnToggleHud.style.opacity = '0.65';
-      }
     } else {
       hudWrap.classList.remove('hud-wrap-hidden');
-      if (btnToggleHud) {
-        btnToggleHud.innerText = '👁️';
-        btnToggleHud.title = '隱藏外掛UI';
-        btnToggleHud.style.opacity = '1.0';
-      }
     }
     try { g.audio?.play?.('ui_click', { volume: 0.8 }); } catch (err) {}
   }
 
-  bindTouchTap(btnToggleHud, () => setHudVisibility(!hudHidden));
   bindTouchTap(btnDockHide, () => setHudVisibility(true));
   bindTouchTap(btnRestoreHud, () => setHudVisibility(false));
 
@@ -3054,7 +3208,7 @@
     }
   });
   bindTouchTap(btnGangPlus, () => {
-    if (window.__gangSystem.targetCount < 8) {
+    if (window.__gangSystem.targetCount < 12) {
       window.__gangSystem.targetCount++;
       syncGangMemberCount(true);
       updateHudVisuals();
@@ -3094,6 +3248,17 @@
   bindTouchTap(btnCallTaxi, () => {
     callTaxiReinforcements();
   });
+
+  const chkAuto = document.getElementById('chk-auto-reinforce');
+  if (chkAuto) {
+    chkAuto.addEventListener('change', () => {
+      window.__gangSystem.autoReinforce = chkAuto.checked;
+      updateGangUI();
+      if (chkAuto.checked) {
+        checkAutoReinforce();
+      }
+    });
+  }
 
   // 堂口武器切換按鈕綁定（混編/球棒/空手/手槍/步槍 即時秒切換）
   hudWrap.querySelectorAll('.tgta-wpn-btn').forEach(btn => {
@@ -3222,7 +3387,7 @@
   }
 
   p.integrate = function (rawDt) {
-    if (!window.__flyModeEnabled) {
+    if (!window.__flyModeEnabled && !window.__parkourModeEnabled) {
       return window.__origPlayerIntegrate.apply(this, arguments);
     }
     if (g.vehicles?.playerVehicle) {
@@ -3294,6 +3459,10 @@
     if (isKeyDown('Space', ' ')) moveY = Math.max(moveY, 1);
     if (isKeyDown('KeyC', 'c', 'ShiftRight')) moveY = Math.min(moveY, -1);
 
+    if (window.__parkourModeEnabled && moveY === 0) {
+      moveY = -0.15; // 跑酷模式不動時自動緩降
+    }
+
     const isTurbo = window.__mobileTurboEnabled || isKeyDown('ShiftLeft', 'Shift', 'KeyE', 'e');
     const flySpeed = isTurbo ? 68.0 : 25.0;
 
@@ -3326,9 +3495,15 @@
   let camRight = new T.Vector3();
   window.__mobileVert = 0;
 
-  function toggleFlyMode() {
-    window.__flyModeEnabled = !window.__flyModeEnabled;
-    const isFlying = window.__flyModeEnabled;
+  function toggleFlyMode(isParkour = false) {
+    if (isParkour) {
+      window.__parkourModeEnabled = !window.__parkourModeEnabled;
+      if (window.__parkourModeEnabled) window.__flyModeEnabled = false;
+    } else {
+      window.__flyModeEnabled = !window.__flyModeEnabled;
+      if (window.__flyModeEnabled) window.__parkourModeEnabled = false;
+    }
+    const isFlying = window.__flyModeEnabled || window.__parkourModeEnabled;
 
     if (isFlying) {
       try {
@@ -3346,8 +3521,8 @@
       g.audio?.play?.(isFlying ? 'whoosh' : 'ui_menu', { volume: 0.9, rate: isFlying ? 1.3 : 0.9 });
       g.events?.emit('notify', {
         text: {
-          zh: isFlying ? '🪽 天神全載具飛行：已啟動！（徒步/機車/轎車皆支援飛行）' : '🪽 天神全載具飛行：已降落關閉（獲得 8 秒安全著陸防摔傷）',
-          en: isFlying ? 'Vehicle & Foot Flight Activated!' : 'Flight Deactivated!'
+          zh: isFlying ? (isParkour ? '🏃 跑酷模式：已啟動！（自動緩降）' : '🪽 天神飛行：已啟動！') : (isParkour ? '🏃 跑酷模式：已關閉' : '🪽 天神飛行：已降落關閉（獲得 8 秒著陸保護）'),
+          en: isFlying ? 'Mode Activated!' : 'Mode Deactivated!'
         },
         kind: isFlying ? 'good' : 'neutral',
         duration: 3.0
@@ -3808,6 +3983,36 @@
     try { g.cameraRig?.shake?.(0.4); } catch (e) {}
     try { breakables?.blast?.(x, z, EXPLOSION_RADIUS); } catch (e) {}
     try { g.peds?.panic?.(x, z, 35); g.traffic?.panic?.(x, z, 35); } catch (e) {}
+
+    // ★ 核心修復：強制黑道兄弟受到爆炸波及，防止因物理引擎脫離導致無敵 ★
+    if (window.__gangSystem && window.__gangSystem.members && !window.__gangSystem.godMode) {
+      for (let m of window.__gangSystem.members) {
+        if (!m.active || !m.officer) continue;
+        const dx = m.officer.x - x;
+        const dz = m.officer.z - z;
+        const dist = Math.hypot(dx, dz);
+        if (dist <= EXPLOSION_RADIUS) {
+          const factor = 1 - (dist / EXPLOSION_RADIUS);
+          const dmg = Math.round(80 + (MAX_DAMAGE - 80) * factor * factor);
+          m.takeDamage({ amount: dmg, source: 'explosion' });
+          
+          // 爆炸擊飛效果
+          const nx = dx / (dist || 1);
+          const nz = dz / (dist || 1);
+          m.isFling = true;
+          m.flingVx = nx * 15 * factor;
+          m.flingVz = nz * 15 * factor;
+          m.flingVy = 6 * factor;
+          m.flingTimer = Date.now() + 1400;
+          if (m.officer) {
+            m.officer.state = 'down';
+            m.officer.fall = 1.0;
+            m.officer.downT = 0;
+            m.officer.flinch = 1.0;
+          }
+        }
+      }
+    }
 
     blastBodies.length = 0;
     const count = g.dynamics.query(x, z, EXPLOSION_RADIUS, blastBodies);
